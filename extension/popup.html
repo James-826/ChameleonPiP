@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>ChameleonPiP 变色龙光学画中画</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <img src="icons/icon48.png?v=5.0" alt="Chameleon" class="brand-icon" />
+        <div>
+          <h1>ChameleonPiP 变色龙画中画</h1>
+          <p id="statusText">底层桌面原色透射 · 60fps 光学融合</p>
+        </div>
+      </div>
+      <button id="btnBossToggle" class="boss-pill" title="快捷键 Ctrl + Shift + B">
+        老板键 ⌃⇧B
+      </button>
+    </header>
+
+    <div class="launch-stack">
+      <button id="btnMacGhost" class="btn-primary">
+        <span>投送到桌面无边框投影窗 (60fps)</span>
+        <span class="kbd">⌃⇧G</span>
+      </button>
+      <button id="btnInPageParasite" class="btn-secondary">
+        仅在当前网页内投影悬浮
+      </button>
+      <button id="btnOpenArena" class="btn-secondary" style="border-color:rgba(52,211,153,0.4);color:#6ee7b7;font-weight:600">
+        全球潜伏排行榜 · 称号 · 线上耐力 PK
+      </button>
+    </div>
+
+    <section class="section" id="liveVideoCard">
+      <div class="row-between" style="margin-bottom:6px">
+        <span class="section-title">实时视频播放控制</span>
+        <span id="popTime" style="font-size:10.5px;color:#94a3b8;font-variant-numeric:tabular-nums">00:00 / 00:00</span>
+      </div>
+      <div class="pop-scrubber" id="popTrack" title="点击或拖拽实时跳转进度">
+        <div class="pop-scrubber-bg"><div class="pop-scrubber-fill" id="popFill"></div></div>
+      </div>
+      <div class="pop-tp-row">
+        <button type="button" class="pop-tp-btn" id="popBack">-10s</button>
+        <button type="button" class="pop-tp-btn primary" id="popPlay">▶ 播放</button>
+        <button type="button" class="pop-tp-btn" id="popFwd">+10s</button>
+        <button type="button" class="pop-tp-btn" id="popMute">静音</button>
+        <button type="button" class="pop-tp-btn" id="popRate">1.0x</button>
+      </div>
+    </section>
+
+    <section class="section hero-slider-card">
+      <div class="slider-head">
+        <span class="hero-label">投影浓度（底层色彩始终原样透出）</span>
+        <strong id="valStealth" class="hero-val">58%</strong>
+      </div>
+      <input type="range" id="rngStealth" min="10" max="95" step="1" value="58" />
+      <div class="preset-marks">
+        <button type="button" class="mark-btn" data-val="25">25% 极淡微影</button>
+        <button type="button" class="mark-btn" data-val="45">45% 轻柔融合</button>
+        <button type="button" class="mark-btn" data-val="60">60% 标准投影</button>
+        <button type="button" class="mark-btn" data-val="85">85% 清晰浓郁</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="row-between" style="margin-bottom:8px">
+        <span class="section-title" style="margin:0">光学投影方式</span>
+      </div>
+      <div class="seg-group" style="grid-template-columns:repeat(3,1fr)" id="modeTabs">
+        <button class="seg-item mode-tab" data-mode="projector" title="像投影仪打在墙上：底层红绿保持红绿，叠加视频完整明暗光影">
+          光影投影
+        </button>
+        <button class="seg-item mode-tab" data-mode="emboss" title="仅将视频的凹凸立体纹理雕刻在底层桌面上">
+          浮雕纹理
+        </button>
+        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面透射混合">
+          彩透投影
+        </button>
+      </div>
+
+      <div class="slider-row" style="margin-top:10px">
+        <div class="slider-head">
+          <span>边缘消框柔化</span>
+          <strong id="valFeather">28%</strong>
+        </div>
+        <input type="range" id="rngFeather" min="0" max="80" step="1" value="28" />
+      </div>
+    </section>
+
+    <section class="section toggles">
+      <label class="toggle-item">
+        <span>同步 B站 / YouTube 网页字幕</span>
+        <input type="checkbox" id="chkSubtitles" />
+      </label>
+    </section>
+
+    <footer class="footer">
+      <span>可在屏幕顶部系统菜单栏图标或小窗四角直接调整</span>
+    </footer>
+
+    <script src="gecko-core.js?v=4.0"></script>
+    <script src="popup.js?v=4.0"></script>
+  </body>
+</html>

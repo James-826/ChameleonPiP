@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>GeckoPiP</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 296px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.92);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+        font-size: 12px;
+        padding: 12px;
+        user-select: none;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 2px 9px;
+      }
+      .head-title { font-size: 12.5px; font-weight: 600; letter-spacing: -0.01em; }
+      .head-actions { display: flex; gap: 5px; }
+      .mini-top-btn {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.78); border-radius: 5px;
+        padding: 3px 7px; font-size: 10.5px; cursor: pointer;
+      }
+      .mini-top-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+      .group {
+        background: rgba(255,255,255,0.065);
+        border: 0.5px solid rgba(255,255,255,0.11);
+        border-radius: 10px; padding: 10px; margin-bottom: 8px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+
+      /* Live Video Now-Playing Module */
+      .np-head {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 11px; color: rgba(255,255,255,0.72);
+      }
+      .np-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-weight: 600; color: #fff;
+      }
+      .live-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #30d158; box-shadow: 0 0 6px rgba(48, 209, 88, 0.8);
+      }
+      .live-dot.paused { background: rgba(255,255,255,0.35); box-shadow: none; }
+
+      .scrubber-wrap { display: flex; flex-direction: column; gap: 3px; }
+      .scrubber-track {
+        width: 100%; height: 14px; display: flex; align-items: center; cursor: pointer;
+      }
+      .scrubber-bg {
+        width: 100%; height: 4px; border-radius: 999px;
+        background: rgba(255,255,255,0.2); overflow: hidden;
+        transition: height 0.12s ease;
+      }
+      .scrubber-track:hover .scrubber-bg { height: 6px; }
+      .scrubber-fill {
+        height: 100%; width: 0%; background: #fff; border-radius: 999px;
+      }
+      .time-row {
+        display: flex; justify-content: space-between;
+        font-size: 10px; font-variant-numeric: tabular-nums;
+        color: rgba(255,255,255,0.6);
+      }
+
+      .transport-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      }
+      .tp-btn {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.07); color: #fff;
+        height: 28px; padding: 0 9px; border-radius: 7px;
+        font-size: 11px; font-weight: 600; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      .tp-btn:hover { background: rgba(255,255,255,0.17); }
+      .tp-btn.primary {
+        flex: 1.2;
+        background: rgba(10, 132, 255, 0.88);
+        border-color: rgba(255,255,255,0.22);
+      }
+      .tp-btn.primary:hover { background: rgba(10, 132, 255, 1); }
+
+      .vol-row {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 10.5px; color: rgba(255,255,255,0.72);
+      }
+      .vol-row input[type="range"] { flex: 1; height: 3.5px; accent-color: #fff; cursor: pointer; }
+
+      .tiles {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;
+      }
+      .tile {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.06);
+        color: rgba(255,255,255,0.75);
+        border-radius: 9px; padding: 7px 10px;
+        font-size: 11px; font-weight: 500; cursor: pointer;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .tile:hover { background: rgba(255,255,255,0.12); color: #fff; }
+      .tile.active {
+        background: rgba(10, 132, 255, 0.85);
+        border-color: rgba(255,255,255,0.2);
+        color: #fff; font-weight: 600;
+      }
+      .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); }
+      .tile.active .dot { background: #fff; }
+
+      .seg {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        background: rgba(0,0,0,0.28); padding: 2px; border-radius: 7px; gap: 2px;
+      }
+      .seg-b {
+        appearance: none; border: none; background: transparent;
+        color: rgba(255,255,255,0.65); font-size: 11px; font-weight: 500;
+        padding: 5px 2px; border-radius: 5.5px; cursor: pointer;
+      }
+      .seg-b.active {
+        background: rgba(255,255,255,0.2);
+        color: #fff; font-weight: 600;
+      }
+
+      .s-row { display: flex; flex-direction: column; gap: 3px; }
+      .s-head { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.75); }
+      .s-head strong { color: #fff; font-variant-numeric: tabular-nums; font-weight: 600; }
+      input[type="range"] { width: 100%; height: 4px; accent-color: #0a84ff; cursor: pointer; }
+
+      .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+      .strip.three { grid-template-columns: repeat(3, 1fr); }
+      .mb {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.82);
+        border-radius: 6px; padding: 4.5px 2px; font-size: 10.5px; cursor: pointer; text-align: center;
+      }
+      .mb:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+      .foot { font-size: 10px; color: rgba(255,255,255,0.44); text-align: center; }
+
+      body.island-mode {
+        width: 100%;
+        padding: 44px 14px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <span class="head-title">光学投影画中画</span>
+      <div class="head-actions">
+        <button class="mini-top-btn" id="btnOpenMp4">打开本地视频</button>
+        <button class="mini-top-btn" id="btnQuit">退出</button>
+      </div>
+    </div>
+
+    <!-- Real-Time Video Playback Controller -->
+    <div class="group">
+      <div class="np-head">
+        <span class="np-badge">
+          <span class="live-dot paused" id="liveDot"></span>
+          <span id="lblPlayStatus">实时视频控制</span>
+        </span>
+        <span style="font-size:10.5px;opacity:0.75">60 FPS</span>
+      </div>
+
+      <div class="scrubber-wrap">
+        <div class="scrubber-track" id="menuTrack" title="点击或拖拽实时跳转视频进度">
+          <div class="scrubber-bg"><div class="scrubber-fill" id="menuFill"></div></div>
+        </div>
+        <div class="time-row">
+          <span id="lblCur">00:00</span>
+          <span id="lblDur">03:00</span>
+        </div>
+      </div>
+
+      <div class="transport-row">
+        <button class="tp-btn" id="btnBack" title="快退 10 秒">-10s</button>
+        <button class="tp-btn primary" id="btnPlay" title="播放 / 暂停">▶ 播放</button>
+        <button class="tp-btn" id="btnFwd" title="快进 10 秒">+10s</button>
+        <button class="tp-btn" id="btnRate" title="切换倍速">1.0x</button>
+      </div>
+
+      <div class="vol-row">
+        <button class="mini-top-btn" id="btnMute" style="padding:2px 6px">静音</button>
+        <input type="range" id="rngVol" min="0" max="100" value="100" />
+        <span id="lblVol" style="min-width:28px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <button class="tile active" id="btnVis"><span>显示投影</span><span class="dot"></span></button>
+      <button class="tile" id="btnThrough"><span>鼠标穿透</span><span class="dot"></span></button>
+      <button class="tile" id="btnBoss"><span>老板键隐藏</span><span class="dot"></span></button>
+      <button class="tile active" id="btnCapture"><span>防截屏保护</span><span class="dot"></span></button>
+    </div>
+
+    <div class="group">
+      <div class="seg">
+        <button class="seg-b active" data-mode="projector">光影投影</button>
+        <button class="seg-b" data-mode="emboss">浮雕纹理</button>
+        <button class="seg-b" data-mode="cinema">彩透投影</button>
+      </div>
+
+      <div class="s-row">
+        <div class="s-head"><span>投影浓度</span><strong id="lblStealth">58%</strong></div>
+        <input type="range" id="rngStealth" min="10" max="95" value="58" />
+      </div>
+
+      <div class="s-row">
+        <div class="s-head"><span>边缘消框柔化</span><strong id="lblFeather">28%</strong></div>
+        <input type="range" id="rngFeather" min="0" max="80" value="28" />
+      </div>
+    </div>
+
+    <div class="group" style="margin-bottom:6px">
+      <div class="strip three">
+        <button class="mb" data-size="260">小 260</button>
+        <button class="mb" data-size="392">中 392</button>
+        <button class="mb" data-size="520">大 520</button>
+      </div>
+      <div class="strip">
+        <button class="mb" data-corner="tl">↖ 左上</button>
+        <button class="mb" data-corner="tr">↗ 右上</button>
+        <button class="mb" data-corner="bl">↙ 左下</button>
+        <button class="mb" data-corner="br">↘ 右下</button>
+      </div>
+    </div>
+
+    <div class="foot">⌃⇧G 显隐 · ⌃⇧B 老板键 · ⌃⇧M 鼠标穿透</div>
+
+    <script>
+      (function () {
+        if (location.search.includes("island=1")) {
+          document.body.classList.add("island-mode");
+        }
+        let ui = {
+          visible: true,
+          bossMode: false,
+          clickThrough: false,
+          captureHide: true,
+          mode: "projector",
+          stealth: 58,
+          feather: 28,
+        };
+        let player = {
+          paused: true,
+          currentTime: 0,
+          duration: 180,
+          muted: false,
+          volume: 1.0,
+          playbackRate: 1.0,
+        };
+        let scrubbing = false;
+
+        function fmtTime(sec) {
+          if (!Number.isFinite(sec) || sec < 0) return "00:00";
+          const t = Math.floor(sec);
+          const m = Math.floor(t / 60);
+          const s = t % 60;
+          return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        }
+
+        function sendHost(payload) {
+          if (window.GeckoDesktopBridge?.send) window.GeckoDesktopBridge.send(payload);
+          else if (window.webkit?.messageHandlers?.menuAction) window.webkit.messageHandlers.menuAction.postMessage(payload);
+        }
+
+        function renderPlayer() {
+          const paused = Boolean(player.paused);
+          document.getElementById("liveDot").classList.toggle("paused", paused);
+          document.getElementById("lblPlayStatus").textContent = paused ? "已暂停 · 点击播放" : "正在实时投影播放";
+          document.getElementById("btnPlay").textContent = paused ? "▶ 播放" : "⏸ 暂停";
+
+          const dur = player.duration > 0 ? player.duration : 180;
+          const cur = Math.max(0, Math.min(dur, player.currentTime || 0));
+          if (!scrubbing) {
+            const pct = dur > 0 ? (cur / dur) * 100 : 0;
+            document.getElementById("menuFill").style.width = `${pct.toFixed(2)}%`;
+          }
+          document.getElementById("lblCur").textContent = fmtTime(cur);
+          document.getElementById("lblDur").textContent = fmtTime(dur);
+
+          const rate = Number(player.playbackRate || 1);
+          document.getElementById("btnRate").textContent = `${rate.toFixed(rate % 1 === 0 ? 1 : 2).replace(/\.00$/, ".0")}x`;
+
+          const volPct = player.muted ? 0 : Math.round((player.volume ?? 1) * 100);
+          document.getElementById("btnMute").textContent = player.muted || volPct === 0 ? "已静音" : "音量";
+          if (document.activeElement !== document.getElementById("rngVol")) {
+            document.getElementById("rngVol").value = String(volPct);
+          }
+          document.getElementById("lblVol").textContent = `${volPct}%`;
+        }
+
+        function render() {
+          document.getElementById("btnVis").classList.toggle("active", ui.visible);
+          document.getElementById("btnBoss").classList.toggle("active", ui.bossMode);
+          document.getElementById("btnThrough").classList.toggle("active", ui.clickThrough);
+          document.getElementById("btnCapture").classList.toggle("active", ui.captureHide);
+
+          document.querySelectorAll(".seg-b").forEach((b) => {
+            b.classList.toggle("active", b.dataset.mode === ui.mode);
+          });
+
+          if (document.activeElement !== document.getElementById("rngStealth")) {
+            document.getElementById("rngStealth").value = ui.stealth;
+          }
+          document.getElementById("lblStealth").textContent = `${ui.stealth}%`;
+          if (document.activeElement !== document.getElementById("rngFeather")) {
+            document.getElementById("rngFeather").value = ui.feather;
+          }
+          document.getElementById("lblFeather").textContent = `${ui.feather}%`;
+          renderPlayer();
+        }
+
+        // Real-time Scrubber Seek
+        const track = document.getElementById("menuTrack");
+        function seekAt(clientX) {
+          const r = track.getBoundingClientRect();
+          const ratio = Math.max(0, Math.min(1, (clientX - r.left) / Math.max(1, r.width)));
+          const dur = player.duration > 0 ? player.duration : 180;
+          const targetTime = ratio * dur;
+          player.currentTime = targetTime;
+          document.getElementById("menuFill").style.width = `${(ratio * 100).toFixed(2)}%`;
+          document.getElementById("lblCur").textContent = fmtTime(targetTime);
+          sendHost({ action: "playerCmd", cmd: { action: "seekTo", value: targetTime } });
+        }
+        track.addEventListener("mousedown", (e) => {
+          scrubbing = true;
+          seekAt(e.clientX);
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (scrubbing) seekAt(e.clientX);
+        });
+        window.addEventListener("mouseup", () => {
+          scrubbing = false;
+        });
+
+        document.getElementById("btnPlay").addEventListener("click", () => {
+          player.paused = !player.paused;
+          renderPlayer();
+          sendHost({ action: "playerCmd", cmd: { action: "togglePlay" } });
+        });
+        document.getElementById("btnBack").addEventListener("click", () => {
+          sendHost({ action: "playerCmd", cmd: { action: "seek", delta: -10 } });
+        });
+        document.getElementById("btnFwd").addEventListener("click", () => {
+          sendHost({ action: "playerCmd", cmd: { action: "seek", delta: 10 } });
+        });
+        const rates = [1.0, 1.25, 1.5, 2.0];
+        document.getElementById("btnRate").addEventListener("click", () => {
+          const next = rates[(rates.indexOf(Number(player.playbackRate || 1)) + 1) % rates.length];
+          player.playbackRate = next;
+          renderPlayer();
+          sendHost({ action: "playerCmd", cmd: { action: "setRate", value: next } });
+        });
+        document.getElementById("btnMute").addEventListener("click", () => {
+          player.muted = !player.muted;
+          renderPlayer();
+          sendHost({ action: "playerCmd", cmd: { action: "toggleMute" } });
+        });
+        document.getElementById("rngVol").addEventListener("input", (e) => {
+          const v = Number(e.target.value) / 100;
+          player.volume = v;
+          player.muted = v === 0;
+          renderPlayer();
+          sendHost({ action: "playerCmd", cmd: { action: "setVolume", value: v } });
+        });
+
+        document.getElementById("btnVis").addEventListener("click", () => {
+          ui.visible = !ui.visible; render(); sendHost({ action: "setVisible", value: ui.visible });
+        });
+        document.getElementById("btnBoss").addEventListener("click", () => {
+          ui.bossMode = !ui.bossMode; render(); sendHost({ action: "setBoss", value: ui.bossMode });
+        });
+        document.getElementById("btnThrough").addEventListener("click", () => {
+          ui.clickThrough = !ui.clickThrough; render(); sendHost({ action: "setClickThrough", value: ui.clickThrough });
+        });
+        document.getElementById("btnCapture").addEventListener("click", () => {
+          ui.captureHide = !ui.captureHide; render(); sendHost({ action: "setCaptureHide", value: ui.captureHide });
+        });
+
+        document.querySelectorAll(".seg-b").forEach((b) => {
+          b.addEventListener("click", () => {
+            ui.mode = b.dataset.mode; render(); sendHost({ action: "patchState", patch: { mode: ui.mode } });
+          });
+        });
+
+        document.getElementById("rngStealth").addEventListener("input", (e) => {
+          ui.stealth = Number(e.target.value); render(); sendHost({ action: "patchState", patch: { stealth: ui.stealth } });
+        });
+        document.getElementById("rngFeather").addEventListener("input", (e) => {
+          ui.feather = Number(e.target.value); render(); sendHost({ action: "patchState", patch: { feather: ui.feather } });
+        });
+
+        document.querySelectorAll("[data-size]").forEach((b) => {
+          b.addEventListener("click", () => {
+            const w = Number(b.dataset.size);
+            sendHost({ action: "resizeWindow", width: w, height: Math.round((w * 9) / 16) });
+          });
+        });
+        document.querySelectorAll("[data-corner]").forEach((b) => {
+          b.addEventListener("click", () => sendHost({ action: "snapCorner", corner: b.dataset.corner }));
+        });
+
+        document.getElementById("btnOpenMp4").addEventListener("click", () => sendHost({ action: "openLocalMp4" }));
+        document.getElementById("btnQuit").addEventListener("click", () => sendHost({ action: "quitApp" }));
+
+        window.GeckoMenuBridge = {
+          sync(nextUi) { ui = { ...ui, ...nextUi }; render(); },
+          syncPlayer(nextPlayer) { player = { ...player, ...nextPlayer }; renderPlayer(); },
+        };
+        render();
+      })();
+    </script>
+  </body>
+</html>

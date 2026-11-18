@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent !important;
+        user-select: none;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .pip-root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+      }
+
+      .pip-root.hovered:not(.boss-active) {
+        box-shadow: inset 0 0 0 1.5px rgba(52, 211, 153, 0.45);
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+      }
+      .stage:active { cursor: grabbing; }
+
+      .media-el {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: transparent !important;
+        pointer-events: none;
+        will-change: transform;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+      }
+
+      /* Optional CRT Scanline overlay in `pixel` mode */
+      .scanline-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background-image: repeating-linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0.22) 0px,
+          rgba(0, 0, 0, 0.22) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+      }
+      .pip-root[data-mode="pixel"] .scanline-overlay {
+        opacity: 1;
+      }
+
+      .subtitle-el {
+        position: absolute;
+        bottom: 14px;
+        left: 8%;
+        right: 8%;
+        text-align: center;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.35;
+        pointer-events: none;
+        transition: bottom 0.18s ease, color 0.2s ease;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      }
+      .pip-root.hovered .subtitle-el {
+        bottom: 66px;
+      }
+
+      /* Top & Bottom Hover Glass Bars */
+      .hud-top {
+        position: absolute;
+        top: 0; left: 0; right: 0; height: 44px;
+        padding: 7px 10px;
+        display: flex; align-items: center; justify-content: space-between;
+        background: linear-gradient(to bottom, rgba(8, 12, 18, 0.84) 0%, rgba(8, 12, 18, 0.35) 70%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+      }
+      .hud-bottom {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        padding: 10px 14px 10px 12px;
+        display: flex; flex-direction: column; gap: 6px;
+        background: linear-gradient(to top, rgba(8, 12, 18, 0.9) 0%, rgba(8, 12, 18, 0.5) 72%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+      }
+      .pip-root.hovered:not(.boss-active) .hud-top,
+      .pip-root.hovered:not(.boss-active) .hud-bottom {
+        opacity: 1; pointer-events: auto;
+      }
+
+      .pill-group {
+        display: inline-flex; align-items: center;
+        background: rgba(18, 24, 34, 0.78);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 7px; padding: 2px; gap: 1px;
+      }
+      .seg-btn {
+        appearance: none; border: none; background: transparent;
+        color: rgba(226, 232, 240, 0.8); font-size: 10.5px; font-weight: 500;
+        padding: 3px 7px; border-radius: 5px; cursor: pointer;
+      }
+      .seg-btn:hover { color: #fff; }
+      .seg-btn.active { background: rgba(52, 211, 153, 0.25); color: #a7f3d0; font-weight: 600; }
+
+      .icon-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(18, 24, 34, 0.72);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        color: #e2e8f0; height: 25px; padding: 0 7px; border-radius: 6px;
+        display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        font-size: 10.5px; cursor: pointer;
+      }
+      .icon-btn:hover { background: rgba(255, 255, 255, 0.18); color: #fff; }
+
+      .progress-row { display: flex; align-items: center; gap: 8px; }
+      .progress-track { flex: 1; height: 12px; display: flex; align-items: center; cursor: pointer; }
+      .progress-bg { width: 100%; height: 3.5px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); overflow: hidden; }
+      .progress-track:hover .progress-bg { height: 5.5px; }
+      .progress-fill { height: 100%; width: 0%; background: #34d399; border-radius: 999px; }
+      .time-label { font-size: 10px; font-variant-numeric: tabular-nums; color: rgba(226, 232, 240, 0.85); white-space: nowrap; }
+
+      .ctrl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+      .ctrl-left { display: flex; align-items: center; gap: 2px; }
+      .mini-ctrl {
+        appearance: none; border: none; background: transparent; color: #f1f5f9;
+        width: 24px; height: 22px; border-radius: 5px;
+        display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      }
+      .mini-ctrl:hover { background: rgba(255, 255, 255, 0.15); }
+      .rate-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.08); color: #e2e8f0;
+        border-radius: 5px; padding: 2px 5px; font-size: 10px; font-weight: 600; cursor: pointer;
+      }
+
+      .sliders-inline {
+        display: inline-flex; align-items: center; gap: 5px;
+      }
+      .gecko-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        background: rgba(18, 24, 34, 0.76); border: 1px solid rgba(52, 211, 153, 0.32);
+        border-radius: 999px; padding: 2px 7px; font-size: 10px; color: #d1fae5;
+      }
+      .gecko-pill input[type="range"] { width: 48px; height: 3px; accent-color: #34d399; cursor: pointer; }
+      .gecko-pct { min-width: 24px; text-align: right; font-weight: 600; color: #6ee7b7; font-variant-numeric: tabular-nums; }
+
+      /* 8-Way Direct Resize Handles on Borderless Window */
+      .rz { position: absolute; z-index: 35; }
+      .rz-n  { top: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+      .rz-s  { bottom: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+      .rz-e  { right: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+      .rz-w  { left: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+      .rz-nw { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+      .rz-ne { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+      .rz-sw { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+      .rz-se {
+        right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize;
+        color: rgba(110, 231, 183, 0.85);
+        display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px;
+        opacity: 0; transition: opacity 0.15s ease;
+      }
+      .pip-root.hovered:not(.boss-active) .rz-se { opacity: 1; }
+
+      .idle-card {
+        padding: 18px 20px; border-radius: 14px;
+        background: rgba(14, 20, 28, 0.92); backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e2e8f0; font-size: 12px; line-height: 1.55; text-align: center; max-width: 90%;
+      }
+      .idle-btns { margin-top: 12px; display: flex; justify-content: center; gap: 8px; }
+      .cta-btn {
+        appearance: none; border: 1px solid rgba(52, 211, 153, 0.45);
+        background: linear-gradient(135deg, #059669, #0d9488);
+        color: #fff; font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+      }
+      .cta-btn.sec { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.18); }
+
+      .pip-root.boss-active .stage,
+      .pip-root.boss-active .idle-card { opacity: 0 !important; pointer-events: none !important; }
+      .boss-recover {
+        position: absolute; display: none; padding: 6px 12px; border-radius: 999px;
+        background: rgba(15, 23, 32, 0.9); border: 1px solid rgba(251, 191, 36, 0.5);
+        color: #fde68a; font-size: 11px; font-weight: 600; cursor: pointer; z-index: 40;
+      }
+      .pip-root.boss-active.hovered .boss-recover { display: inline-flex; }
+    </style>
+    <style id="dynFeather"></style>
+  </head>
+  <body>
+    <svg style="position:absolute;width:0;height:0;pointer-events:none" xmlns="http://www.w3.org/2000/svg">
+      <defs id="svgDefs"></defs>
+    </svg>
+
+    <div class="pip-root" id="pipRoot" data-mode="projector">
+      <div class="hud-top">
+        <div class="pill-group">
+          <button class="seg-btn active" data-mode="projector" title="光学投影：底层红绿背景原样透出，叠加视频明暗纹理">光影</button>
+          <button class="seg-btn" data-mode="emboss" title="浮雕纹理：将视频凹凸轮廓雕刻在底层桌面上">浮雕</button>
+          <button class="seg-btn" data-mode="cinema" title="彩透投影：保留轻度原片色彩并透出桌面背景">彩透</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="icon-btn" data-size="280" title="小尺寸">S</button>
+          <button class="icon-btn" data-size="392" title="中尺寸">M</button>
+          <button class="icon-btn" data-size="520" title="大尺寸">L</button>
+          <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（可在顶部系统菜单栏解锁）"></button>
+          <button class="icon-btn" id="btnBoss" title="老板键隐藏"></button>
+        </div>
+      </div>
+
+      <div class="stage" id="stage" style="display:none">
+        <canvas id="streamCanvas" class="media-el" width="512" height="288"></canvas>
+        <video id="localVideo" class="media-el" style="display:none" autoplay loop playsinline></video>
+        <div class="subtitle-el" id="subtitleEl"></div>
+      </div>
+
+      <div class="hud-bottom" id="hudBottom" style="display:none">
+        <div class="progress-row">
+          <div class="progress-track" id="progressTrack">
+            <div class="progress-bg"><div class="progress-fill" id="progressFill"></div></div>
+          </div>
+          <span class="time-label" id="timeLabel">00:00 / 00:00</span>
+        </div>
+
+        <div class="ctrl-row">
+          <div class="ctrl-left">
+            <button class="mini-ctrl" id="btnPlayPause"></button>
+            <button class="mini-ctrl" id="btnBack10"></button>
+            <button class="mini-ctrl" id="btnFwd10"></button>
+            <button class="mini-ctrl" id="btnMute"></button>
+            <button class="rate-btn" id="btnRate">1.0x</button>
+          </div>
+
+          <div class="sliders-inline">
+            <label class="gecko-pill" title="光学投影浓度（底层颜色始终透出）">
+              <span>浓度</span>
+              <input type="range" id="rngStealth" min="10" max="95" value="58" />
+              <span class="gecko-pct" id="lblStealth">58%</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="rz rz-n" data-dir="n"></div>
+      <div class="rz rz-s" data-dir="s"></div>
+      <div class="rz rz-e" data-dir="e"></div>
+      <div class="rz rz-w" data-dir="w"></div>
+      <div class="rz rz-nw" data-dir="nw"></div>
+      <div class="rz rz-ne" data-dir="ne"></div>
+      <div class="rz rz-sw" data-dir="sw"></div>
+      <div class="rz rz-se" data-dir="se" id="cornerGrip" title="按住拖拽调整小窗尺寸"></div>
+
+      <div class="idle-card" id="idleCard">
+        <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙光学投影画中画已就绪</div>
+        <div style="color:#94a3b8">可在顶部摄像头灵动刘海控制/查看排行PK，也可直接拖拽四角自由缩放：</div>
+        <div class="idle-btns">
+          <button class="cta-btn" id="btnTryDemo">播放演示视频</button>
+          <button class="cta-btn sec" id="btnOpenMp4">打开本地 MP4</button>
+        </div>
+      </div>
+
+      <button class="boss-recover" id="btnRecoverBoss">已隐藏并暂停 · 点击恢复播放</button>
+    </div>
+
+    <canvas id="demoGenCanvas" width="480" height="270" style="display:none"></canvas>
+
+    <script src="gecko-core.js?v=4.2"></script>
+    <script>
+      if (!window.GeckoCore) {
+        document.write('<script src="../extension/gecko-core.js?v=4.2"><\/script>');
+      }
+    </script>
+    <script src="chameleon-stats.js?v=5.2"></script>
+    <script>
+      if (!window.ChameleonStats) {
+        document.write('<script src="../extension/chameleon-stats.js?v=5.2"><\/script>');
+      }
+    </script>
+    <script>
+      (function () {
+        const Core = window.GeckoCore;
+        let state = { ...Core.DEFAULT_STATE };
+        let player = { paused: true, currentTime: 0, duration: 180, muted: false, volume: 1.0, playbackRate: 1.0 };
+        let isHovering = false;
+        let isTyping = false;
+        let hasLiveChromeStream = false;
+        let demoRunning = false;
+        let lastPlayerSyncAt = 0;
+        let decodingBitmap = false;
+        let ws = null;
+
+        const root = document.getElementById("pipRoot");
+        const svgDefs = document.getElementById("svgDefs");
+        const stage = document.getElementById("stage");
+        const hudBottom = document.getElementById("hudBottom");
+        const idleCard = document.getElementById("idleCard");
+        const streamCanvas = document.getElementById("streamCanvas");
+        const localVideo = document.getElementById("localVideo");
+        const dynFeather = document.getElementById("dynFeather");
+        const subtitleEl = document.getElementById("subtitleEl");
+
+        // -------------------------------------------------------------------
+        // 60-120Hz Apple Metal WebGL Optical Projector Engine
+        // Eliminates WebKit's slow CPU SVG <filter> completely in WKWebView!
+        // -------------------------------------------------------------------
+        function createWebGlProjector(canvas) {
+          const gl =
+            canvas.getContext("webgl", {
+              alpha: true,
+              premultipliedAlpha: true,
+              preserveDrawingBuffer: true,
+              antialias: false,
+              depth: false,
+              stencil: false,
+              powerPreference: "high-performance",
+            }) || null;
+          if (!gl) return null;
+
+          const vsSrc = `
+            attribute vec2 aPos;
+            varying vec2 vUv;
+            void main() {
+              vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5);
+              gl_Position = vec4(aPos, 0.0, 1.0);
+            }
+          `;
+          const fsSrc = `
+            precision mediump float;
+            varying vec2 vUv;
+            uniform sampler2D uTex;
+            uniform int uMode;
+            uniform float uIntensity;
+            uniform float uPivot;
+            uniform float uFeather;
+            uniform vec2 uTexel;
+
+            void main() {
+              float fx = 1.0;
+              float fy = 1.0;
+              if (uFeather > 0.01) {
+                float pad = uFeather * 0.05;
+                float span = 0.04 + uFeather * 0.26;
+                fx = smoothstep(pad, pad + span, vUv.x) * smoothstep(pad, pad + span, 1.0 - vUv.x);
+                fy = smoothstep(pad, pad + span, vUv.y) * smoothstep(pad, pad + span * 0.75, 1.0 - vUv.y);
+              }
+              float mask = fx * fy;
+              if (mask <= 0.002) {
+                gl_FragColor = vec4(0.0);
+                return;
+              }
+
+              vec4 src = texture2D(uTex, vUv);
+              float lum = dot(src.rgb, vec3(0.2126, 0.7152, 0.0722));
+
+              if (uMode == 0) {
+                float k = clamp(uIntensity * 0.94, 0.06, 0.94);
+                float cLum = clamp((lum - uPivot) * 1.16 + uPivot, 0.0, 1.0);
+                if (cLum < uPivot) {
+                  float aDark = clamp(k * ((uPivot - cLum) / max(0.05, uPivot)), 0.0, 0.95) * mask;
+                  gl_FragColor = vec4(0.0, 0.0, 0.0, aDark);
+                } else {
+                  float aLight = clamp(k * ((cLum - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.95) * mask;
+                  gl_FragColor = vec4(aLight, aLight, aLight, aLight);
+                }
+                return;
+              }
+
+              if (uMode == 1) {
+                vec3 tl = texture2D(uTex, vUv - uTexel * 1.35).rgb;
+                vec3 br = texture2D(uTex, vUv + uTexel * 1.35).rgb;
+                float lTl = dot(tl, vec3(0.2126, 0.7152, 0.0722));
+                float lBr = dot(br, vec3(0.2126, 0.7152, 0.0722));
+                float gain = 1.5 + uIntensity * 2.8;
+                float diff = (lBr - lTl) * gain;
+                if (abs(diff) < 0.018) {
+                  gl_FragColor = vec4(0.0);
+                } else if (diff < 0.0) {
+                  float a = clamp(-diff * uIntensity * 1.35, 0.0, 0.95) * mask;
+                  gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+                } else {
+                  float a = clamp(diff * uIntensity * 1.35, 0.0, 0.95) * mask;
+                  gl_FragColor = vec4(a, a, a, a);
+                }
+                return;
+              }
+
+              float a = clamp(uIntensity * 0.88, 0.08, 0.92) * mask;
+              vec3 rgb = clamp(src.rgb * 1.08, 0.0, 1.0);
+              gl_FragColor = vec4(rgb * a, a);
+            }
+          `;
+
+          function compile(type, src) {
+            const sh = gl.createShader(type);
+            gl.shaderSource(sh, src);
+            gl.compileShader(sh);
+            return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null;
+          }
+          const vs = compile(gl.VERTEX_SHADER, vsSrc);
+          const fs = compile(gl.FRAGMENT_SHADER, fsSrc);
+          if (!vs || !fs) return null;
+
+          const prog = gl.createProgram();
+          gl.attachShader(prog, vs);
+          gl.attachShader(prog, fs);
+          gl.linkProgram(prog);
+          if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+          gl.useProgram(prog);
+
+          const buf = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+          const locPos = gl.getAttribLocation(prog, "aPos");
+          gl.enableVertexAttribArray(locPos);
+          gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 0, 0);
+
+          const tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+          const uMode = gl.getUniformLocation(prog, "uMode");
+          const uIntensity = gl.getUniformLocation(prog, "uIntensity");
+          const uPivot = gl.getUniformLocation(prog, "uPivot");
+          const uFeather = gl.getUniformLocation(prog, "uFeather");
+          const uTexel = gl.getUniformLocation(prog, "uTexel");
+          let hasTexture = false;
+          let texW = 512;
+          let texH = 288;
+
+          function drawCurrent(st) {
+            if (!hasTexture) return;
+            if (canvas.width !== texW || canvas.height !== texH) {
+              canvas.width = texW;
+              canvas.height = texH;
+              gl.viewport(0, 0, texW, texH);
+            }
+            const m = st.mode === "emboss" ? 1 : st.mode === "cinema" ? 2 : 0;
+            let pivot = 0.48;
+            if (st.autoSense && st.bgColor) {
+              const lum = Core.getLuminance(st.bgColor);
+              if (lum > 0.86) pivot = 0.72;
+              else if (lum < 0.14) pivot = 0.28;
+            }
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.uniform1i(uMode, m);
+            gl.uniform1f(uIntensity, Core.clamp(Number(st.stealth ?? 58) / 100, 0.08, 0.96));
+            gl.uniform1f(uPivot, pivot);
+            gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.8));
+            gl.uniform2f(uTexel, 1 / Math.max(1, texW), 1 / Math.max(1, texH));
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          }
+
+          return {
+            uploadAndDraw(source, w, h, st) {
+              texW = w || source.videoWidth || source.width || 512;
+              texH = h || source.videoHeight || source.height || 288;
+              gl.bindTexture(gl.TEXTURE_2D, tex);
+              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+              hasTexture = true;
+              drawCurrent(st);
+            },
+            redraw(st) {
+              drawCurrent(st);
+            },
+          };
+        }
+
+        const glProjector = createWebGlProjector(streamCanvas);
+        const fallbackCtx = glProjector ? null : streamCanvas.getContext("2d", { alpha: false, desynchronized: true });
+
+        document.getElementById("btnThrough").innerHTML = Core.ICONS.cursorThrough;
+        document.getElementById("btnBoss").innerHTML = Core.ICONS.eyeHide;
+        document.getElementById("btnBack10").innerHTML = Core.ICONS.back10;
+        document.getElementById("btnFwd10").innerHTML = Core.ICONS.fwd10;
+        document.getElementById("cornerGrip").innerHTML = Core.ICONS.resizeGrip;
+
+        document.addEventListener("mouseenter", () => {
+          isHovering = true;
+          root.classList.add("hovered");
+        });
+        document.addEventListener("mouseleave", () => {
+          isHovering = false;
+          root.classList.remove("hovered");
+        });
+
+        function postNative(payload) {
+          if (window.GeckoDesktopBridge?.send) {
+            window.GeckoDesktopBridge.send(payload);
+          } else if (window.webkit?.messageHandlers?.ghostAction) {
+            window.webkit.messageHandlers.ghostAction.postMessage(payload);
+          }
+        }
+
+        function broadcastStateUpdate(patch) {
+          state = { ...state, ...patch };
+          render();
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "statePatch", patch }));
+          }
+          postNative({ action: "stateChanged", state });
+        }
+
+        function notifyHostPlayer(force = false) {
+          const now = performance.now();
+          if (!force && now - lastPlayerSyncAt < 180) return;
+          lastPlayerSyncAt = now;
+          postNative({ action: "playerChanged", player });
+        }
+
+        function renderPlayerControls(forceHost = false) {
+          document.getElementById("btnPlayPause").innerHTML = player.paused ? Core.ICONS.play : Core.ICONS.pause;
+          document.getElementById("btnMute").innerHTML = player.muted ? Core.ICONS.volMute : Core.ICONS.volOn;
+          document.getElementById("btnRate").textContent = `${Number(player.playbackRate || 1).toFixed(
+            player.playbackRate % 1 === 0 ? 1 : 2
+          ).replace(/\.00$/, ".0")}x`;
+          const dur = player.duration > 0 ? player.duration : 0;
+          const cur = Core.clamp(player.currentTime || 0, 0, dur || Infinity);
+          const pct = dur > 0 ? (cur / dur) * 100 : 0;
+          document.getElementById("progressFill").style.width = `${pct.toFixed(2)}%`;
+          document.getElementById("timeLabel").textContent = `${Core.formatTime(cur)} / ${Core.formatTime(dur)}`;
+          notifyHostPlayer(forceHost);
+        }
+
+        let lastAppliedFeatherKey = "";
+        function render() {
+          root.classList.toggle("boss-active", Boolean(state.bossMode));
+          root.setAttribute("data-mode", state.mode);
+
+          if (glProjector) {
+            streamCanvas.style.filter = "none";
+            glProjector.redraw(state);
+          } else {
+            const activeMedia = hasLiveChromeStream ? streamCanvas : localVideo;
+            Core.applySvgFilterToMedia(svgDefs, activeMedia, state, { isHovering, isTyping });
+            const fKey = `${state.feather}:${state.mode}`;
+            if (fKey !== lastAppliedFeatherKey) {
+              lastAppliedFeatherKey = fKey;
+              dynFeather.textContent = Core.buildFeatherRuleCss(".media-el", state.feather, state.mode);
+            }
+          }
+
+          subtitleEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : state.inkColor;
+
+          document.querySelectorAll(".seg-btn").forEach((b) => {
+            b.classList.toggle("active", b.dataset.mode === state.mode);
+          });
+          document.getElementById("rngStealth").value = state.stealth;
+          document.getElementById("lblStealth").textContent = `${state.stealth}%`;
+          renderPlayerControls(false);
+        }
+
+        function sendPlayerCmd(action, extra = {}) {
+          if (hasLiveChromeStream && ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "cmd", action, ...extra }));
+            if (action === "togglePlay") player.paused = !player.paused;
+            else if (action === "toggleMute") player.muted = !player.muted;
+            else if (action === "setVolume" && Number.isFinite(extra.value)) {
+              player.volume = Core.clamp(extra.value, 0, 1);
+              player.muted = player.volume === 0;
+            } else if (action === "setRate" && Number.isFinite(extra.value)) {
+              player.playbackRate = extra.value;
+            } else if (action === "seekTo" && Number.isFinite(extra.value)) {
+              player.currentTime = extra.value;
+            } else if (action === "seek") {
+              player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, player.duration || Infinity);
+            }
+            renderPlayerControls(true);
+            return;
+          }
+
+          // If idle and user clicks Play from the Menu Bar, auto-start the built-in 60fps demo!
+          if (!demoRunning && localVideo.style.display === "none" && (action === "togglePlay" || action === "play")) {
+            startBuiltInDemo();
+            return;
+          }
+
+          if (localVideo.style.display !== "none") {
+            if (demoRunning && !hasLiveChromeStream && localVideo.srcObject) {
+              if (action === "togglePlay") player.paused = !player.paused;
+              else if (action === "play") player.paused = false;
+              else if (action === "pause") player.paused = true;
+              else if (action === "seek") player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, 180);
+              else if (action === "seekTo") player.currentTime = Core.clamp(extra.value, 0, 180);
+              else if (action === "setRate") player.playbackRate = extra.value;
+              else if (action === "toggleMute") player.muted = !player.muted;
+              else if (action === "setVolume" && Number.isFinite(extra.value)) {
+                player.volume = Core.clamp(extra.value, 0, 1);
+                player.muted = player.volume === 0;
+              }
+              renderPlayerControls(true);
+              return;
+            }
+            if (action === "togglePlay") {
+              if (localVideo.paused) localVideo.play().catch(() => {});
+              else localVideo.pause();
+            } else if (action === "play") {
+              localVideo.play().catch(() => {});
+            } else if (action === "pause") {
+              localVideo.pause();
+            } else if (action === "seek") {
+              localVideo.currentTime = Math.max(0, localVideo.currentTime + Number(extra.delta || 0));
+            } else if (action === "seekTo" && Number.isFinite(localVideo.duration)) {
+              localVideo.currentTime = Core.clamp(extra.value, 0, localVideo.duration);
+            } else if (action === "toggleMute") {
+              localVideo.muted = !localVideo.muted;
+            } else if (action === "setVolume" && Number.isFinite(extra.value)) {
+              localVideo.volume = Core.clamp(extra.value, 0, 1);
+              localVideo.muted = localVideo.volume === 0;
+            } else if (action === "setRate") {
+              localVideo.playbackRate = extra.value;
+            }
+            syncLocalVideoState(true);
+          }
+        }
+
+        function syncLocalVideoState(forceHost = false) {
+          if (hasLiveChromeStream || demoRunning) return;
+          player.paused = localVideo.paused;
+          player.muted = localVideo.muted || localVideo.volume === 0;
+          player.volume = localVideo.volume;
+          player.playbackRate = localVideo.playbackRate || 1;
+          if (Number.isFinite(localVideo.duration) && localVideo.duration > 0) {
+            player.currentTime = localVideo.currentTime;
+            player.duration = localVideo.duration;
+          }
+          renderPlayerControls(Boolean(forceHost));
+        }
+        localVideo.addEventListener("timeupdate", () => syncLocalVideoState(false));
+        localVideo.addEventListener("play", () => syncLocalVideoState(true));
+        localVideo.addEventListener("pause", () => syncLocalVideoState(true));
+        localVideo.addEventListener("volumechange", () => syncLocalVideoState(true));
+        localVideo.addEventListener("ratechange", () => syncLocalVideoState(true));
+
+        function startBuiltInDemo() {
+          if (hasLiveChromeStream) return;
+          demoRunning = true;
+          player.paused = false;
+          const c = document.getElementById("demoGenCanvas");
+          const ctx = c.getContext("2d", { alpha: false, desynchronized: true });
+          let t = 0;
+          let lastTs = performance.now();
+          function tick(now) {
+            if (!demoRunning || hasLiveChromeStream) return;
+            const dt = Math.min(0.05, Math.max(0.004, (now - lastTs) / 1000));
+            lastTs = now;
+            if (!player.paused) {
+              t += dt * 2.1 * (player.playbackRate || 1);
+              player.currentTime = (player.currentTime + dt * (player.playbackRate || 1)) % 180;
+            }
+            const w = c.width, h = c.height;
+            const g = ctx.createLinearGradient(0, 0, w, h);
+            g.addColorStop(0, "#7dd3fc");
+            g.addColorStop(1, "#3b82f6");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            for (let x = 0; x <= w; x += 20) ctx.lineTo(x, h * 0.64 + Math.sin(x * 0.02 + t * 0.9) * 22);
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            const cx = w * 0.5 + Math.sin(t * 1.15) * 92;
+            const cy = h * 0.46 + Math.cos(t * 1.9) * 15;
+            ctx.fillStyle = "#111827";
+            ctx.beginPath(); ctx.ellipse(cx, cy + 48, 42, 52, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath(); ctx.arc(cx, cy - 6, 29, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#090d16";
+            ctx.beginPath(); ctx.arc(cx, cy - 12, 30, Math.PI, Math.PI * 2); ctx.fill();
+            ctx.fillRect(cx - 11, cy - 6, 6, 8);
+            ctx.fillRect(cx + 5, cy - 6, 6, 8);
+
+            ctx.font = "700 15.5px -apple-system, 'PingFang SC', sans-serif";
+            ctx.textAlign = "center";
+            ctx.lineWidth = 4.2;
+            ctx.strokeStyle = "#000";
+            const msg = "60fps 光学投影：拖到红绿或代码背景上，底色原样透出！";
+            ctx.strokeText(msg, w / 2, h - 22);
+            ctx.fillStyle = "#fff";
+            ctx.fillText(msg, w / 2, h - 22);
+
+            if (glProjector) {
+              glProjector.uploadAndDraw(c, w, h, state);
+            }
+            renderPlayerControls(false);
+            requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+          if (glProjector) {
+            streamCanvas.style.display = "block";
+            localVideo.style.display = "none";
+          } else {
+            streamCanvas.style.display = "none";
+            localVideo.style.display = "block";
+            localVideo.srcObject = c.captureStream(60);
+            localVideo.play().catch(() => {});
+          }
+          stage.style.display = "flex";
+          hudBottom.style.display = "flex";
+          idleCard.style.display = "none";
+          render();
+          notifyHostPlayer(true);
+        }
+
+        // Pump local MP4 <video> frames into 60-120Hz WebGL Metal Projector when playing a local file
+        let localGlLoopRunning = false;
+        function startLocalVideoGlPump() {
+          if (!glProjector || localGlLoopRunning) return;
+          localGlLoopRunning = true;
+          function pump() {
+            if (hasLiveChromeStream || demoRunning || !localVideo.src) {
+              localGlLoopRunning = false;
+              return;
+            }
+            if (localVideo.readyState >= 2 && localVideo.videoWidth > 0) {
+              glProjector.uploadAndDraw(localVideo, localVideo.videoWidth, localVideo.videoHeight, state);
+            }
+            requestAnimationFrame(pump);
+          }
+          requestAnimationFrame(pump);
+        }
+
+        document.getElementById("btnTryDemo").addEventListener("click", startBuiltInDemo);
+        document.getElementById("btnOpenMp4").addEventListener("click", () => {
+          postNative({ action: "openLocalMp4" });
+        });
+
+        let pendingBlob = null;
+        function consumeNextStreamBlob() {
+          if (decodingBitmap || !pendingBlob) return;
+          const blob = pendingBlob;
+          pendingBlob = null;
+          decodingBitmap = true;
+          createImageBitmap(blob)
+            .then((bmp) => {
+              decodingBitmap = false;
+              if (glProjector) {
+                glProjector.uploadAndDraw(bmp, bmp.width, bmp.height, state);
+              } else if (fallbackCtx) {
+                if (streamCanvas.width !== bmp.width || streamCanvas.height !== bmp.height) {
+                  streamCanvas.width = bmp.width;
+                  streamCanvas.height = bmp.height;
+                }
+                fallbackCtx.drawImage(bmp, 0, 0);
+              }
+              bmp.close();
+              if (pendingBlob) consumeNextStreamBlob();
+            })
+            .catch(() => {
+              decodingBitmap = false;
+              if (pendingBlob) consumeNextStreamBlob();
+            });
+        }
+
+        function connectHub() {
+          try {
+            ws = new WebSocket("ws://127.0.0.1:51937");
+            ws.binaryType = "blob";
+            ws.onopen = () => ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
+            ws.onmessage = (ev) => {
+              if (ev.data instanceof Blob) {
+                if (!hasLiveChromeStream) {
+                  hasLiveChromeStream = true;
+                  demoRunning = false;
+                  localVideo.pause();
+                  localVideo.srcObject = null;
+                  localVideo.style.display = "none";
+                  streamCanvas.style.display = "block";
+                  stage.style.display = "flex";
+                  hudBottom.style.display = "flex";
+                  idleCard.style.display = "none";
+                  render();
+                }
+                pendingBlob = ev.data;
+                consumeNextStreamBlob();
+                return;
+              }
+              if (typeof ev.data === "string") {
+                try {
+                  const msg = JSON.parse(ev.data);
+                  if (msg.type === "meta") {
+                    // Only sync player progress & subtitle from periodic heartbeats!
+                    // Never clobber the user's mode / stealth / feather set on the Mac Dynamic Island bar!
+                    if (msg.state && typeof msg.state.mirrorSubtitles === "boolean") {
+                      state.mirrorSubtitles = msg.state.mirrorSubtitles;
+                    }
+                    if (msg.player) player = { ...player, ...msg.player };
+                    subtitleEl.textContent = state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "";
+                    renderPlayerControls(false);
+                  } else if (msg.type === "statePatch" && msg.patch) {
+                    const p = { ...msg.patch };
+                    if (p.mode && !["projector", "emboss", "cinema"].includes(p.mode)) {
+                      delete p.mode;
+                    }
+                    state = { ...state, ...p };
+                    render();
+                    postNative({ action: "stateChanged", state });
+                  } else if (msg.type === "streamStopped") {
+                    hasLiveChromeStream = false;
+                    stage.style.display = "none";
+                    hudBottom.style.display = "none";
+                    idleCard.style.display = "block";
+                    player.paused = true;
+                    notifyHostPlayer(true);
+                  }
+                } catch (_) {}
+              }
+            };
+            ws.onclose = () => setTimeout(connectHub, 1000);
+          } catch (_) {
+            setTimeout(connectHub, 1200);
+          }
+        }
+        connectHub();
+
+        // Click on stage toggles Play/Pause; drag moves window in Electron desktop mode
+        let downPt = null;
+        stage.addEventListener("mousedown", (e) => {
+          downPt = { x: e.screenX, y: e.screenY };
+          if (window.GeckoDesktopBridge?.send && e.button === 0) {
+            window.GeckoDesktopBridge.send({ action: "beginDrag" });
+          }
+        });
+        window.addEventListener("mouseup", () => {
+          if (window.GeckoDesktopBridge?.send) {
+            window.GeckoDesktopBridge.send({ action: "endPointerTrack" });
+          }
+        });
+        stage.addEventListener("mouseup", (e) => {
+          if (downPt && Math.hypot(e.screenX - downPt.x, e.screenY - downPt.y) < 5) {
+            sendPlayerCmd("togglePlay");
+          }
+          downPt = null;
+        });
+
+        idleCard.addEventListener("mousedown", (e) => {
+          if (e.target.closest("button")) return;
+          if (window.GeckoDesktopBridge?.send && e.button === 0) {
+            window.GeckoDesktopBridge.send({ action: "beginDrag" });
+          }
+        });
+
+        const track = document.getElementById("progressTrack");
+        let scrubbing = false;
+        const seekFromEv = (e) => {
+          const r = track.getBoundingClientRect();
+          const ratio = Core.clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1);
+          sendPlayerCmd("seekTo", { value: ratio * (player.duration || 180) });
+        };
+        track.addEventListener("mousedown", (e) => { e.stopPropagation(); scrubbing = true; seekFromEv(e); });
+        window.addEventListener("mousemove", (e) => { if (scrubbing) seekFromEv(e); });
+        window.addEventListener("mouseup", () => { scrubbing = false; });
+
+        document.getElementById("btnPlayPause").addEventListener("click", () => sendPlayerCmd("togglePlay"));
+        document.getElementById("btnBack10").addEventListener("click", () => sendPlayerCmd("seek", { delta: -10 }));
+        document.getElementById("btnFwd10").addEventListener("click", () => sendPlayerCmd("seek", { delta: 10 }));
+        document.getElementById("btnMute").addEventListener("click", () => sendPlayerCmd("toggleMute"));
+
+        const rates = [1.0, 1.25, 1.5, 2.0];
+        document.getElementById("btnRate").addEventListener("click", () => {
+          const next = rates[(rates.indexOf(player.playbackRate) + 1) % rates.length];
+          player.playbackRate = next;
+          sendPlayerCmd("setRate", { value: next });
+          renderPlayerControls();
+        });
+
+        document.querySelectorAll(".seg-btn").forEach((b) => {
+          b.addEventListener("click", () => broadcastStateUpdate({ mode: b.dataset.mode }));
+        });
+        document.querySelectorAll("[data-size]").forEach((b) => {
+          b.addEventListener("click", () => {
+            const w = Number(b.dataset.size);
+            postNative({ action: "resizeWindow", width: w, height: Math.round((w * 9) / 16) });
+          });
+        });
+
+        document.querySelectorAll(".rz").forEach((h) => {
+          h.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            postNative({ action: "beginResize", dir: h.dataset.dir });
+          });
+        });
+
+        document.getElementById("rngStealth").addEventListener("input", (e) => {
+          broadcastStateUpdate({ stealth: Number(e.target.value) });
+        });
+
+        document.getElementById("btnThrough").addEventListener("click", () => postNative({ action: "enableClickThrough" }));
+        document.getElementById("btnBoss").addEventListener("click", () => postNative({ action: "setBoss", value: true }));
+        document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
+
+        window.GeckoNativeBridge = {
+          onMacSensor(sensor) {
+            isTyping = Boolean(sensor.isTyping);
+            if (state.autoSense) {
+              const prevLum = Core.getLuminance(state.bgColor);
+              const patch = Core.computeAutoScenePatch(sensor, state);
+              state.bgColor = Core.lerpColor(state.bgColor, patch.bgColor, 0.45);
+              state.inkColor = Core.deriveAutoInkColor(state.bgColor, sensor.archetype);
+              subtitleEl.style.color = state.inkColor;
+              const nextLum = Core.getLuminance(state.bgColor);
+              const prevBucket = prevLum > 0.86 ? 2 : prevLum < 0.14 ? 0 : 1;
+              const nextBucket = nextLum > 0.86 ? 2 : nextLum < 0.14 ? 0 : 1;
+              if (prevBucket !== nextBucket) render();
+            }
+          },
+          applyPatch(patch) {
+            state = { ...state, ...patch };
+            render();
+            if (ws?.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "statePatch", patch }));
+            }
+          },
+          execPlayerCmd(cmd) {
+            sendPlayerCmd(cmd.action, cmd);
+          },
+          setBossMode(val) {
+            state.bossMode = Boolean(val);
+            render();
+            if (ws?.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "cmd", action: state.bossMode ? "pause" : "play" }));
+            }
+          },
+          loadLocalVideo(fileUrl) {
+            hasLiveChromeStream = false;
+            demoRunning = false;
+            localVideo.srcObject = null;
+            localVideo.src = fileUrl;
+            localVideo.muted = false;
+            if (glProjector) {
+              streamCanvas.style.display = "block";
+              localVideo.style.display = "none";
+              startLocalVideoGlPump();
+            } else {
+              streamCanvas.style.display = "none";
+              localVideo.style.display = "block";
+            }
+            localVideo.play().catch(() => {});
+            stage.style.display = "flex";
+            hudBottom.style.display = "flex";
+            idleCard.style.display = "none";
+            render();
+            notifyHostPlayer(true);
+          },
+        };
+
+        // Automatically record slacking time & sync to global cloud leaderboard while playing in PiP window
+        let pipPausedSec = 0;
+        let tickCount = 0;
+        setInterval(() => {
+          const S = window.ChameleonStats;
+          if (!S) return;
+          const isActivelyPlaying =
+            !state.bossMode &&
+            !player.paused &&
+            (hasLiveChromeStream || demoRunning || (localVideo.src && !localVideo.paused));
+          const p = S.loadProfile();
+          if (isActivelyPlaying) {
+            pipPausedSec = 0;
+            p.totalSeconds = (p.totalSeconds || 0) + 1;
+            p.todaySeconds = (p.todaySeconds || 0) + 1;
+            p.currentStreakSeconds = (p.currentStreakSeconds || 0) + 1;
+            if (p.currentStreakSeconds > (p.bestStreakSeconds || 0)) {
+              p.bestStreakSeconds = p.currentStreakSeconds;
+            }
+            S.saveProfile(p);
+          } else if (p.currentStreakSeconds > 0) {
+            pipPausedSec += 1;
+            if (state.bossMode || pipPausedSec > 10) {
+              p.currentStreakSeconds = 0;
+              if (state.bossMode) p.bossDodges = (p.bossDodges || 0) + 1;
+              pipPausedSec = 0;
+              S.saveProfile(p);
+            }
+          }
+
+          tickCount += 1;
+          if (isActivelyPlaying && tickCount % 12 === 0) {
+            const modeLabel = `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`;
+            fetch(`${S.getApiBase()}/api/heartbeat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: p.userId,
+                nickname: p.nickname,
+                city: p.city,
+                country: p.country,
+                regionCode: p.regionCode,
+                industry: p.industry,
+                mode: modeLabel,
+                currentStreakSeconds: p.currentStreakSeconds,
+                bestStreakSeconds: p.bestStreakSeconds,
+                todaySeconds: p.todaySeconds,
+                totalSeconds: p.totalSeconds,
+                pkElo: p.pkElo,
+                pkWins: p.pkWins,
+                pkLosses: p.pkLosses,
+                live: true,
+              }),
+            }).catch(() => {});
+          }
+        }, 1000);
+
+        render();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>GeckoGhost</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.geckopip.ghost</string>
+  <key>CFBundleName</key>
+  <string>GeckoGhost</string>
+  <key>CFBundleDisplayName</key>
+  <string>变色龙画中画 ChameleonPiP</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>5.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>5</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.geckopip.ghost.url</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>geckoghost</string>
+      </array>
+    </dict>
+  </array>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+  </dict>
+</dict>
+</plist>

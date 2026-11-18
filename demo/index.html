@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChameleonPiP 5.0 变色龙 — 光学投影融合体验台</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh;
+        background: #0b0e13;
+        color: #e2e8f0;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+        display: grid;
+        grid-template-columns: 316px 1fr;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .sidebar {
+        background: #10141b;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+        overflow-y: auto;
+        max-height: 100vh;
+      }
+      .brand-row { display: flex; align-items: center; gap: 10px; }
+      .brand-row img { width: 32px; height: 32px; border-radius: 8px; }
+      .brand-row h1 { font-size: 14.5px; font-weight: 700; color: #f8fafc; }
+      .brand-row p { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
+      .card {
+        background: #161c26;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .card-title {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #cbd5e1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .seg-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px;
+        border-radius: 7px;
+        gap: 2px;
+      }
+      .seg-b {
+        appearance: none; border: none; background: transparent;
+        color: rgba(255, 255, 255, 0.65); font-size: 11.5px; font-weight: 500;
+        padding: 6px 2px; border-radius: 5.5px; cursor: pointer;
+      }
+      .seg-b:hover { color: #fff; }
+      .seg-b.active { background: rgba(255, 255, 255, 0.18); color: #fff; font-weight: 600; }
+
+      .slider-group { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; }
+      .slider-group div { display: flex; justify-content: space-between; align-items: center; }
+      .slider-group strong { color: #60a5fa; font-variant-numeric: tabular-nums; }
+      input[type="range"] { width: 100%; height: 4px; accent-color: #0a84ff; cursor: pointer; }
+
+      .mark-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+      .mark-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04); color: #94a3b8;
+        border-radius: 5px; padding: 4px 2px; font-size: 10px; cursor: pointer;
+      }
+      .mark-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+      .raw-compare { display: flex; align-items: center; gap: 10px; }
+      .raw-compare canvas { width: 104px; height: 59px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.16); }
+
+      .file-label {
+        display: block; padding: 6px 10px; border-radius: 7px;
+        border: 1px dashed rgba(255, 255, 255, 0.18); text-align: center;
+        font-size: 11px; color: #94a3b8; cursor: pointer;
+      }
+      .file-label:hover { border-color: #60a5fa; color: #e2e8f0; }
+
+      /* Right Simulated Desktop */
+      .workspace-wrap {
+        padding: 14px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: 100vh;
+      }
+      .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .env-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+      .env-tab {
+        padding: 5px 12px; border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #161c26; color: #94a3b8;
+        font-size: 11.5px; font-weight: 500; cursor: pointer;
+      }
+      .env-tab.active { background: #f1f5f9; color: #0f172a; border-color: #f1f5f9; font-weight: 600; }
+
+      .mock-monitor {
+        position: relative;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+      }
+
+      /* MacBook Dynamic Notch / Island in Top Center of Menu Bar */
+      .os-menubar {
+        position: relative;
+        height: 32px;
+        background: rgba(28, 30, 36, 0.84);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12.5px;
+        color: rgba(255, 255, 255, 0.9);
+        z-index: 60;
+        user-select: none;
+      }
+      .notch-island-bar {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 30px;
+        width: 214px;
+        background: #000000;
+        border-radius: 0 0 11px 11px;
+        border: 0.5px solid rgba(255, 255, 255, 0.14);
+        border-top: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px;
+        z-index: 85;
+      }
+      .notch-ear-btn {
+        appearance: none;
+        border: none;
+        background: transparent;
+        color: #fff;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 6px;
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+      .notch-ear-btn:hover { background: rgba(255, 255, 255, 0.16); }
+      .notch-cam-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #1e293b 35%, #090d16 75%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      /* Dynamic Island Expanded Panel */
+      .menubar-popover {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 312px;
+        background: #050608;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-top: none;
+        border-radius: 0 0 20px 20px;
+        padding: 36px 13px 13px;
+        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.72);
+        z-index: 80;
+        display: none;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .os-left { display: flex; align-items: center; gap: 16px; }
+      .os-right { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+      .menubar-popover.open { display: flex; }
+      .pop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+      .pop-tile {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8);
+        border-radius: 8px; padding: 7px 9px; font-size: 11px; font-weight: 500;
+        cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+      }
+      .pop-tile.active { background: #0a84ff; color: #fff; font-weight: 600; }
+      .pop-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+      .pop-mini {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85);
+        border-radius: 5px; padding: 4px 2px; font-size: 10.5px; cursor: pointer;
+      }
+      .pop-mini:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+      .desktop-body { position: relative; flex: 1; overflow: hidden; }
+
+      /* Multi-Surface Test Desktop: Top-Left VS Code, Bottom-Left Red/Green Split Card, Right White Doc! */
+      .quad-desktop {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+      }
+      .left-col {
+        display: grid;
+        grid-template-rows: 1fr 250px;
+      }
+      .pane-code {
+        background: #1e1e1e;
+        color: #9cdcfe;
+        padding: 20px 24px;
+        font: 12px/1.75 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        overflow: hidden;
+      }
+      /* Red + Green Split Surface right under the initial Projector Window! */
+      .pane-redgreen {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border-top: 1px solid rgba(255,255,255,0.1);
+      }
+      .rg-red {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        padding: 16px 18px;
+        color: rgba(255,255,255,0.9);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .rg-green {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        padding: 16px 18px;
+        color: rgba(255,255,255,0.9);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .pane-doc {
+        background: #ffffff;
+        color: #1f2329;
+        padding: 24px 28px;
+        font: 13.5px/1.8 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        border-left: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .pane-sheet {
+        background: #f4f6f5;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 12px 14px;
+        color: #1e293b;
+        font-size: 12px;
+      }
+
+      /* OPTICAL PROJECTOR WINDOW (0% background fill — 100% projected light & shadow!) */
+      .ghost-pip {
+        position: absolute;
+        left: 76px;
+        bottom: 18px;
+        width: 392px;
+        height: 220px;
+        background: transparent !important;
+        border-radius: 12px;
+        overflow: hidden;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 40;
+      }
+      .ghost-pip.click-through { pointer-events: none !important; }
+      .ghost-pip.hovered:not(.boss-active):not(.click-through) {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+      }
+
+      .pip-stage {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        cursor: grab;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pip-stage:active { cursor: grabbing; }
+      .ghost-pip video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: transparent !important;
+        pointer-events: none;
+        will-change: transform;
+        transform: translateZ(0);
+      }
+
+      /* 8-Direction Resize Handles */
+      .rz { position: absolute; z-index: 35; }
+      .rz-e  { top: 14px; bottom: 14px; right: 0; width: 8px; cursor: ew-resize; }
+      .rz-w  { top: 14px; bottom: 14px; left: 0; width: 8px; cursor: ew-resize; }
+      .rz-s  { left: 14px; right: 14px; bottom: 0; height: 8px; cursor: ns-resize; }
+      .rz-n  { left: 14px; right: 14px; top: 0; height: 8px; cursor: ns-resize; }
+      .rz-se { right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize; display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px; color: rgba(255,255,255,0.85); opacity: 0; transition: opacity 0.15s; }
+      .rz-sw { left: 0; bottom: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+      .rz-ne { right: 0; top: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+      .rz-nw { left: 0; top: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+      .ghost-pip.hovered:not(.boss-active) .rz-se { opacity: 1; }
+
+      /* Clean Hover Player HUD */
+      .pip-hud-top {
+        position: absolute; top: 0; left: 0; right: 0; height: 40px;
+        padding: 6px 9px; display: flex; align-items: center; justify-content: space-between;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.68) 0%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 25;
+      }
+      .pip-hud-bottom {
+        position: absolute; bottom: 0; left: 0; right: 0;
+        padding: 8px 14px 8px 10px; display: flex; flex-direction: column; gap: 5px;
+        background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 25;
+      }
+      .ghost-pip.hovered:not(.boss-active) .pip-hud-top,
+      .ghost-pip.hovered:not(.boss-active) .pip-hud-bottom {
+        opacity: 1; pointer-events: auto;
+      }
+
+      .pip-pills {
+        display: inline-flex; background: rgba(20,22,28,0.72);
+        backdrop-filter: blur(12px); border: 0.5px solid rgba(255,255,255,0.2);
+        border-radius: 7px; padding: 2px; gap: 1px;
+      }
+      .pip-seg {
+        appearance: none; border: none; background: transparent;
+        color: rgba(255,255,255,0.75); font-size: 10.5px; font-weight: 500;
+        padding: 3px 7px; border-radius: 5px; cursor: pointer;
+      }
+      .pip-seg.active { background: rgba(255,255,255,0.22); color: #fff; font-weight: 600; }
+
+      .pip-icon-btn {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.2);
+        background: rgba(20,22,28,0.68); color: #fff;
+        height: 24px; padding: 0 6px; border-radius: 6px; font-size: 10px;
+        display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      }
+      .pip-icon-btn:hover { background: rgba(255,255,255,0.25); }
+
+      .p-row { display: flex; align-items: center; gap: 8px; }
+      .p-track { flex: 1; height: 12px; display: flex; align-items: center; cursor: pointer; }
+      .p-bg { width: 100%; height: 3.5px; border-radius: 999px; background: rgba(255,255,255,0.28); overflow: hidden; }
+      .p-track:hover .p-bg { height: 5.5px; }
+      .p-fill { height: 100%; width: 0%; background: #fff; border-radius: 999px; }
+      .p-time { font-size: 10px; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.9); }
+
+      .c-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+      .c-left { display: flex; align-items: center; gap: 2px; }
+      .m-ctrl {
+        appearance: none; border: none; background: transparent; color: #fff;
+        width: 24px; height: 22px; border-radius: 5px;
+        display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      }
+      .m-ctrl:hover { background: rgba(255,255,255,0.18); }
+      .r-btn {
+        appearance: none; border: 0.5px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.1); color: #fff;
+        border-radius: 5px; padding: 2px 5px; font-size: 10px; font-weight: 600; cursor: pointer;
+      }
+      .g-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: rgba(20,22,28,0.72); border: 0.5px solid rgba(255,255,255,0.22);
+        border-radius: 999px; padding: 2px 8px; font-size: 10px; color: #fff;
+      }
+      .g-pill input[type="range"] { width: 58px; height: 3px; accent-color: #fff; }
+      .g-pct { min-width: 24px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+      .ghost-pip.boss-active .pip-stage { opacity: 0 !important; pointer-events: none !important; }
+      .demo-boss-pill {
+        position: absolute; display: none; padding: 6px 12px; border-radius: 999px;
+        background: rgba(20,22,28,0.88); border: 0.5px solid rgba(255,255,255,0.25);
+        color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; z-index: 30;
+      }
+      .ghost-pip.boss-active.hovered .demo-boss-pill { display: inline-flex; }
+    </style>
+    <style id="demoFeatherStyle"></style>
+  </head>
+  <body>
+    <svg style="position:absolute;width:0;height:0;pointer-events:none" xmlns="http://www.w3.org/2000/svg">
+      <defs id="demoSvgDefs"></defs>
+    </svg>
+
+    <aside class="sidebar">
+      <div class="brand-row">
+        <img src="../extension/icons/icon128.png?v=5.2" alt="ChameleonPiP" />
+        <div>
+          <h1>ChameleonPiP 变色龙光学投影</h1>
+          <p>像变色龙与投影仪结合：底色原样透出 + 视频光影纹理</p>
+        </div>
+      </div>
+
+      <a href="arena.html" style="display:flex;align-items:center;justify-content:space-between;text-decoration:none;padding:9px 12px;border-radius:9px;background:rgba(16,185,129,0.14);border:1px solid rgba(52,211,153,0.38);color:#ecfdf5;font-size:12px;font-weight:600">
+        <span>全球潜伏排行榜 · 线上耐力对战</span>
+        <span>进入 →</span>
+      </a>
+
+      <div class="card">
+        <div class="card-title"><span>三种光学投影模式</span></div>
+        <div class="seg-3">
+          <button class="seg-b mode-sync active" data-mode="projector">光影投影</button>
+          <button class="seg-b mode-sync" data-mode="emboss">浮雕纹理</button>
+          <button class="seg-b mode-sync" data-mode="cinema">彩透投影</button>
+        </div>
+
+        <div class="slider-group" style="margin-top:4px">
+          <div>
+            <span style="font-weight:600;color:#f8fafc">投影浓度</span>
+            <strong id="lblStealth">58%</strong>
+          </div>
+          <input type="range" id="rngStealth" min="10" max="95" value="58" />
+        </div>
+        <div class="mark-row">
+          <button class="mark-btn" data-val="25">25% 微影</button>
+          <button class="mark-btn" data-val="45">45% 轻柔</button>
+          <button class="mark-btn" data-val="60">60% 标准</button>
+          <button class="mark-btn" data-val="85">85% 浓郁</button>
+        </div>
+
+        <div class="slider-group" style="margin-top:4px">
+          <div>
+            <span>边缘消框柔化</span>
+            <strong id="lblFeather">28%</strong>
+          </div>
+          <input type="range" id="rngFeather" min="0" max="80" value="28" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>原视频参考</span></div>
+        <div class="raw-compare">
+          <canvas id="srcCanvas" width="480" height="270"></canvas>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.5">
+            看右侧左下角：小窗横跨在<b>左红右绿</b>背景上，小窗里左边就是红、右边就是绿，而光影和纹理是实时视频！
+          </div>
+        </div>
+        <label class="file-label">
+          选择本地 MP4 视频文件测试投影
+          <input type="file" id="fileVideo" accept="video/*" style="display:none" />
+        </label>
+      </div>
+    </aside>
+
+    <main class="workspace-wrap">
+      <div class="top-bar">
+        <div class="env-tabs">
+          <button class="env-tab active" data-layout="quad" id="tabQuad">多色桌面实测（红绿撞色 + 代码 + 白底文档）</button>
+          <button class="env-tab" data-layout="vscode" id="tabVscode">全屏 VS Code 代码</button>
+          <button class="env-tab" data-layout="feishu" id="tabFeishu">全屏白底文档</button>
+          <a href="arena.html" class="env-tab" style="text-decoration:none;border-color:rgba(52,211,153,0.42);color:#6ee7b7;font-weight:600">全球排行 &amp; 线上耐力 PK</a>
+        </div>
+        <span style="font-size:11.5px;color:#94a3b8">自由拖动小窗到任意颜色/文字上方，或点击模拟系统菜单栏右上角的投影小图标</span>
+      </div>
+
+      <div class="mock-monitor" id="mockMonitor">
+        <!-- MacBook Menu Bar with Center Dynamic Notch Island (灵动刘海) -->
+        <div class="os-menubar">
+          <div class="os-left">
+            <span style="font-weight:700"></span>
+            <span style="font-weight:600">Finder</span>
+            <span style="opacity:0.75">文件</span>
+            <span style="opacity:0.75">编辑</span>
+            <span style="opacity:0.75">显示</span>
+            <span style="opacity:0.75">前往</span>
+          </div>
+
+          <div class="notch-island-bar" id="notchIslandBar" title="鼠标移入或点击刘海即可展开灵动岛实时控制">
+            <button class="notch-ear-btn" id="mbPlay" title="点击左耳：实时播放/暂停">
+              <span style="width:6px;height:6px;border-radius:50%;background:#30d158;display:inline-block"></span>
+              <span id="mbPlayGlyph">⏸</span>
+            </button>
+            <span class="notch-cam-dot" title="MacBook 摄像头刘海"></span>
+            <button class="notch-ear-btn" id="btnTopBarTrigger" title="移入或点击展开灵动岛面板"></button>
+          </div>
+
+          <div class="os-right">
+            <span style="opacity:0.8">Wi-Fi</span>
+            <span style="opacity:0.8">100%</span>
+            <span style="opacity:0.9">周三 15:30</span>
+          </div>
+        </div>
+
+        <!-- Clean Apple Vibrancy Menu Bar Popover with Real-Time Video Scrubber -->
+        <div class="menubar-popover" id="topBarPopover">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:12px;color:#fff">光学投影画中画</strong>
+            <span style="font-size:10px;color:rgba(255,255,255,0.55)">60 FPS 实时同步</span>
+          </div>
+
+          <!-- Live Video Scrubber Module -->
+          <div style="background:rgba(255,255,255,0.07);border:0.5px solid rgba(255,255,255,0.12);border-radius:9px;padding:8px 9px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;color:rgba(255,255,255,0.8)">
+              <span id="popStatus">正在实时投影播放</span>
+              <span id="popTime" style="font-variant-numeric:tabular-nums">00:34 / 03:00</span>
+            </div>
+            <div class="p-track" id="popTrack" title="拖拽实时控制视频进度">
+              <div class="p-bg"><div class="p-fill" id="popFill"></div></div>
+            </div>
+            <div class="pop-strip" style="grid-template-columns:1fr 1.3fr 1fr 1fr">
+              <button class="pop-mini" id="popBack">-10s</button>
+              <button class="pop-mini" id="popPlay" style="background:#0a84ff;color:#fff;font-weight:600">⏸ 暂停</button>
+              <button class="pop-mini" id="popFwd">+10s</button>
+              <button class="pop-mini" id="popRate">1.0x</button>
+            </div>
+          </div>
+
+          <div class="pop-grid">
+            <button class="pop-tile active" id="popBtnVis"><span>显示投影</span><span>●</span></button>
+            <button class="pop-tile" id="popBtnThrough"><span>鼠标穿透</span><span>●</span></button>
+          </div>
+          <div class="seg-3">
+            <button class="seg-b mode-sync active" data-mode="projector">光影投影</button>
+            <button class="seg-b mode-sync" data-mode="emboss">浮雕纹理</button>
+            <button class="seg-b mode-sync" data-mode="cinema">彩透投影</button>
+          </div>
+          <div class="slider-group">
+            <div><span style="font-size:11px">投影浓度</span><strong id="popLblStealth">58%</strong></div>
+            <input type="range" id="popRngStealth" min="10" max="95" value="58" />
+          </div>
+          <div class="pop-strip" style="grid-template-columns:repeat(3,1fr)">
+            <button class="pop-mini" data-size="260">小 260</button>
+            <button class="pop-mini" data-size="392">中 392</button>
+            <button class="pop-mini" data-size="520">大 520</button>
+          </div>
+          <div class="pop-strip">
+            <button class="pop-mini" data-corner="tl">↖ 左上</button>
+            <button class="pop-mini" data-corner="tr">↗ 右上</button>
+            <button class="pop-mini" data-corner="bl">↙ 左下</button>
+            <button class="pop-mini" data-corner="br">↘ 右下</button>
+          </div>
+        </div>
+
+        <div class="desktop-body" id="desktopBody">
+          <div class="quad-desktop" id="desktopSurface">
+            <div class="left-col" id="leftCol">
+              <pre class="pane-code" id="paneCode">// src/scheduler/workerPool.ts
+import { createChannel, RingBuffer } from './runtime/ring';
+
+export class AdaptiveScheduler {
+  private readonly queue = new RingBuffer&lt;Task&gt;(4096);
+  public dispatch(batch: readonly Task[]): Metrics {
+    const t0 = performance.now();
+    for (const job of batch) this.queue.push(job);
+    return { queued: batch.length, dt: performance.now() - t0 };
+  }
+}</pre>
+              <!-- Red + Green Split Surface -->
+              <div class="pane-redgreen" id="paneRedGreen">
+                <div class="rg-red">红色桌面壁纸 / 色块区<br/><span style="font-size:11px;font-weight:400;opacity:0.85">小窗左半边自动呈红色光影</span></div>
+                <div class="rg-green">绿色桌面壁纸 / 色块区<br/><span style="font-size:11px;font-weight:400;opacity:0.85">小窗右半边自动呈绿色光影</span></div>
+              </div>
+            </div>
+
+            <div class="pane-doc" id="paneDoc">
+              <div>
+                <h2 style="font-size:19px;margin-bottom:10px">Q4 核心业务架构稳定性复盘报告</h2>
+                <p style="color:#646a73;font-size:12px;margin-bottom:12px">协作者：架构组 / SRE 团队 · 自动保存于刚刚</p>
+                <p style="margin-bottom:10px">1. <b>网关吞吐与长尾延迟优化</b>：引入自适应连接池后，高峰期 P99 响应耗时由 48.2ms 下降至 14.6ms，CPU 整体水位下降 18%。</p>
+                <p>2. <b>多活容灾演练结论</b>：跨可用区流量切换控制在 3.2 秒内完成，下游核心交易链路无感知平滑过渡。</p>
+              </div>
+              <div class="pane-sheet">
+                <div style="font-weight:600;color:#166534;margin-bottom:6px">Sheet1 — Q4 成本与吞吐预测表</div>
+                <table style="width:100%;border-collapse:collapse;line-height:1.8">
+                  <tr style="border-bottom:1px solid #cbd5e1;color:#64748b"><th align="left">区域</th><th align="left">10月实际</th><th align="left">11月预测</th><th align="left">达成率</th></tr>
+                  <tr><td>华东集群</td><td>1,420.5</td><td>1,580.0</td><td>104.3%</td></tr>
+                  <tr><td>华南集群</td><td>980.2</td><td>1,095.4</td><td>99.8%</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optical Projector PiP Window (initially straddling Red & Green!) -->
+          <div class="ghost-pip" id="ghostPip">
+            <div class="pip-hud-top">
+              <div class="pip-pills">
+                <button class="pip-seg mode-sync active" data-mode="projector">光影</button>
+                <button class="pip-seg mode-sync" data-mode="emboss">浮雕</button>
+                <button class="pip-seg mode-sync" data-mode="cinema">彩透</button>
+              </div>
+              <div style="display:flex;gap:4px">
+                <button class="pip-icon-btn" data-size="260">S</button>
+                <button class="pip-icon-btn" data-size="392">M</button>
+                <button class="pip-icon-btn" data-size="520">L</button>
+                <button class="pip-icon-btn" id="pipBtnBoss"></button>
+              </div>
+            </div>
+
+            <div class="pip-stage" id="pipStage">
+              <video id="demoVideo" autoplay muted playsinline loop></video>
+            </div>
+
+            <div class="pip-hud-bottom">
+              <div class="p-row">
+                <div class="p-track" id="pipTrack">
+                  <div class="p-bg"><div class="p-fill" id="pipFill"></div></div>
+                </div>
+                <span class="p-time" id="pipTime">00:00 / 03:00</span>
+              </div>
+              <div class="c-row">
+                <div class="c-left">
+                  <button class="m-ctrl" id="pipPlay"></button>
+                  <button class="m-ctrl" id="pipBack"></button>
+                  <button class="m-ctrl" id="pipFwd"></button>
+                  <button class="m-ctrl" id="pipMute"></button>
+                  <button class="r-btn" id="pipRate">1.0x</button>
+                </div>
+                <label class="g-pill">
+                  <span>浓度</span>
+                  <input type="range" id="pipRngStealth" min="10" max="95" value="58" />
+                  <span class="g-pct" id="pipLblStealth">58%</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="rz rz-n" data-dir="n"></div>
+            <div class="rz rz-s" data-dir="s"></div>
+            <div class="rz rz-e" data-dir="e"></div>
+            <div class="rz rz-w" data-dir="w"></div>
+            <div class="rz rz-nw" data-dir="nw"></div>
+            <div class="rz rz-ne" data-dir="ne"></div>
+            <div class="rz rz-sw" data-dir="sw"></div>
+            <div class="rz rz-se" data-dir="se" id="rzGrip"></div>
+
+            <button class="demo-boss-pill" id="btnRecoverBoss">已隐藏 · 点击恢复</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="../extension/gecko-core.js?v=4.2"></script>
+    <script>
+      (function () {
+        const Core = window.GeckoCore;
+        let state = { ...Core.DEFAULT_STATE };
+        let winVisible = true;
+        let clickThrough = false;
+        let player = { paused: false, currentTime: 34, duration: 180, muted: true, rate: 1.0 };
+        let usingLocal = false;
+
+        const srcCanvas = document.getElementById("srcCanvas");
+        const ctx = srcCanvas.getContext("2d", { alpha: false, desynchronized: true });
+        const demoVideo = document.getElementById("demoVideo");
+        const ghostPip = document.getElementById("ghostPip");
+        const svgDefs = document.getElementById("demoSvgDefs");
+        const featherStyle = document.getElementById("demoFeatherStyle");
+        const desktopBody = document.getElementById("desktopBody");
+
+        document.getElementById("btnTopBarTrigger").innerHTML = Core.ICONS.menubarAperture;
+        document.getElementById("pipBtnBoss").innerHTML = Core.ICONS.eyeHide;
+        document.getElementById("pipBack").innerHTML = Core.ICONS.back10;
+        document.getElementById("pipFwd").innerHTML = Core.ICONS.fwd10;
+        document.getElementById("rzGrip").innerHTML = Core.ICONS.resizeGrip;
+
+        ghostPip.addEventListener("mouseenter", () => ghostPip.classList.add("hovered"));
+        ghostPip.addEventListener("mouseleave", () => ghostPip.classList.remove("hovered"));
+
+        const btnTopBar = document.getElementById("btnTopBarTrigger");
+        const notchBar = document.getElementById("notchIslandBar");
+        const mbPlayBtn = document.getElementById("mbPlay");
+        const popover = document.getElementById("topBarPopover");
+        btnTopBar.addEventListener("click", (e) => {
+          e.stopPropagation();
+          popover.classList.toggle("open");
+        });
+        btnTopBar.addEventListener("mouseenter", () => {
+          popover.classList.add("open");
+        });
+        notchBar.addEventListener("click", (e) => {
+          if (!mbPlayBtn.contains(e.target)) popover.classList.toggle("open");
+        });
+        popover.addEventListener("mouseleave", (e) => {
+          if (!notchBar.contains(e.relatedTarget)) {
+            popover.classList.remove("open");
+          }
+        });
+        document.addEventListener("mousedown", (e) => {
+          if (!popover.contains(e.target) && !notchBar.contains(e.target)) {
+            popover.classList.remove("open");
+          }
+        });
+
+        const subs = [
+          "「左边红背景投出红光影，右边绿背景投出绿光影！」",
+          "「拖到上方代码或右侧白文档，纹理随处无缝融合！」",
+          "「试试切换【光影投影】与【浮雕纹理】感受立体雕刻感！」",
+        ];
+
+        let t = 8;
+        let lastFrameTs = performance.now();
+        function drawFrame(now) {
+          const dt = Math.min(0.05, Math.max(0.004, (now - lastFrameTs) / 1000));
+          lastFrameTs = now;
+          if (!usingLocal) {
+            if (!player.paused && !state.bossMode && winVisible) {
+              t += dt * 1.95 * player.rate;
+              player.currentTime = (player.currentTime + dt * player.rate) % player.duration;
+            }
+            const w = srcCanvas.width, h = srcCanvas.height;
+            const g = ctx.createLinearGradient(0, 0, w, h);
+            g.addColorStop(0, "#7dd3fc");
+            g.addColorStop(1, "#3b82f6");
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+
+            // Dark dramatic hills for strong shadow contrast
+            ctx.fillStyle = "#0f172a";
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            for (let x = 0; x <= w; x += 20) {
+              ctx.lineTo(x, h * 0.63 + Math.sin(x * 0.022 + t * 0.9) * 22);
+            }
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            // Character crossing between left Red and right Green!
+            const cx = w * 0.5 + Math.sin(t * 1.1) * 95;
+            const cy = h * 0.46 + Math.cos(t * 1.9) * 14;
+            ctx.fillStyle = "#111827";
+            ctx.beginPath(); ctx.ellipse(cx, cy + 48, 44, 54, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath(); ctx.arc(cx, cy - 6, 30, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#090d16";
+            ctx.beginPath(); ctx.arc(cx, cy - 12, 31, Math.PI, Math.PI * 2); ctx.fill();
+            ctx.fillRect(cx - 12, cy - 6, 6, 8);
+            ctx.fillRect(cx + 6, cy - 6, 6, 8);
+
+            const sub = subs[Math.floor(t / 3.8) % subs.length];
+            ctx.font = "700 16px -apple-system, 'PingFang SC', sans-serif";
+            ctx.textAlign = "center";
+            ctx.lineWidth = 4.5;
+            ctx.strokeStyle = "#000";
+            ctx.strokeText(sub, w / 2, h - 22);
+            ctx.fillStyle = "#fff";
+            ctx.fillText(sub, w / 2, h - 22);
+
+            syncPlayerBar();
+          }
+          requestAnimationFrame(drawFrame);
+        }
+        requestAnimationFrame(drawFrame);
+        demoVideo.srcObject = srcCanvas.captureStream(60);
+        demoVideo.play().catch(() => {});
+
+        document.getElementById("fileVideo").addEventListener("change", (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          usingLocal = true;
+          demoVideo.srcObject = null;
+          demoVideo.src = URL.createObjectURL(f);
+          demoVideo.muted = false;
+          player.muted = false;
+          demoVideo.play().catch(() => {});
+        });
+
+        function syncPlayerBar() {
+          document.getElementById("pipPlay").innerHTML = player.paused ? Core.ICONS.play : Core.ICONS.pause;
+          document.getElementById("pipMute").innerHTML = player.muted ? Core.ICONS.volMute : Core.ICONS.volOn;
+          const pct = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
+          const timeText = `${Core.formatTime(player.currentTime)} / ${Core.formatTime(player.duration)}`;
+          document.getElementById("pipFill").style.width = `${pct.toFixed(2)}%`;
+          document.getElementById("pipTime").textContent = timeText;
+
+          // Sync Dynamic Notch ear & Island real-time scrubber!
+          document.getElementById("mbPlayGlyph").textContent = player.paused ? "▶" : "⏸";
+          document.getElementById("popPlay").textContent = player.paused ? "▶ 播放" : "⏸ 暂停";
+          document.getElementById("popStatus").textContent = player.paused ? "已暂停" : "正在实时投影播放";
+          document.getElementById("popFill").style.width = `${pct.toFixed(2)}%`;
+          document.getElementById("popTime").textContent = timeText;
+          const rateTxt = `${player.rate.toFixed(player.rate % 1 === 0 ? 1 : 2).replace(/\.00$/, ".0")}x`;
+          document.getElementById("pipRate").textContent = rateTxt;
+          document.getElementById("popRate").textContent = rateTxt;
+        }
+
+        function runAutoSense() {
+          if (!winVisible) return;
+          const r = ghostPip.getBoundingClientRect();
+          const sensed = Core.senseDomEnvironment(r.left + r.width / 2, r.top + r.height / 2, [ghostPip, popover]);
+          state.bgColor = sensed.bgColor;
+          render();
+        }
+
+        function render() {
+          ghostPip.style.display = winVisible ? "flex" : "none";
+          ghostPip.classList.toggle("click-through", clickThrough);
+          ghostPip.classList.toggle("boss-active", Boolean(state.bossMode));
+
+          Core.applySvgFilterToMedia(svgDefs, demoVideo, state, {});
+          featherStyle.textContent = Core.buildFeatherRuleCss(".ghost-pip video", state.feather);
+
+          document.querySelectorAll(".mode-sync").forEach((b) => {
+            b.classList.toggle("active", b.dataset.mode === state.mode);
+          });
+
+          for (const [rngId, lblId] of [
+            ["rngStealth", "lblStealth"],
+            ["pipRngStealth", "pipLblStealth"],
+            ["popRngStealth", "popLblStealth"],
+          ]) {
+            document.getElementById(rngId).value = state.stealth;
+            document.getElementById(lblId).textContent = `${state.stealth}%`;
+          }
+
+          document.getElementById("rngFeather").value = state.feather;
+          document.getElementById("lblFeather").textContent = `${state.feather}%`;
+          document.getElementById("popBtnVis").classList.toggle("active", winVisible);
+          document.getElementById("popBtnThrough").classList.toggle("active", clickThrough);
+          syncPlayerBar();
+        }
+
+        // Drag & 8-Direction Resize
+        let drag = null;
+        let rz = null;
+        document.getElementById("pipStage").addEventListener("mousedown", (e) => {
+          const r = ghostPip.getBoundingClientRect();
+          const br = desktopBody.getBoundingClientRect();
+          drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false, br };
+        });
+
+        ghostPip.querySelectorAll(".rz").forEach((handle) => {
+          handle.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const r = ghostPip.getBoundingClientRect();
+            const br = desktopBody.getBoundingClientRect();
+            rz = { dir: handle.dataset.dir, sx: e.clientX, sy: e.clientY, left: r.left - br.left, top: r.top - br.top, w: r.width, h: r.height, br };
+          });
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          if (rz) {
+            const dx = e.clientX - rz.sx, dy = e.clientY - rz.sy;
+            let nl = rz.left, nt = rz.top, nw = rz.w, nh = rz.h;
+            if (rz.dir.includes("e")) nw = Core.clamp(rz.w + dx, 200, rz.br.width - rz.left - 6);
+            if (rz.dir.includes("s")) nh = Core.clamp(rz.h + dy, 115, rz.br.height - rz.top - 6);
+            if (rz.dir.includes("w")) {
+              const d = Core.clamp(dx, -rz.left + 6, rz.w - 200);
+              nl = rz.left + d; nw = rz.w - d;
+            }
+            if (rz.dir.includes("n")) {
+              const d = Core.clamp(dy, -rz.top + 6, rz.h - 115);
+              nt = rz.top + d; nh = rz.h - d;
+            }
+            ghostPip.style.left = `${nl}px`; ghostPip.style.top = `${nt}px`;
+            ghostPip.style.right = "auto"; ghostPip.style.bottom = "auto";
+            ghostPip.style.width = `${nw}px`; ghostPip.style.height = `${nh}px`;
+            return;
+          }
+          if (!drag) return;
+          if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
+          if (drag.moved) {
+            ghostPip.style.left = `${Core.clamp(e.clientX - drag.br.left - drag.dx, 0, drag.br.width - ghostPip.offsetWidth)}px`;
+            ghostPip.style.top = `${Core.clamp(e.clientY - drag.br.top - drag.dy, 0, drag.br.height - ghostPip.offsetHeight)}px`;
+            ghostPip.style.right = "auto"; ghostPip.style.bottom = "auto";
+            runAutoSense();
+          }
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (rz) runAutoSense();
+          if (drag && !drag.moved) { player.paused = !player.paused; syncPlayerBar(); }
+          drag = null; rz = null;
+        });
+
+        document.querySelectorAll("[data-size]").forEach((b) => {
+          b.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const w = Number(b.dataset.size);
+            ghostPip.style.width = `${w}px`; ghostPip.style.height = `${Math.round((w * 9) / 16)}px`;
+            runAutoSense();
+          });
+        });
+        document.querySelectorAll("[data-corner]").forEach((b) => {
+          b.addEventListener("click", () => {
+            const c = b.dataset.corner, pad = 20;
+            ghostPip.style.left = c.includes("l") ? `${pad}px` : "auto";
+            ghostPip.style.right = c.includes("r") ? `${pad}px` : "auto";
+            ghostPip.style.top = c.includes("t") ? `${pad}px` : "auto";
+            ghostPip.style.bottom = c.includes("b") ? `${pad}px` : "auto";
+            setTimeout(runAutoSense, 20);
+          });
+        });
+
+        document.getElementById("popBtnVis").addEventListener("click", () => { winVisible = !winVisible; render(); });
+        document.getElementById("popBtnThrough").addEventListener("click", () => { clickThrough = !clickThrough; render(); });
+
+        document.querySelectorAll(".mode-sync").forEach((b) => {
+          b.addEventListener("click", (e) => { e.stopPropagation(); state.mode = b.dataset.mode; render(); });
+        });
+        for (const id of ["rngStealth", "pipRngStealth", "popRngStealth"]) {
+          document.getElementById(id).addEventListener("input", (e) => { state.stealth = Number(e.target.value); render(); });
+        }
+        document.querySelectorAll(".mark-btn").forEach((b) => {
+          b.addEventListener("click", () => { state.stealth = Number(b.dataset.val); render(); });
+        });
+        document.getElementById("rngFeather").addEventListener("input", (e) => { state.feather = Number(e.target.value); render(); });
+
+        function togglePlay() {
+          player.paused = !player.paused;
+          if (usingLocal) player.paused ? demoVideo.pause() : demoVideo.play().catch(() => {});
+          syncPlayerBar();
+        }
+        function seekDelta(d) {
+          player.currentTime = Core.clamp(player.currentTime + d, 0, player.duration);
+          if (usingLocal && Number.isFinite(demoVideo.duration)) demoVideo.currentTime = player.currentTime;
+          syncPlayerBar();
+        }
+        const rates = [1.0, 1.25, 1.5, 2.0];
+        function cycleRate() {
+          player.rate = rates[(rates.indexOf(player.rate) + 1) % rates.length];
+          demoVideo.playbackRate = player.rate;
+          syncPlayerBar();
+        }
+
+        document.getElementById("pipPlay").addEventListener("click", togglePlay);
+        document.getElementById("mbPlay").addEventListener("click", (e) => { e.stopPropagation(); togglePlay(); });
+        document.getElementById("popPlay").addEventListener("click", togglePlay);
+        document.getElementById("pipBack").addEventListener("click", () => seekDelta(-10));
+        document.getElementById("popBack").addEventListener("click", () => seekDelta(-10));
+        document.getElementById("pipFwd").addEventListener("click", () => seekDelta(10));
+        document.getElementById("popFwd").addEventListener("click", () => seekDelta(10));
+        document.getElementById("pipMute").addEventListener("click", () => { player.muted = !player.muted; demoVideo.muted = player.muted; syncPlayerBar(); });
+        document.getElementById("pipRate").addEventListener("click", cycleRate);
+        document.getElementById("popRate").addEventListener("click", cycleRate);
+
+        const pipTrack = document.getElementById("pipTrack");
+        const popTrack = document.getElementById("popTrack");
+        let demoScrubTrack = null;
+        function scrubDemo(e) {
+          if (!demoScrubTrack) return;
+          const r = demoScrubTrack.getBoundingClientRect();
+          player.currentTime = Core.clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * player.duration;
+          if (usingLocal && Number.isFinite(demoVideo.duration)) demoVideo.currentTime = player.currentTime;
+          syncPlayerBar();
+        }
+        pipTrack.addEventListener("mousedown", (e) => { e.stopPropagation(); demoScrubTrack = pipTrack; scrubDemo(e); });
+        popTrack.addEventListener("mousedown", (e) => { e.stopPropagation(); demoScrubTrack = popTrack; scrubDemo(e); });
+        window.addEventListener("mousemove", (e) => { if (demoScrubTrack) scrubDemo(e); });
+        window.addEventListener("mouseup", () => { demoScrubTrack = null; });
+
+        document.querySelectorAll(".env-tab").forEach((tab) => {
+          tab.addEventListener("click", () => {
+            document.querySelectorAll(".env-tab").forEach((b) => b.classList.remove("active"));
+            tab.classList.add("active");
+            const l = tab.dataset.layout;
+            const surface = document.getElementById("desktopSurface");
+            const leftCol = document.getElementById("leftCol");
+            const paneRG = document.getElementById("paneRedGreen");
+            const paneDoc = document.getElementById("paneDoc");
+            if (l === "quad") {
+              surface.style.gridTemplateColumns = "1.05fr 0.95fr";
+              leftCol.style.display = "grid";
+              leftCol.style.gridTemplateRows = "1fr 250px";
+              paneRG.style.display = "grid";
+              paneDoc.style.display = "flex";
+            } else if (l === "vscode") {
+              surface.style.gridTemplateColumns = "1fr";
+              leftCol.style.display = "grid";
+              leftCol.style.gridTemplateRows = "1fr";
+              paneRG.style.display = "none";
+              paneDoc.style.display = "none";
+            } else {
+              surface.style.gridTemplateColumns = "1fr";
+              leftCol.style.display = "none";
+              paneDoc.style.display = "flex";
+            }
+            setTimeout(runAutoSense, 30);
+          });
+        });
+
+        document.getElementById("pipBtnBoss").addEventListener("click", () => { state.bossMode = true; render(); });
+        document.getElementById("btnRecoverBoss").addEventListener("click", () => { state.bossMode = false; render(); });
+
+        setTimeout(runAutoSense, 40);
+      })();
+    </script>
+  </body>
+</html>

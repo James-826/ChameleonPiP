@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChameleonPiP — 全球排位与耐力对战</title>
+    <link rel="icon" href="../extension/icons/icon48.png?v=5.2" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh;
+        background: #090c12;
+        color: #e2e8f0;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", sans-serif;
+        padding: 20px 26px 32px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .container { max-width: 1220px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+      /* Clean Minimalist Top Bar */
+      .topbar {
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+        background: #10151f;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px; padding: 12px 16px;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand img { width: 38px; height: 38px; border-radius: 9px; }
+      .brand-title { font-size: 15px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 9px; }
+      .brand-sub { font-size: 11.5px; color: #64748b; margin-top: 1px; }
+
+      .server-badge {
+        font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 6px;
+        background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(52, 211, 153, 0.28); color: #6ee7b7;
+        display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      }
+      .server-badge:hover { background: rgba(16, 185, 129, 0.2); }
+      .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; }
+      .status-dot.offline { background: #f59e0b; }
+
+      .profile-controls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+      .inp, .sel {
+        background: #090c12; border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #f1f5f9; border-radius: 7px; padding: 6px 10px; font-size: 12px; outline: none;
+      }
+      .inp:focus, .sel:focus { border-color: #10b981; }
+      .btn-ghost {
+        text-decoration: none; appearance: none;
+        padding: 6px 11px; border-radius: 7px;
+        background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #cbd5e1; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.14s;
+      }
+      .btn-ghost:hover { background: rgba(255, 255, 255, 0.11); color: #fff; }
+
+      /* 4 Clean KPI Cards */
+      .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      .kpi-card {
+        background: #10151f;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px; padding: 14px 16px;
+        display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+      }
+      .kpi-head {
+        font-size: 11.5px; font-weight: 500; color: #94a3b8;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .kpi-val {
+        font-size: 24px; font-weight: 700; color: #f8fafc;
+        font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      }
+      .kpi-foot {
+        font-size: 11px; color: #64748b;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .tag {
+        font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 5px;
+        background: rgba(255, 255, 255, 0.06); color: #cbd5e1;
+        font-variant-numeric: tabular-nums;
+      }
+      .tag.emerald { background: rgba(16, 185, 129, 0.14); color: #34d399; }
+      .tag.blue { background: rgba(56, 189, 248, 0.14); color: #38bdf8; }
+      .tag-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04); color: #94a3b8;
+        padding: 2px 7px; border-radius: 5px; font-size: 10.5px; cursor: pointer;
+      }
+      .tag-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.24); }
+
+      .progress-line { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.08); border-radius: 999px; overflow: hidden; }
+      .progress-fill { height: 100%; background: #10b981; border-radius: 999px; transition: width 0.25s ease; }
+
+      /* Main 2-Column Layout */
+      .main-grid { display: grid; grid-template-columns: 0.96fr 1.24fr; gap: 14px; }
+      .panel {
+        background: #10151f;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px; padding: 16px;
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .panel-title {
+        font-size: 13.5px; font-weight: 600; color: #f8fafc;
+        display: inline-flex; align-items: center; gap: 7px;
+      }
+      .panel-title svg { color: #10b981; }
+
+      .seg-tabs {
+        display: inline-flex; background: #090c12;
+        padding: 2.5px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.07); gap: 2px;
+      }
+      .seg-tab {
+        appearance: none; border: none; background: transparent;
+        color: #64748b; font-size: 11.5px; font-weight: 500;
+        padding: 4.5px 10px; border-radius: 6px; cursor: pointer; transition: all 0.14s;
+      }
+      .seg-tab:hover { color: #cbd5e1; }
+      .seg-tab.active { background: #1e293b; color: #f8fafc; font-weight: 600; }
+
+      /* PK Arena Card */
+      .pk-box {
+        background: #0b0f17;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 10px; padding: 16px;
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .pk-meta-bar {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 11.5px; color: #64748b;
+      }
+      .versus-grid { display: grid; grid-template-columns: 1fr 36px 1fr; align-items: center; gap: 10px; }
+      .fighter-card {
+        background: #10151f;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 10px; padding: 14px 12px; text-align: center;
+        display: flex; flex-direction: column; gap: 5px;
+      }
+      .fighter-card.me { border-color: rgba(16, 185, 129, 0.32); }
+      .fighter-card.opp { border-color: rgba(244, 63, 94, 0.28); }
+      .fighter-role { font-size: 10.5px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+      .fighter-name { font-size: 13px; font-weight: 600; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .fighter-sub { font-size: 11px; color: #64748b; }
+      .fighter-clock {
+        font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums;
+        color: #34d399; margin: 4px 0;
+      }
+      .fighter-card.opp .fighter-clock { color: #fb7185; }
+      .vs-circle {
+        width: 32px; height: 32px; border-radius: 50%; margin: 0 auto;
+        background: #161e2e; border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #94a3b8; font-weight: 700; font-size: 10.5px;
+        display: flex; align-items: center; justify-content: center;
+      }
+
+      .pk-actions { display: flex; gap: 8px; }
+      .btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #161e2e; color: #e2e8f0;
+        padding: 8.5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+        cursor: pointer; transition: all 0.14s; flex: 1; text-align: center;
+      }
+      .btn:hover { background: #1e293b; color: #fff; }
+      .btn-primary {
+        background: #059669; border-color: rgba(52, 211, 153, 0.4); color: #fff;
+      }
+      .btn-primary:hover { background: #10b981; }
+      .btn-danger {
+        background: rgba(244, 63, 94, 0.14); border-color: rgba(244, 63, 94, 0.35); color: #fda4af;
+      }
+
+      .signal-row { display: flex; gap: 6px; flex-wrap: wrap; }
+      .signal-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03); color: #94a3b8;
+        padding: 4px 9px; border-radius: 6px; font-size: 11px; cursor: pointer;
+      }
+      .signal-btn:hover { background: rgba(255, 255, 255, 0.09); color: #f8fafc; }
+
+      .pk-feed {
+        background: #080b10; border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px; padding: 9px 11px; height: 96px; overflow-y: auto;
+        font-size: 11px; line-height: 1.65; color: #64748b;
+        display: flex; flex-direction: column; gap: 2px;
+      }
+      .pk-feed strong { color: #cbd5e1; font-weight: 600; }
+
+      /* Clean Leaderboard Table */
+      .lb-header, .lb-row {
+        display: grid;
+        grid-template-columns: 42px 1.5fr 1fr 0.85fr 68px;
+        align-items: center; gap: 10px;
+        padding: 8px 12px;
+      }
+      .lb-header {
+        font-size: 11px; font-weight: 600; color: #64748b;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding-bottom: 7px;
+      }
+      .lb-list { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; }
+      .lb-row {
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+      }
+      .lb-row:hover { background: rgba(255, 255, 255, 0.04); }
+      .lb-row.me-row {
+        background: rgba(16, 185, 129, 0.09);
+        border-color: rgba(52, 211, 153, 0.35);
+      }
+      .pos-badge {
+        font-weight: 700; font-size: 11.5px; color: #64748b;
+        font-variant-numeric: tabular-nums;
+      }
+      .pos-badge.p1 { color: #fbbf24; }
+      .pos-badge.p2 { color: #cbd5e1; }
+      .pos-badge.p3 { color: #fb923c; }
+
+      .user-cell { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .region-pill {
+        font-size: 9.5px; font-weight: 700; padding: 1.5px 5px; border-radius: 4px;
+        background: rgba(255, 255, 255, 0.07); color: #94a3b8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .user-name { font-weight: 600; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .meta-cell { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+      .lv-pill {
+        font-size: 10px; font-weight: 600; padding: 1.5px 6px; border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .score-cell {
+        font-weight: 700; color: #f8fafc; font-variant-numeric: tabular-nums; text-align: right;
+      }
+      .act-btn {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04); color: #cbd5e1;
+        border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 500; cursor: pointer;
+      }
+      .act-btn:hover { background: #059669; border-color: #10b981; color: #fff; }
+
+      /* Country Stats List */
+      .country-list { display: flex; flex-direction: column; gap: 7px; }
+      .country-row {
+        background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+      }
+      .country-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+
+      /* Compact 10-Tier Progression Strip */
+      .tiers-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+      .tier-item {
+        background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px; padding: 9px 11px; opacity: 0.45;
+        display: flex; flex-direction: column; gap: 3px;
+      }
+      .tier-item.unlocked { opacity: 0.88; }
+      .tier-item.current {
+        opacity: 1; border-color: rgba(52, 211, 153, 0.45);
+        background: rgba(16, 185, 129, 0.08);
+      }
+      .tier-top { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 600; }
+      .tier-desc { font-size: 10.5px; color: #64748b; }
+
+      @media (max-width: 980px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .main-grid { grid-template-columns: 1fr; }
+        .tiers-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="topbar">
+        <div class="brand">
+          <img src="../extension/icons/icon128.png?v=5.2" onerror="this.onerror=null;this.src='icons/icon128.png'" alt="ChameleonPiP" />
+          <div>
+            <div class="brand-title">
+              <span>ChameleonPiP 全球潜伏排位</span>
+              <button type="button" class="server-badge" id="btnServerConfig" title="点击配置联机服务器地址">
+                <span class="status-dot" id="serverDot"></span>
+                <span id="serverStatusTxt">实时联机服已连接</span>
+              </button>
+            </div>
+            <div class="brand-sub">实时记录桌面光学投影时长 · 同城 / 国家 / 全球排行与 1v1 耐力对战</div>
+          </div>
+        </div>
+
+        <div class="profile-controls">
+          <input class="inp" id="inpNick" style="width:136px" placeholder="代号" />
+          <select class="sel" id="selCity"></select>
+          <select class="sel" id="selIndustry">
+            <option value="互联网">互联网</option>
+            <option value="AI / 算法">AI / 算法</option>
+            <option value="量化金融">量化金融</option>
+            <option value="系统架构">系统架构</option>
+            <option value="游戏引擎">游戏引擎</option>
+            <option value="独立开发">独立开发</option>
+          </select>
+          <a class="btn-ghost" href="index.html">返回体验台</a>
+        </div>
+      </header>
+
+      <!-- 4 Clean KPI Cards with Custom SVG Emblems -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span style="display:inline-flex;align-items:center;gap:6px" id="kpiHeadStreak"><span>当前连续潜伏</span></span>
+            <span class="tag emerald" id="streakBadge">计时中</span>
+          </div>
+          <div class="kpi-val" id="kpiCurStreak">00:00</div>
+          <div class="kpi-foot">
+            <span>暂停 &gt;10s 自动结算</span>
+            <button type="button" class="tag-btn" id="btnSimBoss">测试老板键中断</button>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span style="display:inline-flex;align-items:center;gap:6px" id="kpiHeadRecord"><span>最长不间断纪录</span></span>
+            <span class="tag blue" id="kpiCityRank">同城 #--</span>
+          </div>
+          <div class="kpi-val" id="kpiBestStreak">00:00</div>
+          <div class="kpi-foot">
+            <span id="kpiDodges">紧急避险 3 次</span>
+            <span id="kpiPkSummary">2胜 0负 · 1248分</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span style="display:inline-flex;align-items:center;gap:6px" id="kpiHeadVault"><span>今日累计潜伏</span></span>
+            <button type="button" class="tag-btn" id="btnSetWage">时薪 ¥<span id="lblWage">85</span></button>
+          </div>
+          <div class="kpi-val" id="kpiTodayTime">12:20</div>
+          <div class="kpi-foot">
+            <span>折算收益 <strong style="color:#f8fafc" id="kpiEarned">¥17.47</strong></span>
+            <span>累计 <span id="kpiTotalHours">0.5h</span></span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-head">
+            <span>当前称号徽章</span>
+            <span class="tag" id="kpiRankCode" style="color:#34d399">Lv.2</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px">
+            <span id="kpiRankCrest" style="display:inline-flex"></span>
+            <div class="kpi-val" style="font-size:20px" id="kpiRankTitle">工位幼龙</div>
+          </div>
+          <div>
+            <div class="kpi-foot" style="margin-bottom:4px">
+              <span id="kpiNextHint">距下一级 27 分钟</span>
+              <span id="kpiRankPct">45%</span>
+            </div>
+            <div class="progress-line"><div class="progress-fill" id="kpiRankBar" style="width:45%"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main 2-Column Grid -->
+      <section class="main-grid">
+        <!-- Left: Real-Time 1v1 Endurance Duel -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title" id="titlePk">
+              <span>线上不间断耐力 PK</span>
+            </div>
+            <div class="seg-tabs">
+              <button type="button" class="seg-tab active" data-pkmode="duel" id="tabDuel">1v1 实时对战</button>
+              <button type="button" class="seg-tab" data-pkmode="royale" id="tabRoyale">百人淘汰赛</button>
+            </div>
+          </div>
+
+          <div class="pk-box">
+            <div class="pk-meta-bar">
+              <span id="pkBanner">保持投影播放不中断，先暂停或触发老板键者判负</span>
+              <span class="tag" id="pkEloBadge">ELO 1248</span>
+            </div>
+
+            <div class="versus-grid" id="duelView">
+              <div class="fighter-card me">
+                <div class="fighter-role">我方</div>
+                <div class="fighter-name" id="pkMyName">Chameleon</div>
+                <div class="fighter-sub" id="pkMyMeta">CN · 上海 · Lv.2</div>
+                <div class="fighter-clock" id="pkMyClock">00:00</div>
+                <div class="fighter-sub" id="pkMyState" style="color:#34d399">在线潜伏中</div>
+              </div>
+
+              <div class="vs-circle">VS</div>
+
+              <div class="fighter-card opp">
+                <div class="fighter-role" id="pkOppRole">对手</div>
+                <div class="fighter-name" id="pkOppName">等待匹配</div>
+                <div class="fighter-sub" id="pkOppMeta">全球匹配池</div>
+                <div class="fighter-clock" id="pkOppClock">00:00</div>
+                <div class="fighter-sub" id="pkOppState">未开局</div>
+              </div>
+            </div>
+
+            <div id="royaleView" style="display:none;flex-direction:column;gap:8px;text-align:center;padding:8px 0">
+              <div style="font-size:11.5px;color:#94a3b8">当前场次剩余未中断人数</div>
+              <div style="font-size:28px;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums">
+                <span id="royaleAlive">100</span> <span style="font-size:13px;color:#64748b">/ 100</span>
+              </div>
+              <div class="progress-line"><div class="progress-fill" id="royaleBar" style="width:100%"></div></div>
+              <div style="font-size:11px;color:#34d399" id="royaleSub">保持投影播放即可晋级前排</div>
+            </div>
+
+            <div class="pk-actions">
+              <button type="button" class="btn btn-primary" id="btnStartPk">随机匹配在线对手</button>
+              <button type="button" class="btn" id="btnRoomPk">输入房间号约战</button>
+              <button type="button" class="btn btn-danger" id="btnStopPk" style="display:none">中断认输</button>
+            </div>
+
+            <div class="signal-row" id="signalRow" style="display:none">
+              <button type="button" class="signal-btn" data-sig="老板路过，注意隐蔽">老板路过警告</button>
+              <button type="button" class="signal-btn" data-sig="已切换浮雕模式潜伏">已切浮雕模式</button>
+              <button type="button" class="signal-btn" data-sig="开启鼠标穿透，稳如泰山">已开鼠标穿透</button>
+              <button type="button" class="signal-btn" data-sig="这局看谁坚持更久">看谁坚持更久</button>
+            </div>
+
+            <div class="pk-feed" id="pkFeed">
+              <div><strong>[系统]</strong> 联机竞技场就绪，点击「随机匹配在线对手」或「输入房间号约战」即可开局。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: City / Country / Global Leaderboards -->
+        <div class="panel">
+          <div class="panel-head" style="flex-wrap:wrap">
+            <div class="seg-tabs" id="scopeTabs">
+              <button type="button" class="seg-tab active" data-scope="city" id="tabCity">同城榜</button>
+              <button type="button" class="seg-tab" data-scope="country">国家 / 地区</button>
+              <button type="button" class="seg-tab" data-scope="global">全球榜</button>
+            </div>
+
+            <div class="seg-tabs" id="metricTabs">
+              <button type="button" class="seg-tab active" data-metric="streak">不间断纪录</button>
+              <button type="button" class="seg-tab" data-metric="today">今日累计</button>
+              <button type="button" class="seg-tab" data-metric="elo">PK 积分</button>
+            </div>
+          </div>
+
+          <div id="lbTableWrap">
+            <div class="lb-header">
+              <span>排名</span>
+              <span>用户 / 赛区</span>
+              <span>称号 / 状态</span>
+              <span style="text-align:right" id="lbColMetric">不间断时长</span>
+              <span style="text-align:right">操作</span>
+            </div>
+            <div class="lb-list" id="lbList"></div>
+          </div>
+
+          <div id="lbCountryWrap" class="country-list" style="display:none"></div>
+        </div>
+      </section>
+
+      <!-- Bottom: Compact 10-Tier Chameleon Titles -->
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title" id="titleTiers">
+            <span>变色龙十阶称号体系</span>
+          </div>
+          <span style="font-size:11px;color:#64748b">按生涯累计光学潜伏时长自动解锁晋升</span>
+        </div>
+        <div class="tiers-grid" id="tiersGrid"></div>
+      </section>
+    </div>
+
+    <script src="../extension/chameleon-stats.js?v=5.2"></script>
+    <script>
+      if (!window.ChameleonStats) {
+        document.write('<script src="chameleon-stats.js?v=5.2"><\/script>');
+      }
+    </script>
+    <script>
+      (function () {
+        const S = window.ChameleonStats;
+        let profile = S.loadProfile();
+        let currentScope = "city";
+        let currentMetric = "streak";
+        let pkMode = "duel";
+
+        let serverOnline = false;
+        let serverOnlineCount = 1;
+        let cachedLbItems = null;
+        let cachedCountryStats = null;
+        let arenaWs = null;
+
+        let pkActive = false;
+        let pkMySec = 0;
+        let pkOppSec = 0;
+        let pkOpponent = null;
+        let royaleAlive = 100;
+
+        document.getElementById("titlePk").insertAdjacentHTML("afterbegin", S.SVG_ICONS.swords);
+        document.getElementById("titleTiers").insertAdjacentHTML("afterbegin", S.SVG_ICONS.layers);
+        document.getElementById("kpiHeadStreak").insertAdjacentHTML("afterbegin", S.SVG_ICONS.streak);
+        document.getElementById("kpiHeadRecord").insertAdjacentHTML("afterbegin", S.SVG_ICONS.record);
+        document.getElementById("kpiHeadVault").insertAdjacentHTML("afterbegin", S.SVG_ICONS.vault);
+
+        const inpNick = document.getElementById("inpNick");
+        const selCity = document.getElementById("selCity");
+        const selIndustry = document.getElementById("selIndustry");
+
+        S.CITIES.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.city;
+          opt.textContent = `${c.regionCode} · ${c.city}`;
+          selCity.appendChild(opt);
+        });
+        inpNick.value = profile.nickname;
+        selCity.value = profile.city;
+        selIndustry.value = profile.industry || "互联网";
+        document.getElementById("lblWage").textContent = profile.hourlyWage;
+
+        function addFeed(text) {
+          const box = document.getElementById("pkFeed");
+          const div = document.createElement("div");
+          const t = new Date().toTimeString().slice(0, 8);
+          div.innerHTML = `<span style="opacity:0.55">${t}</span> ${text}`;
+          box.prepend(div);
+        }
+
+        // -------------------------------------------------------------------
+        // 1. Real Cloud / Local Arena Server Sync (HTTP + WebSocket)
+        // -------------------------------------------------------------------
+        async function syncHeartbeatAndFetchLeaderboard() {
+          const apiBase = S.getApiBase();
+          try {
+            const hbRes = await fetch(`${apiBase}/api/heartbeat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: profile.userId,
+                nickname: profile.nickname,
+                city: profile.city,
+                country: profile.country,
+                regionCode: profile.regionCode,
+                industry: profile.industry,
+                mode: "光影 58%",
+                currentStreakSeconds: profile.currentStreakSeconds,
+                bestStreakSeconds: profile.bestStreakSeconds,
+                todaySeconds: profile.todaySeconds,
+                totalSeconds: profile.totalSeconds,
+                pkElo: profile.pkElo,
+                pkWins: profile.pkWins,
+                pkLosses: profile.pkLosses,
+                live: true,
+              }),
+            });
+            if (hbRes.ok) {
+              const hbData = await hbRes.json();
+              serverOnline = true;
+              serverOnlineCount = hbData.onlineCount || 1;
+              if (hbData.cityRank) {
+                document.getElementById("kpiCityRank").textContent = `${profile.city} #${hbData.cityRank}`;
+              }
+            }
+
+            const q = new URLSearchParams({
+              scope: currentScope,
+              city: profile.city,
+              country: profile.country,
+              metric: currentMetric,
+              userId: profile.userId,
+            });
+            const lbRes = await fetch(`${apiBase}/api/leaderboard?${q.toString()}`);
+            if (lbRes.ok) {
+              const lbData = await lbRes.json();
+              cachedLbItems = S.normalizeLeaderboardItems(lbData.items || [], profile);
+              cachedCountryStats = lbData.countryStats || [];
+              serverOnlineCount = lbData.onlineCount || serverOnlineCount;
+            }
+          } catch (_) {
+            serverOnline = false;
+          }
+          updateServerBadge();
+          renderLeaderboard();
+        }
+
+        function updateServerBadge() {
+          const dot = document.getElementById("serverDot");
+          const txt = document.getElementById("serverStatusTxt");
+          dot.classList.toggle("offline", !serverOnline);
+          txt.textContent = serverOnline
+            ? `实时联机服 · ${serverOnlineCount} 人在线`
+            : "本地离线模式 (点击配置节点)";
+        }
+
+        document.getElementById("btnServerConfig").addEventListener("click", () => {
+          const cur = S.getApiBase();
+          const next = prompt(
+            "配置全球排行榜与实时 PK 联机服务器地址（开源部署后可填公网地址，默认本地 http://127.0.0.1:51938）：",
+            cur
+          );
+          if (next !== null) {
+            S.setApiBase(next);
+            connectArenaWebSocket();
+            syncHeartbeatAndFetchLeaderboard();
+          }
+        });
+
+        function connectArenaWebSocket() {
+          try {
+            if (arenaWs) {
+              try { arenaWs.close(); } catch (_) {}
+            }
+            const wsUrl = S.getApiBase().replace(/^http/, "ws") + "/ws";
+            arenaWs = new WebSocket(wsUrl);
+            arenaWs.onopen = () => {
+              arenaWs.send(
+                JSON.stringify({
+                  type: "hello",
+                  userId: profile.userId,
+                  nickname: profile.nickname,
+                  city: profile.city,
+                  regionCode: profile.regionCode,
+                  mode: "光影 58%",
+                  totalSeconds: profile.totalSeconds,
+                })
+              );
+            };
+            arenaWs.onmessage = (ev) => {
+              try {
+                const msg = JSON.parse(ev.data);
+                if (msg.type === "pk_searching") {
+                  document.getElementById("pkOppName").textContent = "正在匹配在线对手...";
+                  document.getElementById("pkOppState").textContent = "检索实时队列中";
+                } else if (msg.type === "pk_room_waiting") {
+                  document.getElementById("pkOppRole").textContent = `房间 #${msg.roomCode}`;
+                  document.getElementById("pkOppName").textContent = "等待同事输入同号加入...";
+                  document.getElementById("pkOppState").textContent = `暗号 ${msg.roomCode} 待命中`;
+                  addFeed(`<strong>[房间已创建]</strong> 房间号 <strong>#${msg.roomCode}</strong>，等待对方加入。`);
+                } else if (msg.type === "pk_matched" && msg.opponent) {
+                  onServerMatched(msg.opponent, msg.roomCode);
+                } else if (msg.type === "pk_opp_tick") {
+                  pkOppSec = Number(msg.oppSeconds || 0);
+                  document.getElementById("pkOppClock").textContent = S.formatDuration(pkOppSec, true);
+                } else if (msg.type === "pk_signal") {
+                  addFeed(`<strong>[${msg.from}]</strong> ${msg.text}`);
+                } else if (msg.type === "pk_ended") {
+                  onServerMatchEnded(msg.won, msg.eloDelta, msg.newElo, msg.reason);
+                }
+              } catch (_) {}
+            };
+          } catch (_) {}
+        }
+        connectArenaWebSocket();
+
+        // Also listen to local GeckoGhost desktop window (ws://127.0.0.1:51937) for Boss Key events
+        function connectLocalDesktopBridge() {
+          try {
+            const ws = new WebSocket("ws://127.0.0.1:51937");
+            ws.onopen = () => ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
+            ws.onmessage = (ev) => {
+              if (typeof ev.data !== "string") return;
+              try {
+                const msg = JSON.parse(ev.data);
+                if (msg.type === "bossTriggered") {
+                  handleStreakInterrupted("桌面端触发老板键 ⌃⇧B");
+                }
+              } catch (_) {}
+            };
+          } catch (_) {}
+        }
+        connectLocalDesktopBridge();
+
+        function onServerMatched(opp, roomCode) {
+          pkActive = true;
+          pkMySec = 0;
+          pkOppSec = 0;
+          pkOpponent = opp;
+
+          document.getElementById("btnStartPk").style.display = "none";
+          document.getElementById("btnRoomPk").style.display = "none";
+          document.getElementById("btnStopPk").style.display = "inline-block";
+          document.getElementById("signalRow").style.display = "flex";
+
+          const rInfo = S.getRankForSeconds(opp.totalSeconds || 3600).current;
+          document.getElementById("pkOppRole").textContent = roomCode ? `房间 #${roomCode}` : "实时对手";
+          document.getElementById("pkOppName").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${S.renderFlagSvg(opp.regionCode || "CN")}<span>${opp.nickname}</span></span>`;
+          document.getElementById("pkOppMeta").innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${S.renderRankCrestSvg(rInfo.level, 16)}<span>${opp.city} · ${rInfo.code} ${rInfo.title}</span></span>`;
+          document.getElementById("pkOppState").textContent = `潜伏中 (${opp.mode || "光影 58%"})`;
+          addFeed(`<strong>[对战开始]</strong> 已匹配对手 <strong>${opp.nickname}</strong> (${opp.city})，计时开始。`);
+          renderAll();
+        }
+
+        function onServerMatchEnded(won, eloDelta, newElo, reason) {
+          pkActive = false;
+          if (won) {
+            profile.pkWins = (profile.pkWins || 0) + 1;
+            profile.pkElo = newElo || (profile.pkElo || 1200) + 24;
+            document.getElementById("pkOppState").textContent = "对方已中断";
+            addFeed(`<strong>[对战胜利 +${Math.abs(eloDelta || 24)}分]</strong> ${reason}，当前积分 ${profile.pkElo}。`);
+          } else {
+            profile.pkLosses = (profile.pkLosses || 0) + 1;
+            profile.pkElo = newElo || Math.max(800, (profile.pkElo || 1200) - 15);
+            addFeed(`<strong>[对战结束 ${eloDelta || -15}分]</strong> ${reason}。`);
+          }
+          S.saveProfile(profile);
+          document.getElementById("btnStartPk").style.display = "inline-block";
+          document.getElementById("btnRoomPk").style.display = "inline-block";
+          document.getElementById("btnStopPk").style.display = "none";
+          document.getElementById("signalRow").style.display = "none";
+          syncHeartbeatAndFetchLeaderboard();
+          renderAll();
+        }
+
+        function handleStreakInterrupted(reason) {
+          const prev = profile.currentStreakSeconds || 0;
+          profile.bossDodges = (profile.bossDodges || 0) + 1;
+          profile.currentStreakSeconds = 0;
+          S.saveProfile(profile);
+          addFeed(`<strong>[潜伏中断]</strong> ${reason}，本轮连续时长定格为 ${S.formatDuration(prev, true)}。`);
+
+          if (pkActive) {
+            if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+              arenaWs.send(JSON.stringify({ type: "pk_interrupt", reason }));
+            } else {
+              onServerMatchEnded(false, -15, null, reason);
+            }
+          }
+          syncHeartbeatAndFetchLeaderboard();
+          renderAll();
+        }
+
+        document.getElementById("btnSimBoss").addEventListener("click", () => {
+          handleStreakInterrupted("触发老板键 ⌃⇧B 紧急避险");
+        });
+
+        document.getElementById("btnStartPk").addEventListener("click", () => {
+          if (pkMode === "royale") {
+            pkActive = true;
+            pkMySec = 0;
+            royaleAlive = 100;
+            document.getElementById("btnStartPk").style.display = "none";
+            document.getElementById("btnRoomPk").style.display = "none";
+            document.getElementById("btnStopPk").style.display = "inline-block";
+            addFeed("<strong>[百人淘汰赛]</strong> 100 人同场开始潜伏计时。");
+            return;
+          }
+          if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+            arenaWs.send(JSON.stringify({ type: "join_queue" }));
+          } else {
+            const fallback = S.FALLBACK_RIVALS[Math.floor(Math.random() * S.FALLBACK_RIVALS.length)];
+            onServerMatched(fallback, null);
+          }
+        });
+
+        document.getElementById("btnRoomPk").addEventListener("click", () => {
+          const code = prompt("输入 4 位数字房间号（两台设备输入相同房间号即可实时 1v1 对战）：", "8848");
+          if (!code) return;
+          if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+            arenaWs.send(JSON.stringify({ type: "join_room", roomCode: code.trim() }));
+          }
+        });
+
+        document.getElementById("btnStopPk").addEventListener("click", () => {
+          if (arenaWs && arenaWs.readyState === WebSocket.OPEN && pkMode === "duel") {
+            arenaWs.send(JSON.stringify({ type: "pk_interrupt", reason: "主动结束潜伏" }));
+          } else {
+            onServerMatchEnded(false, -15, null, "主动结束潜伏");
+          }
+        });
+
+        document.querySelectorAll(".signal-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            if (!pkActive) return;
+            const text = btn.dataset.sig;
+            addFeed(`<strong>[我方]</strong> ${text}`);
+            if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+              arenaWs.send(JSON.stringify({ type: "pk_signal", text }));
+            }
+          });
+        });
+
+        inpNick.addEventListener("change", () => {
+          profile.nickname = inpNick.value.trim() || profile.nickname;
+          S.saveProfile(profile);
+          if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+            arenaWs.send(JSON.stringify({ type: "hello", userId: profile.userId, nickname: profile.nickname, city: profile.city, regionCode: profile.regionCode }));
+          }
+          syncHeartbeatAndFetchLeaderboard();
+          renderAll();
+        });
+
+        selCity.addEventListener("change", () => {
+          const found = S.CITIES.find((c) => c.city === selCity.value) || S.CITIES[0];
+          profile.city = found.city;
+          profile.country = found.country;
+          profile.regionCode = found.regionCode;
+          S.saveProfile(profile);
+          syncHeartbeatAndFetchLeaderboard();
+          renderAll();
+        });
+
+        selIndustry.addEventListener("change", () => {
+          profile.industry = selIndustry.value;
+          S.saveProfile(profile);
+          syncHeartbeatAndFetchLeaderboard();
+          renderAll();
+        });
+
+        document.getElementById("btnSetWage").addEventListener("click", () => {
+          const v = prompt("设置时薪（元/小时）：", String(profile.hourlyWage || 85));
+          if (v !== null && Number(v) > 0) {
+            profile.hourlyWage = Math.round(Number(v));
+            document.getElementById("lblWage").textContent = profile.hourlyWage;
+            S.saveProfile(profile);
+            renderAll();
+          }
+        });
+
+        document.querySelectorAll("[data-pkmode]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            if (pkActive) return;
+            pkMode = btn.dataset.pkmode;
+            document.querySelectorAll("[data-pkmode]").forEach((b) => b.classList.toggle("active", b === btn));
+            document.getElementById("duelView").style.display = pkMode === "duel" ? "grid" : "none";
+            document.getElementById("royaleView").style.display = pkMode === "royale" ? "flex" : "none";
+          });
+        });
+
+        document.querySelectorAll("#scopeTabs .seg-tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentScope = btn.dataset.scope;
+            document.querySelectorAll("#scopeTabs .seg-tab").forEach((b) => b.classList.toggle("active", b === btn));
+            document.getElementById("metricTabs").style.visibility = currentScope === "country" ? "hidden" : "visible";
+            syncHeartbeatAndFetchLeaderboard();
+          });
+        });
+
+        document.querySelectorAll("#metricTabs .seg-tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentMetric = btn.dataset.metric;
+            document.querySelectorAll("#metricTabs .seg-tab").forEach((b) => b.classList.toggle("active", b === btn));
+            document.getElementById("lbColMetric").textContent =
+              currentMetric === "today" ? "今日累计" : currentMetric === "elo" ? "天梯积分" : "不间断时长";
+            syncHeartbeatAndFetchLeaderboard();
+          });
+        });
+
+        function renderLeaderboard() {
+          document.getElementById("tabCity").textContent = `同城 (${profile.city})`;
+          const tableWrap = document.getElementById("lbTableWrap");
+          const countryWrap = document.getElementById("lbCountryWrap");
+
+          if (currentScope === "country") {
+            tableWrap.style.display = "none";
+            countryWrap.style.display = "flex";
+            const list = cachedCountryStats && cachedCountryStats.length
+              ? cachedCountryStats
+              : [
+                  { country: "中国", regionCode: "CN", activeCount: 7, avgDailyMin: 215, topCity: "上海 · 深圳" },
+                  { country: "日本", regionCode: "JP", activeCount: 1, avgDailyMin: 280, topCity: "东京" },
+                  { country: "美国", regionCode: "US", activeCount: 1, avgDailyMin: 253, topCity: "硅谷" },
+                  { country: "新加坡", regionCode: "SG", activeCount: 1, avgDailyMin: 196, topCity: "新加坡" },
+                  { country: "英国", regionCode: "UK", activeCount: 1, avgDailyMin: 170, topCity: "伦敦" },
+                ];
+            const maxMin = Math.max(1, ...list.map((x) => x.avgDailyMin));
+            countryWrap.innerHTML = list
+              .map((c, i) => {
+                const pct = Math.round((c.avgDailyMin / maxMin) * 100);
+                return `
+                  <div class="country-row">
+                    <div class="country-head">
+                      <span style="display:inline-flex;align-items:center;gap:8px">${S.renderPodiumBadgeSvg(i + 1)}${S.renderFlagSvg(c.regionCode)}<span class="region-pill">${c.regionCode}</span><span>${c.country}</span></span>
+                      <span style="color:#94a3b8;font-weight:500">日均 ${c.avgDailyMin} 分钟 · 核心城市 ${c.topCity}</span>
+                    </div>
+                    <div class="progress-line"><div class="progress-fill" style="width:${pct}%"></div></div>
+                  </div>
+                `;
+              })
+              .join("");
+            return;
+          }
+
+          tableWrap.style.display = "block";
+          countryWrap.style.display = "none";
+
+          const rows = cachedLbItems || S.buildFallbackLeaderboard(profile, currentScope, currentMetric);
+          const me = rows.find((r) => r.isMe);
+          if (me && currentScope === "city") {
+            document.getElementById("kpiCityRank").textContent = `${profile.city} #${me.pos}`;
+          }
+
+          const lbList = document.getElementById("lbList");
+          lbList.innerHTML = rows
+            .map((r) => {
+              const scoreStr =
+                currentMetric === "elo"
+                  ? `${r.pkElo} 分`
+                  : S.formatDuration(currentMetric === "today" ? r.today : r.streak, true);
+
+              return `
+                <div class="lb-row ${r.isMe ? "me-row" : ""}">
+                  <div style="display:flex;align-items:center">${S.renderPodiumBadgeSvg(r.pos)}</div>
+                  <div class="user-cell">
+                    ${S.renderFlagSvg(r.regionCode)}
+                    <span class="region-pill">${r.regionCode}</span>
+                    <span class="user-name">${r.nickname}</span>
+                    <span style="font-size:11px;color:#64748b">${r.city}</span>
+                  </div>
+                  <div class="meta-cell">
+                    ${S.renderRankCrestSvg(r.rankInfo.level, 20)}
+                    <span class="lv-pill" style="color:${r.rankInfo.color}">${r.rankInfo.code} ${r.rankInfo.title}</span>
+                  </div>
+                  <div class="score-cell">${scoreStr}</div>
+                  <div style="text-align:right">
+                    ${
+                      r.isMe
+                        ? '<span style="font-size:11px;color:#34d399;font-weight:600">当前账号</span>'
+                        : `<button type="button" class="act-btn" data-rival="${r.userId}">挑战</button>`
+                    }
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          lbList.querySelectorAll("[data-rival]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const targetId = btn.dataset.rival;
+              pkMode = "duel";
+              document.getElementById("tabDuel").click();
+              if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+                arenaWs.send(JSON.stringify({ type: "join_queue", targetRivalId: targetId }));
+              } else {
+                const found = rows.find((x) => x.userId === targetId);
+                if (found) onServerMatched(found, null);
+              }
+            });
+          });
+        }
+
+        function renderTiers() {
+          const info = S.getRankForSeconds(profile.totalSeconds);
+          document.getElementById("tiersGrid").innerHTML = S.RANKS.map((t) => {
+            const unlocked = profile.totalSeconds / 60 >= t.minMin;
+            const isCur = info.current.level === t.level;
+            return `
+              <div class="tier-item ${unlocked ? "unlocked" : ""} ${isCur ? "current" : ""}">
+                <div class="tier-top" style="color:${t.color};align-items:center">
+                  <span style="display:inline-flex;align-items:center;gap:6px">${S.renderRankCrestSvg(t.level, 22)}<span>${t.code} ${t.title}</span></span>
+                  <span style="color:#64748b;font-weight:500">${t.minMin >= 60 ? t.minMin / 60 + "h" : t.minMin + "m"}</span>
+                </div>
+                <div class="tier-desc">${t.desc}</div>
+              </div>
+            `;
+          }).join("");
+        }
+
+        function renderAll() {
+          const rank = S.getRankForSeconds(profile.totalSeconds);
+          document.getElementById("kpiCurStreak").textContent = S.formatDuration(profile.currentStreakSeconds, true);
+          document.getElementById("kpiBestStreak").textContent = S.formatDuration(profile.bestStreakSeconds, true);
+          document.getElementById("kpiDodges").textContent = `紧急避险 ${profile.bossDodges || 0} 次`;
+          document.getElementById("kpiPkSummary").textContent = `${profile.pkWins || 0}胜 ${profile.pkLosses || 0}负 · ${profile.pkElo || 1200}分`;
+
+          document.getElementById("kpiTodayTime").textContent = S.formatDuration(profile.todaySeconds, true);
+          document.getElementById("kpiEarned").textContent = `¥${S.computeSalaryEarned(profile.todaySeconds, profile.hourlyWage)}`;
+          document.getElementById("kpiTotalHours").textContent = `${(profile.totalSeconds / 3600).toFixed(1)}h`;
+
+          document.getElementById("kpiRankCode").textContent = rank.current.code;
+          document.getElementById("kpiRankCode").style.color = rank.current.color;
+          document.getElementById("kpiRankCrest").innerHTML = S.renderRankCrestSvg(rank.current.level, 26);
+          document.getElementById("kpiRankTitle").textContent = rank.current.title;
+          document.getElementById("kpiNextHint").textContent = rank.next
+            ? `距 ${rank.next.title} 还需 ${rank.remainMin} 分钟`
+            : "已达最高等级";
+          document.getElementById("kpiRankPct").textContent = `${Math.round(rank.progressPct)}%`;
+          document.getElementById("kpiRankBar").style.width = `${rank.progressPct.toFixed(1)}%`;
+
+          document.getElementById("pkEloBadge").textContent = `ELO ${profile.pkElo || 1200}`;
+          document.getElementById("pkMyName").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${S.renderFlagSvg(profile.regionCode)}<span>${profile.nickname}</span></span>`;
+          document.getElementById("pkMyMeta").innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${S.renderRankCrestSvg(rank.current.level, 16)}<span>${profile.city} · ${rank.current.code} ${rank.current.title}</span></span>`;
+          document.getElementById("pkMyClock").textContent = S.formatDuration(pkActive ? pkMySec : profile.currentStreakSeconds, true);
+
+          renderLeaderboard();
+          renderTiers();
+        }
+
+        // 1Hz Telemetry & PK Clock
+        setInterval(() => {
+          profile.totalSeconds = (profile.totalSeconds || 0) + 1;
+          profile.todaySeconds = (profile.todaySeconds || 0) + 1;
+          profile.currentStreakSeconds = (profile.currentStreakSeconds || 0) + 1;
+          if (profile.currentStreakSeconds > (profile.bestStreakSeconds || 0)) {
+            profile.bestStreakSeconds = profile.currentStreakSeconds;
+          }
+          S.saveProfile(profile);
+
+          if (pkActive) {
+            pkMySec += 1;
+            if (pkMode === "duel" && arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+              arenaWs.send(JSON.stringify({ type: "pk_tick", seconds: pkMySec }));
+            } else if (pkMode === "royale") {
+              if (royaleAlive > 1 && Math.random() < 0.35) {
+                royaleAlive = Math.max(1, royaleAlive - (1 + Math.floor(Math.random() * 2)));
+                document.getElementById("royaleAlive").textContent = String(royaleAlive);
+                document.getElementById("royaleBar").style.width = `${royaleAlive}%`;
+                if (royaleAlive === 1) {
+                  onServerMatchEnded(true, 24, null, "百人淘汰赛存活至第 1 名");
+                }
+              }
+            }
+          }
+          renderAll();
+        }, 1000);
+
+        // Sync with server every 5 seconds
+        setInterval(syncHeartbeatAndFetchLeaderboard, 5000);
+        syncHeartbeatAndFetchLeaderboard();
+        renderAll();
+      })();
+    </script>
+  </body>
+</html>

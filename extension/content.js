@@ -1,0 +1,1185 @@
+/**
+ * GeckoPiP Content Script v3.0
+ * - Full two-way PiP player state & controls sync (Play/Pause, Progress Seek, -10s/+10s, Mute, Speed)
+ * - Apple/Arc-grade Glass Borderless PiP Player HUD with continuous 0%->96% Gecko Camouflage Slider
+ */
+(function () {
+  "use strict";
+
+  // Clean up any stale DOM hosts from a previous extension reload in chrome://extensions
+  for (const staleId of ["gecko-pip-hover-host", "gecko-parasite-host", "gecko-topbar-host"]) {
+    const old = document.getElementById(staleId);
+    if (old) old.remove();
+  }
+  window.__GECKO_PIP_CLEANUP__?.();
+
+  const Core = window.GeckoCore;
+  if (!Core) return;
+
+  let state = { ...Core.DEFAULT_STATE };
+  let activeVideo = null;
+  let videoRestoreInfo = null;
+  let isHoveringStage = false;
+  let isTyping = false;
+  let typingTimer = null;
+  let wasPlayingBeforeBoss = false;
+  let uiSyncTimer = null;
+
+  let hoverHost = null;
+  let hoverCandidateVideo = null;
+  let hideHoverTimer = null;
+
+  let parasiteHost = null;
+  let parasiteOpen = false;
+  let parasiteClickThrough = false;
+  let parasiteStreamPort = null;
+  let parasiteUsingCrossTab = false;
+  let autoSenseTimer = null;
+
+  function loadState() {
+    if (!chrome?.storage?.local) return;
+    chrome.storage.local.get(["geckoState"], (res) => {
+      if (res?.geckoState) {
+        state = { ...Core.DEFAULT_STATE, ...res.geckoState };
+        applyStateToParasite();
+      }
+    });
+  }
+
+  function saveState(patch, persist = true) {
+    const prevBoss = state.bossMode;
+    state = { ...state, ...patch };
+    if (prevBoss !== state.bossMode) {
+      handleBossModeTransition(state.bossMode);
+    }
+    applyStateToParasite();
+    if (persist && chrome?.storage?.local) {
+      chrome.storage.local.set({ geckoState: state });
+    }
+  }
+
+  if (chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && changes.geckoState?.newValue) {
+        const prevBoss = state.bossMode;
+        state = { ...Core.DEFAULT_STATE, ...changes.geckoState.newValue };
+        if (prevBoss !== state.bossMode) {
+          handleBossModeTransition(state.bossMode);
+        }
+        applyStateToParasite();
+      }
+    });
+  }
+  loadState();
+
+  function wakeMacGhostViaScheme() {
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = "geckoghost://wakeup";
+    document.documentElement.appendChild(iframe);
+    setTimeout(() => iframe.remove(), 1500);
+  }
+
+  function showToast(text) {
+    const toast = document.createElement("div");
+    toast.style.cssText =
+      "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:9px 16px;border-radius:999px;background:rgba(12,18,26,0.92);backdrop-filter:blur(12px);border:1px solid rgba(52,211,153,0.5);color:#f1f5f9;font:500 12.5px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;box-shadow:0 10px 30px rgba(0,0,0,0.45);pointer-events:none;transition:opacity 0.25s ease;";
+    toast.textContent = text;
+    document.documentElement.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 3400);
+  }
+
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey) {
+        if (e.code === "KeyB" && parasiteOpen) {
+          e.preventDefault();
+          saveState({ bossMode: !state.bossMode });
+          return;
+        }
+        if (e.code === "KeyM" && parasiteOpen) {
+          e.preventDefault();
+          parasiteClickThrough = !parasiteClickThrough;
+          showToast(
+            parasiteClickThrough
+              ? "已开启鼠标穿透 · 再按 Control+Shift+M 恢复播放器控制"
+              : "已恢复鼠标控制"
+          );
+          applyStateToParasite();
+          return;
+        }
+      }
+
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && state.typingLurk) {
+        if (!isTyping) {
+          isTyping = true;
+          applyStateToParasite();
+        }
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+          isTyping = false;
+          applyStateToParasite();
+        }, 1400);
+      }
+    },
+    true
+  );
+
+  // ---------------------------------------------------------------------------
+  // Video Discovery & Full Player Telemetry
+  // ---------------------------------------------------------------------------
+  function collectAllVideos() {
+    const videos = Array.from(document.querySelectorAll("video"));
+    for (const frame of document.querySelectorAll("iframe")) {
+      try {
+        if (frame.contentDocument) {
+          videos.push(...frame.contentDocument.querySelectorAll("video"));
+        }
+      } catch (_) {}
+    }
+    return videos;
+  }
+
+  function scoreVideo(v) {
+    if (!v || !v.isConnected) return -1;
+    if (parasiteHost && parasiteHost.shadowRoot?.contains(v) && v !== activeVideo) return -1;
+    const rect = v.getBoundingClientRect();
+    const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+    if (area < 5000 && v !== activeVideo) return -1;
+
+    let score = area / 1000;
+    if (!v.paused && !v.ended) score += 5000;
+    if (v.readyState >= 2) score += 1200;
+    if (v.currentTime > 0) score += 600;
+    if (rect.bottom > 0 && rect.top < window.innerHeight) score += 1500;
+    return score;
+  }
+
+  function findBestVideo() {
+    if (activeVideo && activeVideo.isConnected) return activeVideo;
+    let best = null;
+    let bestScore = -1;
+    for (const v of collectAllVideos()) {
+      const s = scoreVideo(v);
+      if (s > bestScore) {
+        bestScore = s;
+        best = v;
+      }
+    }
+    return best;
+  }
+
+  function getNormalizedVideoCrop() {
+    const v = findBestVideo();
+    if (!v) return null;
+    const r = v.getBoundingClientRect();
+    const vw = Math.max(1, window.innerWidth);
+    const vh = Math.max(1, window.innerHeight);
+
+    const vidRatio = (v.videoWidth || 16) / Math.max(1, v.videoHeight || 9);
+    const boxRatio = r.width / Math.max(1, r.height);
+    let contentLeft = r.left;
+    let contentTop = r.top;
+    let contentW = r.width;
+    let contentH = r.height;
+
+    const fit = window.getComputedStyle(v).objectFit;
+    if (fit === "contain" || fit === "" || fit === "scale-down") {
+      if (boxRatio > vidRatio) {
+        contentW = r.height * vidRatio;
+        contentLeft = r.left + (r.width - contentW) / 2;
+      } else {
+        contentH = r.width / vidRatio;
+        contentTop = r.top + (r.height - contentH) / 2;
+      }
+    }
+
+    return {
+      nx: Core.clamp(contentLeft / vw, 0, 0.98),
+      ny: Core.clamp(contentTop / vh, 0, 0.98),
+      nw: Core.clamp(contentW / vw, 0.05, 1),
+      nh: Core.clamp(contentH / vh, 0.05, 1),
+      aspect: vidRatio,
+      subtitle: readHostSubtitles(v),
+      player: {
+        paused: v.paused,
+        currentTime: v.currentTime || 0,
+        duration: Number.isFinite(v.duration) ? v.duration : 0,
+        muted: v.muted || v.volume === 0,
+        volume: v.volume,
+        playbackRate: v.playbackRate || 1,
+      },
+    };
+  }
+
+  function readHostSubtitles(targetVid) {
+    const selectors = [
+      ".bpx-player-subtitle-panel-text",
+      ".bilibili-player-video-subtitle .subtitle-item-text",
+      ".ytp-caption-segment",
+    ];
+    for (const sel of selectors) {
+      const nodes = document.querySelectorAll(sel);
+      if (nodes.length > 0) {
+        const text = Array.from(nodes)
+          .map((n) => n.textContent.trim())
+          .filter(Boolean)
+          .join(" ");
+        if (text) return text;
+      }
+    }
+    const v = targetVid || activeVideo;
+    if (v?.textTracks) {
+      for (const track of v.textTracks) {
+        if (track.mode === "showing" && track.activeCues?.length) {
+          return Array.from(track.activeCues)
+            .map((c) => c.text || "")
+            .join(" ")
+            .replace(/<[^>]+>/g, "")
+            .trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  // ---------------------------------------------------------------------------
+  // Refined On-Video Launch Pill
+  // ---------------------------------------------------------------------------
+  function ensureHoverBadge() {
+    if (hoverHost) return;
+    hoverHost = document.createElement("div");
+    hoverHost.id = "gecko-pip-hover-host";
+    hoverHost.style.cssText =
+      "position:fixed;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+    const shadow = hoverHost.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <style>
+        .bar {
+          position: fixed;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          padding: 4px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: rgba(12, 17, 24, 0.84);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          opacity: 0;
+          transform: translateY(-3px);
+          transition: opacity 0.18s ease, transform 0.18s ease;
+          pointer-events: auto;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+          font: 600 11.5px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        }
+        .bar.visible { opacity: 1; transform: translateY(0); }
+        button {
+          appearance: none;
+          border: none;
+          border-radius: 999px;
+          padding: 5px 10px;
+          background: transparent;
+          color: #e2e8f0;
+          font: inherit;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: background 0.14s ease, color 0.14s ease;
+        }
+        button:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+        .sep { width: 1px; height: 12px; background: rgba(255,255,255,0.14); }
+      </style>
+      <div class="bar" id="hoverBar">
+        <button type="button" id="btnDesktopGhost" title="开启桌面全局无边框壁虎画中画">
+          <span class="dot"></span><span>桌面壁虎画中画</span>
+        </button>
+        <span class="sep"></span>
+        <button type="button" id="btnPageFloat" title="在当前网页内开启无边框壁虎画中画">
+          页内小窗
+        </button>
+      </div>
+    `;
+    const bar = shadow.getElementById("hoverBar");
+    shadow.getElementById("btnDesktopGhost").addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      bar.classList.remove("visible");
+      wakeMacGhostViaScheme();
+      showToast("已唤醒桌面画中画 · 请按 Control+Shift+G（或点浏览器右上角图标）开启画面投送");
+    });
+    shadow.getElementById("btnPageFloat").addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      bar.classList.remove("visible");
+      openParasiteOverlay({ video: hoverCandidateVideo || findBestVideo() });
+    });
+    document.documentElement.appendChild(hoverHost);
+  }
+
+  function hideHoverBadge() {
+    hoverHost?.shadowRoot?.getElementById("hoverBar")?.classList.remove("visible");
+  }
+
+  window.addEventListener(
+    "mousemove",
+    (e) => {
+      if (parasiteOpen) return;
+      let matched = null;
+      for (const v of collectAllVideos()) {
+        if (v.ownerDocument !== document) continue;
+        const r = v.getBoundingClientRect();
+        if (
+          r.width >= 200 &&
+          r.height >= 120 &&
+          e.clientX >= r.left &&
+          e.clientX <= r.right &&
+          e.clientY >= r.top &&
+          e.clientY <= r.bottom
+        ) {
+          matched = { video: v, rect: r };
+          break;
+        }
+      }
+      if (!matched) {
+        if (hoverHost && e.composedPath?.().includes(hoverHost)) return;
+        hideHoverBadge();
+        return;
+      }
+      ensureHoverBadge();
+      hoverCandidateVideo = matched.video;
+      const bar = hoverHost.shadowRoot.getElementById("hoverBar");
+      bar.style.top = `${Math.max(10, matched.rect.top + 12)}px`;
+      bar.style.left = `${Math.max(10, matched.rect.right - 210)}px`;
+      bar.classList.add("visible");
+      clearTimeout(hideHoverTimer);
+      hideHoverTimer = setTimeout(hideHoverBadge, 2400);
+    },
+    { passive: true }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Apple/Arc-Grade Glass Borderless PiP Player (In-Page & Cross-Tab)
+  // ---------------------------------------------------------------------------
+  async function toggleParasiteOverlay() {
+    if (parasiteOpen) {
+      closeParasiteOverlay();
+      return { ok: true, open: false };
+    }
+    return await openParasiteOverlay({});
+  }
+
+  async function openParasiteOverlay({ video } = {}) {
+    closeParasiteOverlay();
+    const localVideo = video || findBestVideo();
+    let useCrossTab = false;
+
+    if (!localVideo) {
+      try {
+        const bgStatus = await chrome.runtime.sendMessage({
+          type: "GECKO_GET_STATUS_SUMMARY",
+        });
+        if (bgStatus?.streamingTabId) useCrossTab = true;
+        else return { ok: false, reason: "no_video" };
+      } catch (_) {
+        return { ok: false, reason: "no_video" };
+      }
+    }
+
+    parasiteOpen = true;
+    parasiteUsingCrossTab = useCrossTab;
+    parasiteClickThrough = false;
+    hideHoverBadge();
+
+    parasiteHost = document.createElement("div");
+    parasiteHost.id = "gecko-parasite-host";
+    parasiteHost.style.cssText =
+      "position:fixed;right:24px;bottom:24px;width:380px;height:214px;z-index:2147483645;background:transparent;border:none;box-shadow:none;";
+
+    const shadow = parasiteHost.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .p-root {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          background: transparent !important;
+          overflow: hidden;
+          user-select: none;
+          border-radius: 12px;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+        }
+        .p-root.hovered:not(.boss-active):not(.click-through) {
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+        }
+        .p-stage {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: grab;
+        }
+        .p-media {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          background: transparent !important;
+          pointer-events: none !important;
+          transition: opacity 0.15s ease;
+        }
+        .p-subtitle {
+          position: absolute;
+          bottom: 12px;
+          left: 8%;
+          right: 8%;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 600;
+          line-height: 1.35;
+          pointer-events: none;
+          transition: bottom 0.18s ease;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.28);
+        }
+        .p-root.hovered:not(.click-through) .p-subtitle { bottom: 60px; }
+
+        .hud-top {
+          position: absolute;
+          top: 0; left: 0; right: 0; height: 42px;
+          padding: 7px 9px;
+          display: flex; align-items: center; justify-content: space-between;
+          background: linear-gradient(to bottom, rgba(8,12,18,0.78) 0%, rgba(8,12,18,0.3) 70%, transparent 100%);
+          opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 10;
+        }
+        .hud-bottom {
+          position: absolute;
+          bottom: 0; left: 0; right: 0;
+          padding: 9px 11px 8px;
+          display: flex; flex-direction: column; gap: 5px;
+          background: linear-gradient(to top, rgba(8,12,18,0.86) 0%, rgba(8,12,18,0.45) 72%, transparent 100%);
+          opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 10;
+        }
+        .p-root.hovered:not(.click-through):not(.boss-active) .hud-top,
+        .p-root.hovered:not(.click-through):not(.boss-active) .hud-bottom {
+          opacity: 1; pointer-events: auto;
+        }
+
+        .pill-group {
+          display: inline-flex; background: rgba(18,24,34,0.72);
+          backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 7px; padding: 2px; gap: 1px;
+        }
+        .seg-btn {
+          appearance: none; border: none; background: transparent;
+          color: rgba(226,232,240,0.78); font-size: 11px; font-weight: 500;
+          padding: 3px 8px; border-radius: 5px; cursor: pointer;
+        }
+        .seg-btn.active { background: rgba(255,255,255,0.16); color: #fff; font-weight: 600; }
+
+        .icon-btn {
+          appearance: none; border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(18,24,34,0.68); backdrop-filter: blur(12px);
+          color: #e2e8f0; width: 25px; height: 25px; border-radius: 7px;
+          display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .icon-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+        .progress-row { display: flex; align-items: center; gap: 8px; }
+        .progress-track { flex: 1; height: 12px; display: flex; align-items: center; cursor: pointer; }
+        .progress-bg { width: 100%; height: 3.5px; border-radius: 999px; background: rgba(255,255,255,0.22); overflow: hidden; }
+        .progress-track:hover .progress-bg { height: 5.5px; }
+        .progress-fill { height: 100%; width: 0%; background: #34d399; border-radius: 999px; }
+        .time-lbl { font-size: 10.5px; font-variant-numeric: tabular-nums; color: rgba(226,232,240,0.85); }
+
+        .ctrl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+        .ctrl-left { display: flex; align-items: center; gap: 3px; }
+        .mini-ctrl {
+          appearance: none; border: none; background: transparent; color: #f1f5f9;
+          width: 25px; height: 23px; border-radius: 5px;
+          display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .mini-ctrl:hover { background: rgba(255,255,255,0.15); }
+        .rate-btn {
+          appearance: none; border: 1px solid rgba(255,255,255,0.16);
+          background: rgba(255,255,255,0.08); color: #e2e8f0;
+          border-radius: 5px; padding: 2px 6px; font-size: 10px; font-weight: 600; cursor: pointer;
+        }
+        .gecko-pill {
+          display: inline-flex; align-items: center; gap: 5px;
+          background: rgba(18,24,34,0.72); border: 1px solid rgba(52,211,153,0.32);
+          border-radius: 999px; padding: 2px 8px; font-size: 10.5px; color: #d1fae5;
+        }
+        .gecko-pill input[type="range"] { width: 66px; height: 3.5px; accent-color: #34d399; cursor: pointer; }
+        .gecko-pct { min-width: 26px; text-align: right; font-weight: 600; color: #6ee7b7; font-variant-numeric: tabular-nums; }
+
+        /* 8-Direction Direct Resize Handles */
+        .rz { position: absolute; z-index: 28; }
+        .rz-n  { top: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+        .rz-s  { bottom: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+        .rz-e  { right: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+        .rz-w  { left: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+        .rz-nw { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+        .rz-ne { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+        .rz-sw { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+        .rz-se {
+          right: 0; bottom: 0; width: 20px; height: 20px;
+          cursor: nwse-resize; color: rgba(110,231,183,0.85);
+          display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px;
+          opacity: 0; transition: opacity 0.15s ease;
+        }
+        .p-root.hovered:not(.click-through):not(.boss-active) .rz-se { opacity: 1; }
+
+        .p-root.boss-active .p-stage { opacity: 0 !important; pointer-events: none !important; }
+        .boss-recover {
+          position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+          display: none; padding: 6px 12px; border-radius: 999px;
+          background: rgba(15,23,32,0.9); border: 1px solid rgba(251,191,36,0.5);
+          color: #fde68a; font-size: 11px; font-weight: 600; cursor: pointer; z-index: 30; white-space: nowrap;
+        }
+        .p-root.boss-active.hovered .boss-recover { display: inline-flex; }
+      </style>
+      <style id="parasiteFeatherStyle"></style>
+
+      <div class="p-root" id="pRoot">
+        <svg style="position:absolute;width:0;height:0;pointer-events:none" xmlns="http://www.w3.org/2000/svg">
+          <defs id="pSvgDefs"></defs>
+        </svg>
+
+        <div class="p-stage" id="pStage">
+          <div id="pMediaSlot" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"></div>
+          <div class="p-subtitle" id="pSub"></div>
+        </div>
+
+        <div class="hud-top">
+          <div class="pill-group">
+            <button class="seg-btn" data-mode="projector">光影</button>
+            <button class="seg-btn" data-mode="emboss">浮雕</button>
+            <button class="seg-btn" data-mode="cinema">彩透</button>
+          </div>
+          <div style="display:flex;gap:4px">
+            <button class="icon-btn" data-size="260" style="width:auto;padding:0 6px;font-size:10px" title="小窗">S</button>
+            <button class="icon-btn" data-size="392" style="width:auto;padding:0 6px;font-size:10px" title="标准">M</button>
+            <button class="icon-btn" data-size="520" style="width:auto;padding:0 6px;font-size:10px" title="大窗">L</button>
+            <button class="icon-btn" id="pBtnThrough" title="鼠标穿透 (按 ⌃⇧M 恢复)">${Core.ICONS.cursorThrough}</button>
+            <button class="icon-btn" id="pBtnBoss" title="老板键隐藏 (⌃⇧B)">${Core.ICONS.eyeHide}</button>
+            <button class="icon-btn" id="pBtnClose" title="关闭并收回原视频">${Core.ICONS.close}</button>
+          </div>
+        </div>
+
+        <div class="hud-bottom">
+          <div class="progress-row">
+            <div class="progress-track" id="pTrack">
+              <div class="progress-bg"><div class="progress-fill" id="pFill"></div></div>
+            </div>
+            <span class="time-lbl" id="pTime">00:00 / 00:00</span>
+          </div>
+          <div class="ctrl-row">
+            <div class="ctrl-left">
+              <button class="mini-ctrl" id="pBtnPlay">${Core.ICONS.pause}</button>
+              <button class="mini-ctrl" id="pBtnBack">${Core.ICONS.back10}</button>
+              <button class="mini-ctrl" id="pBtnFwd">${Core.ICONS.fwd10}</button>
+              <button class="mini-ctrl" id="pBtnMute">${Core.ICONS.volOn}</button>
+              <button class="rate-btn" id="pBtnRate">1.0x</button>
+            </div>
+            <label class="gecko-pill">
+              <span>浓度</span>
+              <input type="range" id="pRngStealth" min="10" max="95" value="58" />
+              <span class="gecko-pct" id="pLblStealth">58%</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="rz rz-n" data-dir="n"></div>
+        <div class="rz rz-s" data-dir="s"></div>
+        <div class="rz rz-e" data-dir="e"></div>
+        <div class="rz rz-w" data-dir="w"></div>
+        <div class="rz rz-nw" data-dir="nw"></div>
+        <div class="rz rz-ne" data-dir="ne"></div>
+        <div class="rz rz-sw" data-dir="sw"></div>
+        <div class="rz rz-se" data-dir="se" title="按住任意边角自由缩放窗口大小">${Core.ICONS.resizeGrip}</div>
+        <button class="boss-recover" id="pBtnRecover">已隐藏并暂停 · 点击恢复播放</button>
+      </div>
+    `;
+
+    const pRoot = shadow.getElementById("pRoot");
+    const mediaSlot = shadow.getElementById("pMediaSlot");
+
+    if (!useCrossTab && localVideo) {
+      activeVideo = localVideo;
+      const placeholder = document.createElement("div");
+      placeholder.className = "gecko-pip-placeholder";
+      placeholder.innerHTML = `
+        <div class="gecko-pip-placeholder-badge">视频正在右下角无边框壁虎画中画播放中</div>
+        <button type="button" class="gecko-pip-placeholder-btn">收回视频原位</button>
+      `;
+      placeholder
+        .querySelector(".gecko-pip-placeholder-btn")
+        .addEventListener("click", () => closeParasiteOverlay());
+
+      const wasPlaying = !localVideo.paused && !localVideo.ended;
+      videoRestoreInfo = {
+        video: localVideo,
+        parent: localVideo.parentNode,
+        placeholder,
+        cssText: localVideo.style.cssText,
+        hadControls: localVideo.hasAttribute("controls"),
+        hadClass: localVideo.className,
+      };
+
+      localVideo.parentNode?.insertBefore(placeholder, localVideo);
+      localVideo.removeAttribute("controls");
+      localVideo.classList.add("p-media");
+      mediaSlot.appendChild(localVideo);
+      if (wasPlaying && !state.bossMode) localVideo.play().catch(() => {});
+    } else {
+      const streamImg = document.createElement("img");
+      streamImg.className = "p-media";
+      mediaSlot.appendChild(streamImg);
+      parasiteStreamPort = chrome.runtime.connect({ name: "gecko-parasite-viewer" });
+      parasiteStreamPort.onMessage.addListener((msg) => {
+        if (msg.type === "GECKO_FRAME" && msg.dataUrl) {
+          streamImg.src = msg.dataUrl;
+          const subEl = shadow.getElementById("pSub");
+          if (subEl && state.mirrorSubtitles) subEl.textContent = msg.subtitle || "";
+        } else if (msg.type === "GECKO_STREAM_ENDED") {
+          closeParasiteOverlay();
+        }
+      });
+    }
+
+    document.documentElement.appendChild(parasiteHost);
+
+    parasiteHost.addEventListener("mouseenter", () => {
+      isHoveringStage = true;
+      pRoot.classList.add("hovered");
+    });
+    parasiteHost.addEventListener("mouseleave", () => {
+      isHoveringStage = false;
+      pRoot.classList.remove("hovered");
+    });
+
+    // Drag (with 4px threshold so single click toggles Play/Pause!) & 8-Direction Resize
+    let drag = null;
+    let resize = null;
+    shadow.getElementById("pStage").addEventListener("mousedown", (e) => {
+      if (parasiteClickThrough) return;
+      const r = parasiteHost.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+    });
+
+    shadow.querySelectorAll(".rz").forEach((h) => {
+      h.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const r = parasiteHost.getBoundingClientRect();
+        resize = {
+          dir: h.dataset.dir,
+          sx: e.clientX,
+          sy: e.clientY,
+          left: r.left,
+          top: r.top,
+          w: r.width,
+          h: r.height,
+        };
+      });
+    });
+
+    shadow.querySelectorAll("[data-size]").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const nw = Number(b.dataset.size);
+        const nh = Math.round((nw * 9) / 16);
+        parasiteHost.style.width = `${nw}px`;
+        parasiteHost.style.height = `${nh}px`;
+        runDomAutoSenseOnce();
+      });
+    });
+
+    const onMove = (e) => {
+      if (resize) {
+        const dx = e.clientX - resize.sx;
+        const dy = e.clientY - resize.sy;
+        let nl = resize.left, nt = resize.top, nw = resize.w, nh = resize.h;
+        if (resize.dir.includes("e")) nw = Core.clamp(resize.w + dx, 200, window.innerWidth - resize.left - 8);
+        if (resize.dir.includes("s")) nh = Core.clamp(resize.h + dy, 115, window.innerHeight - resize.top - 8);
+        if (resize.dir.includes("w")) {
+          const d = Core.clamp(dx, -resize.left + 8, resize.w - 200);
+          nl = resize.left + d;
+          nw = resize.w - d;
+        }
+        if (resize.dir.includes("n")) {
+          const d = Core.clamp(dy, -resize.top + 8, resize.h - 115);
+          nt = resize.top + d;
+          nh = resize.h - d;
+        }
+        parasiteHost.style.left = `${nl}px`;
+        parasiteHost.style.top = `${nt}px`;
+        parasiteHost.style.right = "auto";
+        parasiteHost.style.bottom = "auto";
+        parasiteHost.style.width = `${nw}px`;
+        parasiteHost.style.height = `${nh}px`;
+        return;
+      }
+      if (drag) {
+        if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) {
+          drag.moved = true;
+        }
+        if (drag.moved) {
+          const left = Core.clamp(e.clientX - drag.dx, 0, window.innerWidth - 140);
+          const top = Core.clamp(e.clientY - drag.dy, 0, window.innerHeight - 90);
+          parasiteHost.style.left = `${left}px`;
+          parasiteHost.style.top = `${top}px`;
+          parasiteHost.style.right = "auto";
+          parasiteHost.style.bottom = "auto";
+          runDomAutoSenseOnce();
+        }
+      }
+    };
+    const onUp = () => {
+      if (resize) runDomAutoSenseOnce();
+      if (drag && !drag.moved && activeVideo) {
+        if (activeVideo.paused) activeVideo.play().catch(() => {});
+        else activeVideo.pause();
+      }
+      drag = null;
+      resize = null;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    parasiteHost._cleanup = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    // Player controls wiring
+    const execLocalOrRemote = (action, extra = {}) => {
+      if (activeVideo) {
+        execCmdOnVideo(activeVideo, { action, ...extra });
+        syncPlayerUi();
+      } else if (parasiteStreamPort) {
+        parasiteStreamPort.postMessage({ type: "GECKO_VIEWER_CMD", action, ...extra });
+      }
+    };
+
+    shadow.getElementById("pBtnPlay").addEventListener("click", (e) => {
+      e.stopPropagation();
+      execLocalOrRemote("togglePlay");
+    });
+    shadow.getElementById("pBtnBack").addEventListener("click", (e) => {
+      e.stopPropagation();
+      execLocalOrRemote("seek", { delta: -10 });
+    });
+    shadow.getElementById("pBtnFwd").addEventListener("click", (e) => {
+      e.stopPropagation();
+      execLocalOrRemote("seek", { delta: 10 });
+    });
+    shadow.getElementById("pBtnMute").addEventListener("click", (e) => {
+      e.stopPropagation();
+      execLocalOrRemote("toggleMute");
+    });
+    const rates = [1.0, 1.25, 1.5, 2.0];
+    shadow.getElementById("pBtnRate").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cur = activeVideo?.playbackRate || 1.0;
+      const next = rates[(rates.indexOf(cur) + 1) % rates.length];
+      execLocalOrRemote("setRate", { value: next });
+      e.currentTarget.textContent = `${next.toFixed(next % 1 === 0 ? 1 : 2).replace(/\.00$/, ".0")}x`;
+    });
+
+    const pTrack = shadow.getElementById("pTrack");
+    pTrack.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+      const r = pTrack.getBoundingClientRect();
+      const ratio = Core.clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1);
+      if (activeVideo && Number.isFinite(activeVideo.duration)) {
+        execLocalOrRemote("seekTo", { value: ratio * activeVideo.duration });
+      }
+    });
+
+    shadow.querySelectorAll(".seg-btn").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveState({ mode: b.dataset.mode });
+      });
+    });
+
+    shadow.getElementById("pRngStealth").addEventListener("input", (e) => {
+      e.stopPropagation();
+      saveState({ stealth: Number(e.target.value) });
+    });
+
+    shadow.getElementById("pBtnThrough").addEventListener("click", (e) => {
+      e.stopPropagation();
+      parasiteClickThrough = true;
+      showToast("已开启鼠标穿透 · 按 Control + Shift + M 恢复控制");
+      applyStateToParasite();
+    });
+    shadow.getElementById("pBtnBoss").addEventListener("click", (e) => {
+      e.stopPropagation();
+      saveState({ bossMode: true });
+    });
+    shadow.getElementById("pBtnRecover").addEventListener("click", (e) => {
+      e.stopPropagation();
+      saveState({ bossMode: false });
+    });
+    shadow.getElementById("pBtnClose").addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeParasiteOverlay();
+    });
+
+    startDomAutoSenseLoop();
+    startUiSyncLoop();
+    applyStateToParasite();
+    return { ok: true, open: true };
+  }
+
+  let topBarHost = null;
+  function mountTopControlBar() {
+    removeTopControlBar();
+    topBarHost = document.createElement("div");
+    topBarHost.id = "gecko-topbar-host";
+    topBarHost.style.cssText =
+      "position:fixed;top:10px;right:18px;z-index:2147483647;background:transparent;";
+    const ts = topBarHost.attachShadow({ mode: "open" });
+    ts.innerHTML = `
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+        .top-pill {
+          appearance: none;
+          border: 1px solid rgba(52, 211, 153, 0.55);
+          background: rgba(12, 18, 26, 0.88);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          color: #d1fae5;
+          padding: 5px 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+          display: inline-flex; align-items: center; gap: 6px;
+        }
+        .top-pill:hover { background: rgba(18, 30, 42, 0.96); color: #fff; }
+        .pop {
+          position: absolute; top: 36px; right: 0; width: 288px;
+          background: rgba(13, 18, 26, 0.96);
+          backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 12px; padding: 12px;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+          color: #e2e8f0; display: none; flex-direction: column; gap: 9px;
+        }
+        .pop.open { display: flex; }
+        .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .t-btn {
+          appearance: none; border: 1px solid rgba(255,255,255,0.12);
+          background: #17212d; color: #cbd5e1; border-radius: 7px;
+          padding: 6px 8px; font-size: 11px; font-weight: 600; cursor: pointer;
+        }
+        .t-btn.active { background: rgba(16,185,129,0.22); border-color: #34d399; color: #a7f3d0; }
+        .seg4 { display: grid; grid-template-columns: repeat(4, 1fr); background: #090d13; padding: 2px; border-radius: 7px; gap: 2px; }
+        .sb { appearance: none; border: none; background: transparent; color: #94a3b8; font-size: 11px; padding: 5px 2px; border-radius: 5px; cursor: pointer; }
+        .sb.active { background: #1e293b; color: #fff; font-weight: 600; }
+        .sl { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #cbd5e1; }
+        .sl div { display: flex; justify-content: space-between; }
+        .sl strong { color: #34d399; }
+        input[type="range"] { width: 100%; height: 4px; accent-color: #10b981; cursor: pointer; }
+        .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        .mb { appearance: none; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #cbd5e1; border-radius: 5px; padding: 4px 2px; font-size: 10.5px; cursor: pointer; }
+        .mb:hover { border-color: #34d399; color: #fff; }
+      </style>
+      <button class="top-pill" id="tbTrigger">🦎 壁虎控制栏 ▾</button>
+      <div class="pop" id="tbPop">
+        <div class="row2">
+          <button class="t-btn" id="tbBoss">老板键隐藏</button>
+          <button class="t-btn" id="tbThrough">鼠标穿透</button>
+        </div>
+        <div class="seg4">
+          <button class="sb" data-mode="blend">保护色</button>
+          <button class="sb" data-mode="sketch">线稿</button>
+          <button class="sb" data-mode="pixel">点阵</button>
+          <button class="sb" data-mode="watermark">水印</button>
+        </div>
+        <div class="sl">
+          <div><span>壁虎融色度</span><strong id="tbValStealth">72%</strong></div>
+          <input type="range" id="tbRngStealth" min="0" max="100" value="72" />
+        </div>
+        <div class="sl">
+          <div><span>窗口实度（100%=实心）</span><strong id="tbValOpacity">100%</strong></div>
+          <input type="range" id="tbRngOpacity" min="15" max="100" value="100" />
+        </div>
+        <div class="strip" style="grid-template-columns:repeat(3,1fr)">
+          <button class="mb" data-size="260">迷你 260</button>
+          <button class="mb" data-size="384">标准 384</button>
+          <button class="mb" data-size="520">大窗 520</button>
+        </div>
+        <div class="strip">
+          <button class="mb" data-corner="tl">↖ 左上</button>
+          <button class="mb" data-corner="tr">↗ 右上</button>
+          <button class="mb" data-corner="bl">↙ 左下</button>
+          <button class="mb" data-corner="br">↘ 右下</button>
+        </div>
+      </div>
+    `;
+    const pop = ts.getElementById("tbPop");
+    ts.getElementById("tbTrigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      pop.classList.toggle("open");
+    });
+    ts.getElementById("tbBoss").addEventListener("click", () => saveState({ bossMode: !state.bossMode }));
+    ts.getElementById("tbThrough").addEventListener("click", () => {
+      parasiteClickThrough = !parasiteClickThrough;
+      applyStateToParasite();
+    });
+    ts.querySelectorAll(".sb").forEach((b) => {
+      b.addEventListener("click", () => saveState({ mode: b.dataset.mode }));
+    });
+    ts.getElementById("tbRngStealth").addEventListener("input", (e) => saveState({ stealth: Number(e.target.value) }));
+    ts.getElementById("tbRngOpacity").addEventListener("input", (e) => saveState({ opacity: Number(e.target.value) }));
+    ts.querySelectorAll("[data-size]").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (!parasiteHost) return;
+        const w = Number(b.dataset.size);
+        parasiteHost.style.width = `${w}px`;
+        parasiteHost.style.height = `${Math.round((w * 9) / 16)}px`;
+        runDomAutoSenseOnce();
+      });
+    });
+    ts.querySelectorAll("[data-corner]").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (!parasiteHost) return;
+        const c = b.dataset.corner;
+        const pad = 22;
+        parasiteHost.style.left = c.includes("l") ? `${pad}px` : "auto";
+        parasiteHost.style.right = c.includes("r") ? `${pad}px` : "auto";
+        parasiteHost.style.top = c.includes("t") ? `${pad}px` : "auto";
+        parasiteHost.style.bottom = c.includes("b") ? `${pad}px` : "auto";
+        setTimeout(runDomAutoSenseOnce, 20);
+      });
+    });
+    document.documentElement.appendChild(topBarHost);
+  }
+
+  function removeTopControlBar() {
+    if (topBarHost) {
+      topBarHost.remove();
+      topBarHost = null;
+    }
+  }
+
+  function syncPlayerUi() {
+    if (!parasiteOpen || !parasiteHost?.shadowRoot || !activeVideo) return;
+    const s = parasiteHost.shadowRoot;
+    s.getElementById("pBtnPlay").innerHTML = activeVideo.paused ? Core.ICONS.play : Core.ICONS.pause;
+    s.getElementById("pBtnMute").innerHTML =
+      activeVideo.muted || activeVideo.volume === 0 ? Core.ICONS.volMute : Core.ICONS.volOn;
+    const dur = Number.isFinite(activeVideo.duration) ? activeVideo.duration : 0;
+    const cur = activeVideo.currentTime || 0;
+    const pct = dur > 0 ? (cur / dur) * 100 : 0;
+    s.getElementById("pFill").style.width = `${pct.toFixed(2)}%`;
+    s.getElementById("pTime").textContent = `${Core.formatTime(cur)} / ${Core.formatTime(dur)}`;
+    if (!parasiteUsingCrossTab) {
+      s.getElementById("pSub").textContent = state.mirrorSubtitles ? readHostSubtitles() : "";
+    }
+  }
+
+  function startUiSyncLoop() {
+    stopUiSyncLoop();
+    syncPlayerUi();
+    uiSyncTimer = setInterval(syncPlayerUi, 250);
+  }
+
+  function stopUiSyncLoop() {
+    if (uiSyncTimer) {
+      clearInterval(uiSyncTimer);
+      uiSyncTimer = null;
+    }
+  }
+
+  function runDomAutoSenseOnce() {
+    if (!parasiteOpen || !parasiteHost || !state.autoSense) return;
+    const r = parasiteHost.getBoundingClientRect();
+    const sensed = Core.senseDomEnvironment(r.left + r.width / 2, r.top + r.height / 2, [parasiteHost]);
+    const patch = Core.computeAutoScenePatch(sensed, state);
+    state.bgColor = Core.lerpColor(state.bgColor, patch.bgColor, 0.55);
+    state.inkColor = Core.deriveAutoInkColor(state.bgColor, sensed.archetype);
+    applyStateToParasite();
+  }
+
+  function startDomAutoSenseLoop() {
+    stopDomAutoSenseLoop();
+    runDomAutoSenseOnce();
+    autoSenseTimer = setInterval(runDomAutoSenseOnce, 550);
+  }
+
+  function stopDomAutoSenseLoop() {
+    if (autoSenseTimer) {
+      clearInterval(autoSenseTimer);
+      autoSenseTimer = null;
+    }
+  }
+
+  function applyStateToParasite() {
+    if (!parasiteOpen || !parasiteHost?.shadowRoot) return;
+    const shadow = parasiteHost.shadowRoot;
+    const pRoot = shadow.getElementById("pRoot");
+    const svgDefs = shadow.getElementById("pSvgDefs");
+    const mediaEl = shadow.querySelector(".p-media");
+    if (!pRoot || !svgDefs) return;
+
+    parasiteHost.style.pointerEvents = parasiteClickThrough ? "none" : "auto";
+    pRoot.classList.toggle("click-through", parasiteClickThrough);
+    pRoot.classList.toggle("boss-active", Boolean(state.bossMode));
+
+    if (mediaEl) {
+      Core.applySvgFilterToMedia(svgDefs, mediaEl, state, {
+        isHovering: isHoveringStage,
+        isTyping,
+      });
+      mediaEl.style.opacity = String(Core.computeMediaOpacity(state, { isTyping }));
+    }
+
+    const featherEl = shadow.getElementById("parasiteFeatherStyle");
+    if (featherEl) {
+      featherEl.textContent = Core.buildFeatherRuleCss(".p-media", state.feather, state.mode);
+    }
+
+    const ink = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : state.inkColor;
+    shadow.getElementById("pSub").style.color = ink;
+
+    shadow.querySelectorAll(".seg-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.mode === state.mode);
+    });
+
+    const rng = shadow.getElementById("pRngStealth");
+    const lbl = shadow.getElementById("pLblStealth");
+    if (rng && shadow.activeElement !== rng) rng.value = String(state.stealth);
+    if (lbl) lbl.textContent = `${state.stealth}%`;
+
+    if (topBarHost?.shadowRoot) {
+      const ts = topBarHost.shadowRoot;
+      ts.getElementById("tbBoss")?.classList.toggle("active", Boolean(state.bossMode));
+      ts.getElementById("tbThrough")?.classList.toggle("active", parasiteClickThrough);
+      ts.querySelectorAll(".sb").forEach((b) => {
+        b.classList.toggle("active", b.dataset.mode === state.mode);
+      });
+      const tbS = ts.getElementById("tbRngStealth");
+      const tbVS = ts.getElementById("tbValStealth");
+      if (tbS && ts.activeElement !== tbS) tbS.value = String(state.stealth);
+      if (tbVS) tbVS.textContent = `${state.stealth}%`;
+      const op = state.opacity ?? 100;
+      const tbO = ts.getElementById("tbRngOpacity");
+      const tbVO = ts.getElementById("tbValOpacity");
+      if (tbO && ts.activeElement !== tbO) tbO.value = String(op);
+      if (tbVO) tbVO.textContent = `${op}%`;
+    }
+  }
+
+  function closeParasiteOverlay() {
+    removeTopControlBar();
+    stopDomAutoSenseLoop();
+    stopUiSyncLoop();
+    if (parasiteStreamPort) {
+      try { parasiteStreamPort.disconnect(); } catch (_) {}
+      parasiteStreamPort = null;
+    }
+    if (parasiteHost) {
+      parasiteHost._cleanup?.();
+      restoreMovedVideoIfAny();
+      parasiteHost.remove();
+      parasiteHost = null;
+    }
+    parasiteOpen = false;
+  }
+
+  function restoreMovedVideoIfAny() {
+    if (!videoRestoreInfo) return;
+    const { video, placeholder, cssText, hadControls, hadClass } = videoRestoreInfo;
+    const shouldResume = !video.paused && !video.ended;
+    video.classList.remove("p-media");
+    if (hadClass !== undefined) video.className = hadClass;
+    video.style.cssText = cssText;
+    if (hadControls) video.setAttribute("controls", "");
+    else video.removeAttribute("controls");
+    if (placeholder?.parentNode) placeholder.replaceWith(video);
+    else if (videoRestoreInfo.parent?.isConnected) videoRestoreInfo.parent.appendChild(video);
+    if (shouldResume) video.play().catch(() => {});
+    videoRestoreInfo = null;
+    activeVideo = null;
+  }
+
+  function handleBossModeTransition(bossActive) {
+    const v = activeVideo || findBestVideo();
+    if (!v) return;
+    if (bossActive) {
+      wasPlayingBeforeBoss = !v.paused && !v.ended;
+      v.pause();
+    } else if (wasPlayingBeforeBoss) {
+      v.play().catch(() => {});
+    }
+  }
+
+  function execCmdOnVideo(v, msg) {
+    if (!v) return;
+    if (msg.action === "togglePlay") {
+      if (v.paused) v.play().catch(() => {});
+      else v.pause();
+    } else if (msg.action === "pause") {
+      v.pause();
+    } else if (msg.action === "play") {
+      v.play().catch(() => {});
+    } else if (msg.action === "seek") {
+      v.currentTime = Core.clamp(v.currentTime + Number(msg.delta || 0), 0, v.duration || Infinity);
+    } else if (msg.action === "seekTo" && Number.isFinite(msg.value)) {
+      v.currentTime = Core.clamp(msg.value, 0, v.duration || Infinity);
+    } else if (msg.action === "toggleMute") {
+      v.muted = !v.muted;
+    } else if (msg.action === "setVolume" && Number.isFinite(msg.value)) {
+      v.volume = Core.clamp(msg.value, 0, 1);
+      if (v.volume > 0) v.muted = false;
+    } else if (msg.action === "setRate" && Number.isFinite(msg.value)) {
+      v.playbackRate = msg.value;
+    }
+  }
+
+  if (chrome?.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (!msg || typeof msg !== "object") return false;
+      if (msg.type === "GECKO_GET_PAGE_INFO") {
+        sendResponse({ hasVideo: Boolean(findBestVideo()), parasiteOpen, state });
+        return false;
+      }
+      if (msg.type === "GECKO_WAKE_MAC_APP") {
+        wakeMacGhostViaScheme();
+        sendResponse({ ok: true });
+        return false;
+      }
+      if (msg.type === "GECKO_GET_VIDEO_CROP") {
+        sendResponse(getNormalizedVideoCrop());
+        return false;
+      }
+      if (msg.type === "GECKO_TOGGLE_PARASITE") {
+        toggleParasiteOverlay().then((res) => sendResponse(res));
+        return true;
+      }
+      if (msg.type === "GECKO_CLOSE_PIP") {
+        closeParasiteOverlay();
+        sendResponse({ ok: true });
+        return false;
+      }
+      if (msg.type === "GECKO_EXEC_VIDEO_CMD") {
+        execCmdOnVideo(activeVideo || findBestVideo(), msg);
+        sendResponse({ ok: true });
+        return false;
+      }
+      return false;
+    });
+  }
+})();

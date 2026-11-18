@@ -1,0 +1,12 @@
+{
+  "name": "chameleon-pip-arena-server",
+  "version": "5.2.0",
+  "description": "Zero-dependency Node.js HTTP + WebSocket real-time leaderboard & 1v1 endurance PK server for ChameleonPiP",
+  "main": "arena-server.js",
+  "scripts": {
+    "start": "node arena-server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
