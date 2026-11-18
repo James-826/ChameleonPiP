@@ -166,21 +166,28 @@
       .gecko-pill input[type="range"] { width: 48px; height: 3px; accent-color: #34d399; cursor: pointer; }
       .gecko-pct { min-width: 24px; text-align: right; font-weight: 600; color: #6ee7b7; font-variant-numeric: tabular-nums; }
 
-      /* 8-Way Direct Resize Handles on Borderless Window */
-      .rz { position: absolute; z-index: 35; }
-      .rz-n  { top: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
-      .rz-s  { bottom: 0; left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
-      .rz-e  { right: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
-      .rz-w  { left: 0; top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
-      .rz-nw { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; }
-      .rz-ne { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
-      .rz-sw { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; }
-      .rz-se {
-        right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize;
-        color: rgba(110, 231, 183, 0.85);
-        display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px;
+      /* 8-Way Direct Resize Handles on Borderless Window (with visible 4-corner brackets on hover!) */
+      .rz { position: absolute; z-index: 55; }
+      .rz-n  { top: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
+      .rz-s  { bottom: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
+      .rz-e  { right: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
+      .rz-w  { left: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
+      .rz-nw, .rz-ne, .rz-sw, .rz-se {
+        width: 24px; height: 24px; z-index: 60;
         opacity: 0; transition: opacity 0.15s ease;
       }
+      .rz-nw { top: 0; left: 0; cursor: nwse-resize; border-top: 2.5px solid rgba(52, 211, 153, 0.9); border-left: 2.5px solid rgba(52, 211, 153, 0.9); border-top-left-radius: 11px; }
+      .rz-ne { top: 0; right: 0; cursor: nesw-resize; border-top: 2.5px solid rgba(52, 211, 153, 0.9); border-right: 2.5px solid rgba(52, 211, 153, 0.9); border-top-right-radius: 11px; }
+      .rz-sw { bottom: 0; left: 0; cursor: nesw-resize; border-bottom: 2.5px solid rgba(52, 211, 153, 0.9); border-left: 2.5px solid rgba(52, 211, 153, 0.9); border-bottom-left-radius: 11px; }
+      .rz-se {
+        right: 0; bottom: 0; cursor: nwse-resize;
+        border-bottom: 2.5px solid rgba(52, 211, 153, 0.9); border-right: 2.5px solid rgba(52, 211, 153, 0.9); border-bottom-right-radius: 11px;
+        color: rgba(110, 231, 183, 0.95);
+        display: flex; align-items: flex-end; justify-content: flex-end; padding: 3px;
+      }
+      .pip-root.hovered:not(.boss-active) .rz-nw,
+      .pip-root.hovered:not(.boss-active) .rz-ne,
+      .pip-root.hovered:not(.boss-active) .rz-sw,
       .pip-root.hovered:not(.boss-active) .rz-se { opacity: 1; }
 
       .idle-card {
@@ -220,7 +227,9 @@
           <button class="seg-btn" data-mode="emboss" title="浮雕纹理：将视频凹凸轮廓雕刻在底层桌面上">浮雕</button>
           <button class="seg-btn" data-mode="cinema" title="彩透投影：保留轻度原片色彩并透出桌面背景">彩透</button>
         </div>
-        <div style="display:flex;align-items:center;gap:4px">
+        <div style="display:flex;align-items:center;gap:3px">
+          <button class="icon-btn" data-scale="0.85" title="缩小窗口 (-)">−</button>
+          <button class="icon-btn" data-scale="1.18" title="放大窗口 (+)">+</button>
           <button class="icon-btn" data-size="280" title="小尺寸">S</button>
           <button class="icon-btn" data-size="392" title="中尺寸">M</button>
           <button class="icon-btn" data-size="520" title="大尺寸">L</button>
@@ -900,6 +909,11 @@
             postNative({ action: "resizeWindow", width: w, height: Math.round((w * 9) / 16) });
           });
         });
+        document.querySelectorAll("[data-scale]").forEach((b) => {
+          b.addEventListener("click", () => {
+            postNative({ action: "scaleBy", factor: Number(b.dataset.scale) });
+          });
+        });
 
         document.querySelectorAll(".rz").forEach((h) => {
           h.addEventListener("mousedown", (e) => {
@@ -918,6 +932,10 @@
         document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
 
         window.GeckoNativeBridge = {
+          setHovered(val) {
+            isHovering = Boolean(val);
+            root.classList.toggle("hovered", isHovering);
+          },
           onMacSensor(sensor) {
             isTyping = Boolean(sensor.isTyping);
             if (state.autoSense) {

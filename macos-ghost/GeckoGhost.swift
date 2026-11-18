@@ -15,6 +15,12 @@ final class GhostPanel: NSPanel {
     }
 }
 
+final class FirstMouseWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+}
+
 final class FlippedControlsView: NSView {
     override var isFlipped: Bool { true }
 }
@@ -455,6 +461,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var activeResizeDir: String?
     private var resizeInitialFrame: NSRect = .zero
     private var resizeStartMouse: NSPoint = .zero
+    private var pointerTrackTimer: Timer?
+    private var isWindowHovered: Bool = false
     private var lastExternalApp: (name: String, archetype: String) = ("桌面", "web")
     private var hotKeyRefs: [EventHotKeyRef?] = []
 
@@ -508,7 +516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         config.userContentController.add(self, name: "ghostAction")
         config.mediaTypesRequiringUserActionForPlayback = []
 
-        webView = WKWebView(frame: panel.contentView!.bounds, configuration: config)
+        webView = FirstMouseWebView(frame: panel.contentView!.bounds, configuration: config)
         webView.autoresizingMask = [.width, .height]
         webView.setValue(false, forKey: "drawsBackground")
         panel.contentView?.addSubview(webView)
@@ -517,92 +525,144 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             webView.loadFileURL(htmlURL, allowingReadAccessTo: URL(fileURLWithPath: "/"))
         }
 
-        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            guard let self = self else { return event }
+        // Background-safe Hover Detector: shows 4-corner resize brackets & HUD even when Chrome/VSCode is active!
+        let hoverTimer = Timer(timeInterval: 0.06, repeats: true) { [weak self] _ in
+            guard let self = self, self.isVisible, !self.clickThrough else { return }
+            let inside = self.panel.frame.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
+            if inside != self.isWindowHovered {
+                self.isWindowHovered = inside
+                self.webView.evaluateJavaScript("window.GeckoNativeBridge?.setHovered(\(inside ? "true" : "false"));", completionHandler: nil)
+            }
+        }
+        RunLoop.main.add(hoverTimer, forMode: .common)
 
-            if event.type == .leftMouseDragged, let dir = self.activeResizeDir {
-                let m = NSEvent.mouseLocation
-                let dx = m.x - self.resizeStartMouse.x
-                let dy = m.y - self.resizeStartMouse.y
-                let f0 = self.resizeInitialFrame
-                var nf = f0
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .scrollWheel, .magnify]) { [weak self] event in
+            guard let self = self, !self.clickThrough, event.window === self.panel, !self.bossMode else { return event }
 
-                if dir.contains("e") { nf.size.width = max(200, f0.width + dx) }
-                if dir.contains("w") {
-                    let nw = max(200, f0.width - dx)
-                    nf.origin.x = f0.maxX - nw
-                    nf.size.width = nw
-                }
-                if dir.contains("n") { nf.size.height = max(115, f0.height + dy) }
-                if dir.contains("s") {
-                    let nh = max(115, f0.height - dy)
-                    nf.origin.y = f0.maxY - nh
-                    nf.size.height = nh
-                }
-                self.panel.setFrame(nf, display: true)
+            // Support two-finger trackpad pinch-to-zoom directly on the small window!
+            if event.type == .magnify {
+                self.scalePanelByFactor(1.0 + event.magnification)
+                return nil
+            }
+            // Support Option/Command + Scroll-wheel zoom directly on the small window!
+            if event.type == .scrollWheel, event.modifierFlags.intersection([.command, .option, .control]).isEmpty == false {
+                let delta = event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 0.004 : 0.025)
+                self.scalePanelByFactor(1.0 + delta)
                 return nil
             }
 
-            if event.type == .leftMouseUp, self.activeResizeDir != nil {
-                self.activeResizeDir = nil
-                self.senseEnvironmentAsync()
-                return event
-            }
-
-            guard !self.clickThrough, event.window === self.panel else { return event }
-            switch event.type {
-            case .leftMouseDown:
+            if event.type == .leftMouseDown {
                 let loc = event.locationInWindow
                 let b = self.panel.frame.size
-                let nearL = loc.x <= 12
-                let nearR = loc.x >= b.width - 18
-                let nearB = loc.y <= 16
-                let nearT = loc.y >= b.height - 10
+                // Generous corner (26pt) & edge (14pt) hit zones
+                let inCornerX = loc.x <= 26 || loc.x >= b.width - 26
+                let inCornerY = loc.y <= 26 || loc.y >= b.height - 26
+                let isCorner = inCornerX && inCornerY
+
+                let nearL = loc.x <= (isCorner ? 26 : 14)
+                let nearR = loc.x >= b.width - (isCorner ? 26 : 14)
+                let nearB = loc.y <= (isCorner ? 26 : 14)
+                let nearT = loc.y >= b.height - (isCorner ? 26 : 12)
+
                 var dir = ""
                 if nearT { dir += "n" } else if nearB { dir += "s" }
                 if nearL { dir += "w" } else if nearR { dir += "e" }
 
-                if !dir.isEmpty && !self.bossMode {
-                    self.activeResizeDir = dir
-                    self.resizeInitialFrame = self.panel.frame
-                    self.resizeStartMouse = NSEvent.mouseLocation
-                    self.dragOriginOffset = nil
+                if !dir.isEmpty {
+                    self.startNativeResize(dir: dir)
                     return nil
                 }
 
                 let inTopHud = loc.y > b.height - 46
                 let inBottomHud = loc.y < 68
-                if !inTopHud && !inBottomHud && !self.bossMode {
-                    self.dragOriginOffset = loc
-                    self.dragDownScreenPt = NSEvent.mouseLocation
-                    self.isDraggingWindow = false
-                } else {
-                    self.dragOriginOffset = nil
-                    self.dragDownScreenPt = nil
-                    self.isDraggingWindow = false
+                if !inTopHud && !inBottomHud {
+                    self.startNativeDrag(offset: loc)
                 }
-            case .leftMouseDragged:
-                if let offset = self.dragOriginOffset, let downPt = self.dragDownScreenPt {
-                    let m = NSEvent.mouseLocation
-                    if !self.isDraggingWindow && hypot(m.x - downPt.x, m.y - downPt.y) > 4 {
-                        self.isDraggingWindow = true
-                    }
-                    if self.isDraggingWindow {
-                        self.panel.setFrameOrigin(NSPoint(x: m.x - offset.x, y: m.y - offset.y))
-                    }
-                }
-            case .leftMouseUp:
-                if self.isDraggingWindow { self.senseEnvironmentAsync() }
-                self.dragOriginOffset = nil
-                self.dragDownScreenPt = nil
-                self.isDraggingWindow = false
-            default:
-                break
             }
             return event
         }
 
         panel.orderFrontRegardless()
+    }
+
+    private func scalePanelByFactor(_ factor: CGFloat) {
+        let f0 = panel.frame
+        let nw = min(max(190, f0.width * factor), 980)
+        let nh = round(nw * 9.0 / 16.0)
+        let nx = f0.midX - nw * 0.5
+        let ny = f0.midY - nh * 0.5
+        panel.setFrame(NSRect(x: nx, y: ny, width: nw, height: nh), display: true)
+    }
+
+    private func startNativeResize(dir: String) {
+        activeResizeDir = dir
+        resizeInitialFrame = panel.frame
+        resizeStartMouse = NSEvent.mouseLocation
+        dragOriginOffset = nil
+        isDraggingWindow = false
+        ensurePointerTrackTimer()
+    }
+
+    private func startNativeDrag(offset: NSPoint) {
+        activeResizeDir = nil
+        dragOriginOffset = offset
+        dragDownScreenPt = NSEvent.mouseLocation
+        isDraggingWindow = false
+        ensurePointerTrackTimer()
+    }
+
+    // 120Hz WindowServer Pointer Tracker — works 100% reliably even when dragging outward outside panel bounds!
+    private func ensurePointerTrackTimer() {
+        pointerTrackTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.008, repeats: true) { [weak self] t in
+            guard let self = self else { t.invalidate(); return }
+            if (NSEvent.pressedMouseButtons & 1) == 0 {
+                t.invalidate()
+                self.pointerTrackTimer = nil
+                if self.activeResizeDir != nil || self.isDraggingWindow {
+                    self.senseEnvironmentAsync()
+                }
+                self.activeResizeDir = nil
+                self.dragOriginOffset = nil
+                self.dragDownScreenPt = nil
+                self.isDraggingWindow = false
+                return
+            }
+
+            let m = NSEvent.mouseLocation
+            if let dir = self.activeResizeDir {
+                let dx = m.x - self.resizeStartMouse.x
+                let dy = m.y - self.resizeStartMouse.y
+                let f0 = self.resizeInitialFrame
+                var nf = f0
+
+                if dir.contains("e") { nf.size.width = max(190, f0.width + dx) }
+                if dir.contains("w") {
+                    let nw = max(190, f0.width - dx)
+                    nf.origin.x = f0.maxX - nw
+                    nf.size.width = nw
+                }
+                if dir.contains("n") { nf.size.height = max(110, f0.height + dy) }
+                if dir.contains("s") {
+                    let nh = max(110, f0.height - dy)
+                    nf.origin.y = f0.maxY - nh
+                    nf.size.height = nh
+                }
+                self.panel.setFrame(nf, display: true)
+                return
+            }
+
+            if let offset = self.dragOriginOffset, let downPt = self.dragDownScreenPt {
+                if !self.isDraggingWindow && hypot(m.x - downPt.x, m.y - downPt.y) > 3 {
+                    self.isDraggingWindow = true
+                }
+                if self.isDraggingWindow {
+                    self.panel.setFrameOrigin(NSPoint(x: m.x - offset.x, y: m.y - offset.y))
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pointerTrackTimer = timer
     }
 
     // MARK: - Compact Pure-AppKit MacBook Dynamic Island (316 x 178pt)
@@ -758,13 +818,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnLocal)
         controlsContainer.addSubview(btnQuit)
 
-        // Row 5 (y = 168): Live Uninterrupted Streak + Chameleon Rank Badge + [排行 / 对战]
-        lblStreakBadge = Self.makeLabel("连续 00:00 · Lv.2 工位幼龙", frame: NSRect(x: 14, y: 173, width: 190, height: 16), alpha: 0.88)
-        let btnArena = IslandPillButton(frame: NSRect(x: 208, y: 168, width: 94, height: 25), title: "排行 / 对战", primary: true)
+        // Row 5 (y = 168): Live Uninterrupted Streak + Quick Zoom [- / +] + [排行 / 对战]
+        lblStreakBadge = Self.makeLabel("连续 00:00 · Lv.2", frame: NSRect(x: 14, y: 173, width: 128, height: 16), alpha: 0.88)
+        let btnZoomOut = IslandPillButton(frame: NSRect(x: 144, y: 168, width: 34, height: 25), title: "小 -")
+        btnZoomOut.onClick = { [weak self] in self?.scalePanelByFactor(0.84) }
+        let btnZoomIn = IslandPillButton(frame: NSRect(x: 182, y: 168, width: 34, height: 25), title: "大 +")
+        btnZoomIn.onClick = { [weak self] in self?.scalePanelByFactor(1.19) }
+        let btnArena = IslandPillButton(frame: NSRect(x: 220, y: 168, width: 82, height: 25), title: "排行 / 对战", primary: true)
         btnArena.onClick = { [weak self] in
             self?.openArenaWindow()
         }
         controlsContainer.addSubview(lblStreakBadge)
+        controlsContainer.addSubview(btnZoomOut)
+        controlsContainer.addSubview(btnZoomIn)
         controlsContainer.addSubview(btnArena)
 
         // 1Hz Slacking Streak & Rank Progression Ticker
@@ -1033,10 +1099,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             }
         case "beginResize":
             if let dir = dict["dir"] as? String {
-                activeResizeDir = dir
-                resizeInitialFrame = panel.frame
-                resizeStartMouse = NSEvent.mouseLocation
-                dragOriginOffset = nil
+                startNativeResize(dir: dir)
+            }
+        case "scaleBy":
+            if let factor = dict["factor"] as? CGFloat {
+                scalePanelByFactor(factor)
             }
         case "resizeWindow":
             if let w = dict["width"] as? CGFloat, let h = dict["height"] as? CGFloat {
