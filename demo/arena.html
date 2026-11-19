@@ -305,12 +305,12 @@
         <div class="kpi-card">
           <div class="kpi-head">
             <span style="display:inline-flex;align-items:center;gap:6px" id="kpiHeadStreak"><span>当前连续潜伏</span></span>
-            <span class="tag emerald" id="streakBadge">计时中</span>
+            <span class="tag" id="streakBadge" style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.1)">等待视频播放</span>
           </div>
           <div class="kpi-val" id="kpiCurStreak">00:00</div>
           <div class="kpi-foot">
-            <span>暂停 &gt;10s 自动结算</span>
-            <button type="button" class="tag-btn" id="btnSimBoss">测试老板键中断</button>
+            <span>仅视频播放时计时</span>
+            <button type="button" class="tag-btn" id="btnSimBoss" style="white-space:nowrap">模拟老板键</button>
           </div>
         </div>
 
@@ -321,8 +321,8 @@
           </div>
           <div class="kpi-val" id="kpiBestStreak">00:00</div>
           <div class="kpi-foot">
-            <span id="kpiDodges">紧急避险 3 次</span>
-            <span id="kpiPkSummary">2胜 0负 · 1248分</span>
+            <span id="kpiDodges">紧急避险 0 次</span>
+            <span id="kpiPkSummary">0胜 0负 · 1200分</span>
           </div>
         </div>
 
@@ -331,28 +331,28 @@
             <span style="display:inline-flex;align-items:center;gap:6px" id="kpiHeadVault"><span>今日累计潜伏</span></span>
             <button type="button" class="tag-btn" id="btnSetWage">时薪 ¥<span id="lblWage">85</span></button>
           </div>
-          <div class="kpi-val" id="kpiTodayTime">12:20</div>
+          <div class="kpi-val" id="kpiTodayTime">00:00</div>
           <div class="kpi-foot">
-            <span>折算收益 <strong style="color:#f8fafc" id="kpiEarned">¥17.47</strong></span>
-            <span>累计 <span id="kpiTotalHours">0.5h</span></span>
+            <span>折算收益 <strong style="color:#f8fafc" id="kpiEarned">¥0.00</strong></span>
+            <span>累计 <span id="kpiTotalHours">0.0h</span></span>
           </div>
         </div>
 
         <div class="kpi-card">
           <div class="kpi-head">
             <span>当前称号徽章</span>
-            <span class="tag" id="kpiRankCode" style="color:#34d399">Lv.2</span>
+            <span class="tag" id="kpiRankCode" style="color:#94a3b8">Lv.1</span>
           </div>
           <div style="display:flex;align-items:center;gap:9px">
             <span id="kpiRankCrest" style="display:inline-flex"></span>
-            <div class="kpi-val" style="font-size:20px" id="kpiRankTitle">工位幼龙</div>
+            <div class="kpi-val" style="font-size:20px" id="kpiRankTitle">透明实习生</div>
           </div>
           <div>
             <div class="kpi-foot" style="margin-bottom:4px">
-              <span id="kpiNextHint">距下一级 27 分钟</span>
-              <span id="kpiRankPct">45%</span>
+              <span id="kpiNextHint">距 工位幼龙 还需 15 分钟</span>
+              <span id="kpiRankPct">0%</span>
             </div>
-            <div class="progress-line"><div class="progress-fill" id="kpiRankBar" style="width:45%"></div></div>
+            <div class="progress-line"><div class="progress-fill" id="kpiRankBar" style="width:0%"></div></div>
           </div>
         </div>
       </section>
@@ -373,17 +373,17 @@
 
           <div class="pk-box">
             <div class="pk-meta-bar">
-              <span id="pkBanner">保持投影播放不中断，先暂停或触发老板键者判负</span>
-              <span class="tag" id="pkEloBadge">ELO 1248</span>
+              <span id="pkBanner">需在变色龙小窗播放视频才开始计时；视频暂停 &gt;10s 或触发老板键判负</span>
+              <span class="tag" id="pkEloBadge">ELO 1200</span>
             </div>
 
             <div class="versus-grid" id="duelView">
               <div class="fighter-card me">
                 <div class="fighter-role">我方</div>
                 <div class="fighter-name" id="pkMyName">Chameleon</div>
-                <div class="fighter-sub" id="pkMyMeta">CN · 上海 · Lv.2</div>
+                <div class="fighter-sub" id="pkMyMeta">CN · 上海 · Lv.1</div>
                 <div class="fighter-clock" id="pkMyClock">00:00</div>
-                <div class="fighter-sub" id="pkMyState" style="color:#34d399">在线潜伏中</div>
+                <div class="fighter-sub" id="pkMyState" style="color:#fbbf24">未检测到视频播放 · 待机</div>
               </div>
 
               <div class="vs-circle">VS</div>
@@ -494,6 +494,12 @@
         let pkOpponent = null;
         let royaleAlive = 100;
 
+        // Strict Video-Playback-Only Gate: timing & PK ONLY run when an actual video is playing!
+        let videoPlaying = false;
+        let lastVideoSignalAt = 0;
+        let idlePauseSec = 0;
+        let activeVideoModeLabel = "光影 58%";
+
         document.getElementById("titlePk").insertAdjacentHTML("afterbegin", S.SVG_ICONS.swords);
         document.getElementById("titleTiers").insertAdjacentHTML("afterbegin", S.SVG_ICONS.layers);
         document.getElementById("kpiHeadStreak").insertAdjacentHTML("afterbegin", S.SVG_ICONS.streak);
@@ -539,7 +545,7 @@
                 country: profile.country,
                 regionCode: profile.regionCode,
                 industry: profile.industry,
-                mode: "光影 58%",
+                mode: activeVideoModeLabel,
                 currentStreakSeconds: profile.currentStreakSeconds,
                 bestStreakSeconds: profile.bestStreakSeconds,
                 todaySeconds: profile.todaySeconds,
@@ -547,7 +553,7 @@
                 pkElo: profile.pkElo,
                 pkWins: profile.pkWins,
                 pkLosses: profile.pkLosses,
-                live: true,
+                live: videoPlaying,
               }),
             });
             if (hbRes.ok) {
@@ -649,7 +655,7 @@
         }
         connectArenaWebSocket();
 
-        // Also listen to local GeckoGhost desktop window (ws://127.0.0.1:51937) for Boss Key events
+        // Listen to local GeckoGhost desktop window (ws://127.0.0.1:51937) for real video playback & Boss Key events
         function connectLocalDesktopBridge() {
           try {
             const ws = new WebSocket("ws://127.0.0.1:51937");
@@ -658,14 +664,51 @@
               if (typeof ev.data !== "string") return;
               try {
                 const msg = JSON.parse(ev.data);
-                if (msg.type === "bossTriggered") {
+                if (msg.type === "videoPlaybackState") {
+                  const prev = videoPlaying;
+                  videoPlaying = Boolean(msg.playing);
+                  lastVideoSignalAt = Date.now();
+                  if (msg.mode) activeVideoModeLabel = String(msg.mode);
+                  if (prev !== videoPlaying) {
+                    if (videoPlaying) {
+                      idlePauseSec = 0;
+                      addFeed("<strong>[视频检测]</strong> 检测到变色龙小窗正在播放视频，摸鱼时长已自动开始计时。");
+                    } else if (profile.currentStreakSeconds > 0 || pkActive) {
+                      addFeed("<strong>[视频暂停]</strong> 视频已停止播放，计时暂停（超过 10 秒将自动结算本轮连胜）。");
+                    }
+                    renderAll();
+                  }
+                } else if (msg.type === "streamStopped") {
+                  videoPlaying = false;
+                  renderAll();
+                } else if (msg.type === "bossTriggered") {
+                  videoPlaying = false;
                   handleStreakInterrupted("桌面端触发老板键 ⌃⇧B");
                 }
               } catch (_) {}
             };
-          } catch (_) {}
+            ws.onclose = () => {
+              videoPlaying = false;
+              setTimeout(connectLocalDesktopBridge, 2000);
+            };
+          } catch (_) {
+            setTimeout(connectLocalDesktopBridge, 2500);
+          }
         }
         connectLocalDesktopBridge();
+
+        function requireVideoPlayingForPk() {
+          if (videoPlaying) return true;
+          addFeed(
+            '<strong>[需播放视频]</strong> 当前未检测到视频播放！请先在变色龙小窗中播放任意网页视频、本地 MP4 或内置演示视频，视频开始播放后即可开启真实耐力 PK。'
+          );
+          const badge = document.getElementById("streakBadge");
+          if (badge) {
+            badge.style.transform = "scale(1.08)";
+            setTimeout(() => (badge.style.transform = ""), 260);
+          }
+          return false;
+        }
 
         function onServerMatched(opp, roomCode) {
           pkActive = true;
@@ -731,6 +774,7 @@
         });
 
         document.getElementById("btnStartPk").addEventListener("click", () => {
+          if (!requireVideoPlayingForPk()) return;
           if (pkMode === "royale") {
             pkActive = true;
             pkMySec = 0;
@@ -750,6 +794,7 @@
         });
 
         document.getElementById("btnRoomPk").addEventListener("click", () => {
+          if (!requireVideoPlayingForPk()) return;
           const code = prompt("输入 4 位数字房间号（两台设备输入相同房间号即可实时 1v1 对战）：", "8848");
           if (!code) return;
           if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
@@ -922,6 +967,7 @@
 
           lbList.querySelectorAll("[data-rival]").forEach((btn) => {
             btn.addEventListener("click", () => {
+              if (!requireVideoPlayingForPk()) return;
               const targetId = btn.dataset.rival;
               pkMode = "duel";
               document.getElementById("tabDuel").click();
@@ -973,37 +1019,76 @@
           document.getElementById("kpiRankPct").textContent = `${Math.round(rank.progressPct)}%`;
           document.getElementById("kpiRankBar").style.width = `${rank.progressPct.toFixed(1)}%`;
 
+          const streakBadge = document.getElementById("streakBadge");
+          if (videoPlaying) {
+            streakBadge.textContent = "视频播放计时中";
+            streakBadge.className = "tag emerald";
+            streakBadge.removeAttribute("style");
+          } else {
+            streakBadge.textContent = "等待视频播放";
+            streakBadge.className = "tag";
+            streakBadge.style.cssText =
+              "color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.1)";
+          }
+
           document.getElementById("pkEloBadge").textContent = `ELO ${profile.pkElo || 1200}`;
           document.getElementById("pkMyName").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${S.renderFlagSvg(profile.regionCode)}<span>${profile.nickname}</span></span>`;
           document.getElementById("pkMyMeta").innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${S.renderRankCrestSvg(rank.current.level, 16)}<span>${profile.city} · ${rank.current.code} ${rank.current.title}</span></span>`;
           document.getElementById("pkMyClock").textContent = S.formatDuration(pkActive ? pkMySec : profile.currentStreakSeconds, true);
+          const pkMyState = document.getElementById("pkMyState");
+          pkMyState.textContent = videoPlaying ? `视频播放潜伏中 (${activeVideoModeLabel})` : "未检测到视频播放 · 待机";
+          pkMyState.style.color = videoPlaying ? "#34d399" : "#fbbf24";
 
           renderLeaderboard();
           renderTiers();
         }
 
-        // 1Hz Telemetry & PK Clock
+        // 1Hz Telemetry & PK Clock — STRICTLY ONLY counts while real video is playing!
         setInterval(() => {
-          profile.totalSeconds = (profile.totalSeconds || 0) + 1;
-          profile.todaySeconds = (profile.todaySeconds || 0) + 1;
-          profile.currentStreakSeconds = (profile.currentStreakSeconds || 0) + 1;
-          if (profile.currentStreakSeconds > (profile.bestStreakSeconds || 0)) {
-            profile.bestStreakSeconds = profile.currentStreakSeconds;
+          // Failsafe: if desktop player stops sending playback heartbeats for >5s, pause immediately
+          if (videoPlaying && lastVideoSignalAt > 0 && Date.now() - lastVideoSignalAt > 5000) {
+            videoPlaying = false;
           }
-          S.saveProfile(profile);
 
-          if (pkActive) {
-            pkMySec += 1;
-            if (pkMode === "duel" && arenaWs && arenaWs.readyState === WebSocket.OPEN) {
-              arenaWs.send(JSON.stringify({ type: "pk_tick", seconds: pkMySec }));
-            } else if (pkMode === "royale") {
-              if (royaleAlive > 1 && Math.random() < 0.35) {
-                royaleAlive = Math.max(1, royaleAlive - (1 + Math.floor(Math.random() * 2)));
-                document.getElementById("royaleAlive").textContent = String(royaleAlive);
-                document.getElementById("royaleBar").style.width = `${royaleAlive}%`;
-                if (royaleAlive === 1) {
-                  onServerMatchEnded(true, 24, null, "百人淘汰赛存活至第 1 名");
+          // Reload latest profile so same-origin desktop WKWebView & Arena never double-count
+          profile = S.loadProfile();
+
+          if (videoPlaying) {
+            idlePauseSec = 0;
+            if (!profile.lastTickAt || Date.now() - profile.lastTickAt >= 950) {
+              profile.totalSeconds = (profile.totalSeconds || 0) + 1;
+              profile.todaySeconds = (profile.todaySeconds || 0) + 1;
+              profile.currentStreakSeconds = (profile.currentStreakSeconds || 0) + 1;
+              if (profile.currentStreakSeconds > (profile.bestStreakSeconds || 0)) {
+                profile.bestStreakSeconds = profile.currentStreakSeconds;
+              }
+              profile.lastTickAt = Date.now();
+              S.saveProfile(profile);
+            }
+
+            if (pkActive) {
+              pkMySec += 1;
+              if (pkMode === "duel" && arenaWs && arenaWs.readyState === WebSocket.OPEN) {
+                arenaWs.send(JSON.stringify({ type: "pk_tick", seconds: pkMySec }));
+              } else if (pkMode === "royale") {
+                if (royaleAlive > 1 && Math.random() < 0.35) {
+                  royaleAlive = Math.max(1, royaleAlive - (1 + Math.floor(Math.random() * 2)));
+                  document.getElementById("royaleAlive").textContent = String(royaleAlive);
+                  document.getElementById("royaleBar").style.width = `${royaleAlive}%`;
+                  if (royaleAlive === 1) {
+                    onServerMatchEnded(true, 24, null, "百人淘汰赛存活至第 1 名");
+                  }
                 }
+              }
+            }
+          } else if (profile.currentStreakSeconds > 0 || pkActive) {
+            idlePauseSec += 1;
+            if (idlePauseSec > 10) {
+              idlePauseSec = 0;
+              profile.currentStreakSeconds = 0;
+              S.saveProfile(profile);
+              if (pkActive) {
+                handleStreakInterrupted("视频停止播放超过 10 秒");
               }
             }
           }

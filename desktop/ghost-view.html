@@ -534,11 +534,61 @@
           postNative({ action: "stateChanged", state });
         }
 
+        let lastVideoFrameAt = 0;
+        let lastNotifiedActiveVideo = null;
+        let lastBroadcastPlaying = null;
+
+        function isRealVideoPlaying() {
+          if (state.bossMode) return false;
+          const chromeActive =
+            hasLiveChromeStream &&
+            !player.paused &&
+            !player.ended &&
+            (player.readyState === undefined || player.readyState >= 2) &&
+            performance.now() - lastVideoFrameAt < 3500;
+          const localFileActive =
+            Boolean(localVideo.src) &&
+            !localVideo.paused &&
+            !localVideo.ended &&
+            localVideo.readyState >= 2;
+          const demoActive = demoRunning && !player.paused;
+          return chromeActive || localFileActive || demoActive;
+        }
+
+        function pushVideoPlaybackState(force = false) {
+          const playing = isRealVideoPlaying();
+          if (!force && playing === lastBroadcastPlaying) return;
+          lastBroadcastPlaying = playing;
+          if (ws?.readyState === WebSocket.OPEN) {
+            const S = window.ChameleonStats;
+            const p = S ? S.loadProfile() : null;
+            ws.send(
+              JSON.stringify({
+                type: "videoPlaybackState",
+                playing,
+                mode: `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`,
+                stats: p
+                  ? {
+                      currentStreakSeconds: p.currentStreakSeconds || 0,
+                      bestStreakSeconds: p.bestStreakSeconds || 0,
+                      todaySeconds: p.todaySeconds || 0,
+                      totalSeconds: p.totalSeconds || 0,
+                    }
+                  : null,
+              })
+            );
+          }
+        }
+
         function notifyHostPlayer(force = false) {
           const now = performance.now();
-          if (!force && now - lastPlayerSyncAt < 180) return;
+          const hasActiveVideo = isRealVideoPlaying();
+          const activeChanged = hasActiveVideo !== lastNotifiedActiveVideo;
+          if (!force && !activeChanged && now - lastPlayerSyncAt < 180) return;
           lastPlayerSyncAt = now;
-          postNative({ action: "playerChanged", player });
+          lastNotifiedActiveVideo = hasActiveVideo;
+          postNative({ action: "playerChanged", player: { ...player, hasActiveVideo } });
+          pushVideoPlaybackState(force || activeChanged);
         }
 
         function renderPlayerControls(forceHost = false) {
@@ -792,9 +842,13 @@
           try {
             ws = new WebSocket("ws://127.0.0.1:51937");
             ws.binaryType = "blob";
-            ws.onopen = () => ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
+            ws.onopen = () => {
+              ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
+              pushVideoPlaybackState(true);
+            };
             ws.onmessage = (ev) => {
               if (ev.data instanceof Blob) {
+                lastVideoFrameAt = performance.now();
                 if (!hasLiveChromeStream) {
                   hasLiveChromeStream = true;
                   demoRunning = false;
@@ -963,6 +1017,7 @@
           setBossMode(val) {
             state.bossMode = Boolean(val);
             render();
+            notifyHostPlayer(true);
             if (ws?.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "cmd", action: state.bossMode ? "pause" : "play" }));
             }
@@ -990,16 +1045,17 @@
           },
         };
 
-        // Automatically record slacking time & sync to global cloud leaderboard while playing in PiP window
+        // Automatically record slacking time & sync to global cloud leaderboard ONLY while an actual video is playing
         let pipPausedSec = 0;
         let tickCount = 0;
         setInterval(() => {
           const S = window.ChameleonStats;
           if (!S) return;
-          const isActivelyPlaying =
-            !state.bossMode &&
-            !player.paused &&
-            (hasLiveChromeStream || demoRunning || (localVideo.src && !localVideo.paused));
+          const isActivelyPlaying = isRealVideoPlaying();
+          if (isActivelyPlaying !== lastNotifiedActiveVideo) {
+            notifyHostPlayer(true);
+          }
+
           const p = S.loadProfile();
           if (isActivelyPlaying) {
             pipPausedSec = 0;
@@ -1009,6 +1065,7 @@
             if (p.currentStreakSeconds > (p.bestStreakSeconds || 0)) {
               p.bestStreakSeconds = p.currentStreakSeconds;
             }
+            p.lastTickAt = Date.now();
             S.saveProfile(p);
           } else if (p.currentStreakSeconds > 0) {
             pipPausedSec += 1;
@@ -1021,6 +1078,8 @@
           }
 
           tickCount += 1;
+          pushVideoPlaybackState(tickCount % 2 === 0);
+
           if (isActivelyPlaying && tickCount % 12 === 0) {
             const modeLabel = `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`;
             fetch(`${S.getApiBase()}/api/heartbeat`, {

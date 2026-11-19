@@ -274,15 +274,15 @@
       regionCode: "CN",
       industry: "互联网",
       hourlyWage: 85,
-      totalSeconds: 1980,
+      totalSeconds: 0,
       todayDate: todayKey(),
-      todaySeconds: 740,
+      todaySeconds: 0,
       currentStreakSeconds: 0,
-      bestStreakSeconds: 740,
-      bossDodges: 3,
-      pkWins: 2,
+      bestStreakSeconds: 0,
+      bossDodges: 0,
+      pkWins: 0,
       pkLosses: 0,
-      pkElo: 1248,
+      pkElo: 1200,
     };
   }
 

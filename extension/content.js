@@ -207,6 +207,8 @@
       subtitle: readHostSubtitles(v),
       player: {
         paused: v.paused,
+        ended: Boolean(v.ended),
+        readyState: v.readyState || 0,
         currentTime: v.currentTime || 0,
         duration: Number.isFinite(v.duration) ? v.duration : 0,
         muted: v.muted || v.volume === 0,

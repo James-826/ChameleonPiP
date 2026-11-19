@@ -280,6 +280,7 @@ final class LocalWebSocketHub {
     // Zero-lag 1-frame mailbox: drops stale intermediate frames so video NEVER lags behind audio!
     private var sendingBinary: Set<ObjectIdentifier> = []
     private var pendingBinary: [ObjectIdentifier: Data] = [:]
+    var onArenaConnected: (() -> Void)?
 
     func start(port: UInt16 = 51937) {
         let params = NWParameters.tcp
@@ -348,8 +349,17 @@ final class LocalWebSocketHub {
                         self.ghostViewIds.insert(id)
                     } else if text.contains("\"role\":\"arenaView\"") {
                         self.arenaViewIds.insert(id)
+                        self.onArenaConnected?()
                     } else if self.ghostViewIds.contains(id) {
-                        self.broadcast(data: data, opcode: .text, toGhostViews: false, sender: id)
+                        if text.contains("\"type\":\"videoPlaybackState\"") {
+                            let meta = NWProtocolWebSocket.Metadata(opcode: .text)
+                            let ctx = NWConnection.ContentContext(identifier: "wsArenaPlay", metadata: [meta])
+                            for aid in self.arenaViewIds {
+                                self.connections[aid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+                            }
+                        } else {
+                            self.broadcast(data: data, opcode: .text, toGhostViews: false, sender: id)
+                        }
                     } else {
                         self.broadcast(data: data, opcode: .text, toGhostViews: true, sender: id)
                         // Also mirror meta telemetry to any open Arena Leaderboard / PK window!
@@ -444,6 +454,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var isVisible: Bool = true
 
     private var isPlayerPaused: Bool = true
+    private var hasActiveVideoPlaying: Bool = false
+    private var telemetryTickCount: Int = 0
     private var playerCurTime: Double = 0
     private var playerDuration: Double = 180
     private var playerMuted: Bool = false
@@ -468,6 +480,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        wsHub.onArenaConnected = { [weak self] in
+            DispatchQueue.main.async {
+                self?.broadcastPlaybackStateToArena()
+            }
+        }
         wsHub.start(port: 51937)
         setupGhostPanel()
         setupDynamicNotchIsland()
@@ -802,6 +819,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             guard let self = self else { return }
             self.isVisible.toggle()
             if self.isVisible { self.panel.orderFrontRegardless() } else { self.panel.orderOut(nil) }
+            self.broadcastPlaybackStateToArena()
             self.syncNativeIslandControls()
         }
 
@@ -819,7 +837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnQuit)
 
         // Row 5 (y = 168): Live Uninterrupted Streak + Quick Zoom [- / +] + [排行 / 对战]
-        lblStreakBadge = Self.makeLabel("连续 00:00 · Lv.2", frame: NSRect(x: 14, y: 173, width: 128, height: 16), alpha: 0.88)
+        lblStreakBadge = Self.makeLabel("待机 · 播放视频开始计时", frame: NSRect(x: 14, y: 173, width: 128, height: 16), alpha: 0.88)
         let btnZoomOut = IslandPillButton(frame: NSRect(x: 144, y: 168, width: 34, height: 25), title: "小 -")
         btnZoomOut.onClick = { [weak self] in self?.scalePanelByFactor(0.84) }
         let btnZoomIn = IslandPillButton(frame: NSRect(x: 182, y: 168, width: 34, height: 25), title: "大 +")
@@ -833,8 +851,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnZoomIn)
         controlsContainer.addSubview(btnArena)
 
-        // 1Hz Slacking Streak & Rank Progression Ticker
-        if totalSlackingSec < 960 { totalSlackingSec = 960 }
+        // 1Hz Slacking Streak & Rank Progression Ticker (ONLY counts when real video is actively playing!)
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tickSlackingTelemetry()
         }
@@ -917,7 +934,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnThrough.isActiveTint = clickThrough
         btnVis.isActiveTint = isVisible
         btnVis.title = isVisible ? "显示" : "已隐"
-        lblStreakBadge?.stringValue = "连续 \(Self.fmtTime(Double(currentStreakSec))) · \(Self.chameleonRankTitle(for: totalSlackingSec))"
+        let activeVideoNow = isVisible && !bossMode && hasActiveVideoPlaying
+        if activeVideoNow || currentStreakSec > 0 {
+            lblStreakBadge?.stringValue = "连续 \(Self.fmtTime(Double(currentStreakSec))) · \(Self.chameleonRankTitle(for: totalSlackingSec))"
+        } else {
+            lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
+        }
+    }
+
+    private func broadcastPlaybackStateToArena() {
+        let activeVideoNow = isVisible && !bossMode && hasActiveVideoPlaying
+        wsHub.sendTextToArena("{\"type\":\"videoPlaybackState\",\"playing\":\(activeVideoNow ? "true" : "false")}")
     }
 
     private static func chameleonRankTitle(for totalSec: Int) -> String {
@@ -935,7 +962,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     private func tickSlackingTelemetry() {
-        if isVisible && !bossMode && !isPlayerPaused {
+        telemetryTickCount += 1
+        let activeVideoNow = isVisible && !bossMode && hasActiveVideoPlaying
+        if activeVideoNow {
             pausedSecondsCount = 0
             currentStreakSec += 1
             totalSlackingSec += 1
@@ -951,9 +980,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 currentStreakSec = 0
                 pausedSecondsCount = 0
                 if isIslandExpanded {
-                    lblStreakBadge?.stringValue = "连续 00:00 · \(Self.chameleonRankTitle(for: totalSlackingSec))"
+                    lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
                 }
             }
+        } else if isIslandExpanded {
+            lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
+        }
+
+        if telemetryTickCount % 2 == 0 {
+            broadcastPlaybackStateToArena()
         }
     }
 
@@ -1040,8 +1075,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private func setBoss(_ active: Bool) {
         bossMode = active
         if active {
+            hasActiveVideoPlaying = false
             currentStreakSec = 0
+            islandShell?.isPlayerPaused = true
             wsHub.sendTextToArena("{\"type\":\"bossTriggered\"}")
+            broadcastPlaybackStateToArena()
         }
         webView.evaluateJavaScript("window.GeckoNativeBridge?.setBossMode(\(bossMode));", completionHandler: nil)
         syncNativeIslandControls()
@@ -1085,9 +1123,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "playerChanged":
             if let pl = dict["player"] as? [String: Any] {
                 let paused = (pl["paused"] as? Bool) ?? true
-                if paused != isPlayerPaused {
+                let activeVideo = (pl["hasActiveVideo"] as? Bool) ?? false
+                let prevActive = hasActiveVideoPlaying
+                hasActiveVideoPlaying = activeVideo
+                let effectivePaused = !(isVisible && !bossMode && activeVideo)
+                if paused != isPlayerPaused || effectivePaused != islandShell?.isPlayerPaused {
                     isPlayerPaused = paused
-                    islandShell?.isPlayerPaused = paused
+                    islandShell?.isPlayerPaused = effectivePaused
+                }
+                if prevActive != hasActiveVideoPlaying {
+                    broadcastPlaybackStateToArena()
                 }
                 if let ct = pl["currentTime"] as? Double { playerCurTime = ct }
                 if let dur = pl["duration"] as? Double, dur > 0 { playerDuration = dur }
@@ -1150,6 +1195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case 1:
             isVisible.toggle()
             if isVisible { panel.orderFrontRegardless() } else { panel.orderOut(nil) }
+            broadcastPlaybackStateToArena()
             syncNativeIslandControls()
         case 2:
             setBoss(!bossMode)
