@@ -594,15 +594,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if event.type == .leftMouseDown {
                 let loc = event.locationInWindow
                 let b = self.panel.frame.size
-                // Generous corner (26pt) & edge (14pt) hit zones
-                let inCornerX = loc.x <= 26 || loc.x >= b.width - 26
-                let inCornerY = loc.y <= 26 || loc.y >= b.height - 26
+                let hudVisible = self.hoverRevealEnabled || event.modifierFlags.contains(.option)
+
+                // Let HUD buttons (top bar: 穿透/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
+                let inTopHudButtons = hudVisible && loc.y >= b.height - 46 && loc.y <= b.height - 8 && loc.x >= 10 && loc.x <= b.width - 10
+                let inBottomHudButtons = hudVisible && loc.y >= 8 && loc.y <= 66 && loc.x >= 10 && loc.x <= b.width - 10
+                if inTopHudButtons || inBottomHudButtons {
+                    return event
+                }
+
+                // Generous corner & edge hit zones for borderless window resizing
+                let cornerPad: CGFloat = hudVisible ? 18 : 24
+                let edgePad: CGFloat = hudVisible ? 9 : 14
+                let inCornerX = loc.x <= cornerPad || loc.x >= b.width - cornerPad
+                let inCornerY = loc.y <= cornerPad || loc.y >= b.height - cornerPad
                 let isCorner = inCornerX && inCornerY
 
-                let nearL = loc.x <= (isCorner ? 26 : 14)
-                let nearR = loc.x >= b.width - (isCorner ? 26 : 14)
-                let nearB = loc.y <= (isCorner ? 26 : 14)
-                let nearT = loc.y >= b.height - (isCorner ? 26 : 12)
+                let nearL = loc.x <= (isCorner ? cornerPad : edgePad)
+                let nearR = loc.x >= b.width - (isCorner ? cornerPad : edgePad)
+                let nearB = loc.y <= (isCorner ? cornerPad : edgePad)
+                let nearT = loc.y >= b.height - (isCorner ? cornerPad : 8)
 
                 var dir = ""
                 if nearT { dir += "n" } else if nearB { dir += "s" }
@@ -613,12 +624,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     return nil
                 }
 
-                let hudVisible = self.hoverRevealEnabled || event.modifierFlags.contains(.option)
-                let inTopHud = hudVisible && loc.y > b.height - 46
-                let inBottomHud = hudVisible && loc.y < 68
-                if !inTopHud && !inBottomHud {
-                    self.startNativeDrag(offset: loc)
-                }
+                self.startNativeDrag(offset: loc)
             }
             return event
         }
@@ -817,8 +823,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnRate)
         controlsContainer.addSubview(btnMute)
 
-        // Row 3 (y = 104): 3 Optical Projector Modes
-        segMode = NSSegmentedControl(labels: ["光影投影", "浮雕纹理", "彩透投影"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
+        // Row 3 (y = 104): 3 Chameleon Camouflage Modes
+        segMode = NSSegmentedControl(labels: ["变色融合", "浮雕隐身", "彩透变色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
         segMode.frame = NSRect(x: 14, y: 104, width: 288, height: 24)
         segMode.selectedSegment = 0
         segMode.segmentDistribution = .fillEqually
@@ -841,10 +847,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnThrough = IslandPillButton(frame: NSRect(x: 150, y: 136, width: 36, height: 25), title: "穿透")
         btnThrough.onClick = { [weak self] in
             guard let self = self else { return }
-            if !self.clickThrough && !self.isProMember {
-                self.openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
-                return
-            }
             self.setClickThrough(!self.clickThrough)
         }
 
@@ -941,7 +943,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let idx = max(0, min(2, sender.selectedSegment))
         if idx > 0 && !isProMember {
             sender.selectedSegment = 0
-            openArenaWindow(upgradeReason: "「浮雕纹理」与「彩透电影」为 Pro 会员专属光学引擎，点击下方可免费体验 3 天 Pro！")
+            openArenaWindow(upgradeReason: "「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙进阶模式，点击下方可免费体验 3 天 Pro！")
             return
         }
         currentMode = modes[idx]
@@ -1007,11 +1009,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let mins = totalSec / 60
         if mins >= 36000 { return "Lv.10 摸鱼之神" }
         if mins >= 18000 { return "Lv.9 殿堂变色龙" }
-        if mins >= 7200  { return "Lv.8 光学幽灵" }
+        if mins >= 7200  { return "Lv.8 暗影变色龙" }
         if mins >= 3000  { return "Lv.7 带薪修行师" }
         if mins >= 1200  { return "Lv.6 死角艺术家" }
         if mins >= 480   { return "Lv.5 幻影魔术师" }
-        if mins >= 180   { return "Lv.4 光学猎手" }
+        if mins >= 180   { return "Lv.4 拟态猎手" }
         if mins >= 60    { return "Lv.3 拟态学徒" }
         if mins >= 15    { return "Lv.2 工位幼龙" }
         return "Lv.1 透明实习生"
@@ -1189,17 +1191,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         switch action {
         case "enableClickThrough":
-            if !isProMember {
-                openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
-            } else {
-                setClickThrough(true)
-            }
+            setClickThrough(true)
         case "membershipChanged":
             if let pro = dict["isPro"] as? Bool {
                 applyMembershipEntitlement(pro)
             }
         case "requestUpgrade":
-            let reason = (dict["reason"] as? String) ?? "升级 Pro 解锁全部光学模式、会议隐身与无限联机对战！"
+            let reason = (dict["reason"] as? String) ?? "升级 Pro 解锁全部变色龙隐身模式、会议共享隐身与无限联机对战！"
             openArenaWindow(upgradeReason: reason)
         case "setBoss":
             if let v = dict["value"] as? Bool { setBoss(v) }
@@ -1297,11 +1295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case 2:
             setBoss(!bossMode)
         case 3:
-            if !clickThrough && !isProMember {
-                openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
-            } else {
-                setClickThrough(!clickThrough)
-            }
+            setClickThrough(!clickThrough)
         default: break
         }
     }

@@ -567,9 +567,9 @@
           <div class="p-subtitle" id="pSub"></div>
         </div>
 
-        <div class="hud-top">
+        <div class="hud-top" style="z-index:65;padding-top:10px">
           <div class="pill-group">
-            <button class="seg-btn" data-mode="projector">光影</button>
+            <button class="seg-btn" data-mode="projector">拟态</button>
             <button class="seg-btn" data-mode="emboss">浮雕</button>
             <button class="seg-btn" data-mode="cinema">彩透</button>
           </div>
@@ -577,7 +577,7 @@
             <button class="icon-btn" data-size="260" style="width:auto;padding:0 6px;font-size:10px" title="小窗">S</button>
             <button class="icon-btn" data-size="392" style="width:auto;padding:0 6px;font-size:10px" title="标准">M</button>
             <button class="icon-btn" data-size="520" style="width:auto;padding:0 6px;font-size:10px" title="大窗">L</button>
-            <button class="icon-btn" id="pBtnThrough" title="鼠标穿透 (按 ⌃⇧M 恢复)">${Core.ICONS.cursorThrough}</button>
+            <button class="icon-btn" id="pBtnThrough" style="width:auto;padding:0 6px;gap:3px;font-size:10px" title="开启鼠标穿透（按 ⌃⇧M 恢复）">${Core.ICONS.cursorThrough}<span>穿透</span></button>
             <button class="icon-btn" id="pBtnBoss" title="老板键隐藏 (⌃⇧B)">${Core.ICONS.eyeHide}</button>
             <button class="icon-btn" id="pBtnClose" title="关闭并收回原视频">${Core.ICONS.close}</button>
           </div>

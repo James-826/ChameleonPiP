@@ -9,7 +9,7 @@
 
   global.CHAMELEON_STORE_CONFIG = {
     brandName: "ChameleonPiP",
-    brandNameZh: "变色龙光学画中画",
+    brandNameZh: "变色龙画中画",
     version: "v5.2.0",
     siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",

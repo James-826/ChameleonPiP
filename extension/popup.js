@@ -293,7 +293,7 @@
     tab.addEventListener("click", () => {
       const targetMode = tab.dataset.mode;
       if (targetMode !== "projector" && Stats && !Stats.isProMember(membership)) {
-        openPopupProDrawer("「浮雕纹理」与「彩透投影」为 Pro 会员专属光学引擎，可一键开启 3 天免费体验或输入激活码解锁！");
+        openPopupProDrawer("「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙模式，可一键开启 3 天免费体验或输入激活码解锁！");
         return;
       }
       updateState({ mode: targetMode });

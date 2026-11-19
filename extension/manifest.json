@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "ChameleonPiP 变色龙光学画中画",
+  "name": "ChameleonPiP 变色龙画中画",
   "version": "5.2.0",
   "homepage_url": "https://chameleonpip.site",
-  "description": "60fps 光学透明画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海控制、标签页瞬间静音、悬停显形开关与全球耐力 PK 排行。",
+  "description": "像变色龙一样融进屏幕的 60fps 零边框画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海、鼠标穿透、瞬间静音与全球摸鱼耐力榜。",
   "permissions": [
     "storage",
     "activeTab",
@@ -25,7 +25,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "ChameleonPiP 变色龙光学画中画 (⌃⇧G)",
+    "default_title": "ChameleonPiP 变色龙画中画 (⌃⇧G)",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

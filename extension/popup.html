@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>ChameleonPiP 变色龙光学画中画</title>
+    <title>ChameleonPiP 变色龙画中画</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -11,7 +11,7 @@
         <img src="icons/icon48.png?v=5.0" alt="Chameleon" class="brand-icon" />
         <div>
           <h1>ChameleonPiP 变色龙画中画</h1>
-          <p id="statusText">底层桌面原色透射 · 60fps 光学融合</p>
+          <p id="statusText">像变色龙一样融进屏幕 · 60fps 零边框</p>
         </div>
       </div>
       <button id="btnBossToggle" class="boss-pill" title="快捷键 Ctrl + Shift + B">
@@ -22,13 +22,13 @@
     <div class="member-strip" id="memberStrip">
       <div class="member-left">
         <span class="member-pill" id="popMemberBadge">FREE</span>
-        <span class="member-desc" id="popMemberDesc">基础投影永久免费 · 解锁 Pro 高阶隐身</span>
+        <span class="member-desc" id="popMemberDesc">基础变色融合免费 · 升级解锁进阶隐身</span>
       </div>
       <button type="button" class="member-btn" id="btnPopUpgrade">升级 / 激活</button>
     </div>
 
     <div class="pro-drawer" id="popProDrawer" style="display:none">
-      <div class="pro-drawer-msg" id="popProMsg">解锁浮雕纹理、彩透电影、鼠标穿透、会议隐身与无限 PK</div>
+      <div class="pro-drawer-msg" id="popProMsg">解锁浮雕隐身、彩透变色、会议共享隐身与无限 PK</div>
       <div class="pro-drawer-row">
         <input type="text" id="popKeyInput" class="pro-input" placeholder="输入激活码 CHM-PRO-..." />
         <button type="button" id="btnPopActivate" class="pro-act-btn">激活</button>
@@ -41,14 +41,14 @@
 
     <div class="launch-stack">
       <button id="btnMacGhost" class="btn-primary">
-        <span>投送到桌面无边框投影窗 (60fps)</span>
+        <span>投送到变色龙无边框小窗 (60fps)</span>
         <span class="kbd">⌃⇧G</span>
       </button>
       <button id="btnInPageParasite" class="btn-secondary">
-        仅在当前网页内投影悬浮
+        仅在当前网页内变色悬浮
       </button>
       <button id="btnOpenArena" class="btn-secondary" style="border-color:rgba(52,211,153,0.4);color:#6ee7b7;font-weight:600">
-        全球潜伏排行榜 · 称号 · 线上耐力 PK
+        全球变色龙排行榜 · 称号 · 线上耐力 PK
       </button>
     </div>
 
@@ -71,31 +71,31 @@
 
     <section class="section hero-slider-card">
       <div class="slider-head">
-        <span class="hero-label">投影浓度（底层色彩始终原样透出）</span>
+        <span class="hero-label">变色显影浓度（底层色彩始终原样透出）</span>
         <strong id="valStealth" class="hero-val">58%</strong>
       </div>
       <input type="range" id="rngStealth" min="10" max="95" step="1" value="58" />
       <div class="preset-marks">
-        <button type="button" class="mark-btn" data-val="25">25% 极淡微影</button>
-        <button type="button" class="mark-btn" data-val="45">45% 轻柔融合</button>
-        <button type="button" class="mark-btn" data-val="60">60% 标准投影</button>
+        <button type="button" class="mark-btn" data-val="25">25% 极淡隐身</button>
+        <button type="button" class="mark-btn" data-val="45">45% 轻柔变色</button>
+        <button type="button" class="mark-btn" data-val="60">60% 标准融合</button>
         <button type="button" class="mark-btn" data-val="85">85% 清晰浓郁</button>
       </div>
     </section>
 
     <section class="section">
       <div class="row-between" style="margin-bottom:8px">
-        <span class="section-title" style="margin:0">光学投影方式</span>
+        <span class="section-title" style="margin:0">变色龙隐身模式</span>
       </div>
       <div class="seg-group" style="grid-template-columns:repeat(3,1fr)" id="modeTabs">
-        <button class="seg-item mode-tab" data-mode="projector" title="像投影仪打在墙上：底层红绿保持红绿，叠加视频完整明暗光影">
-          光影投影
+        <button class="seg-item mode-tab" data-mode="projector" title="像变色龙一样融入屏幕底色，红绿/代码原样透出">
+          变色融合
         </button>
-        <button class="seg-item mode-tab" data-mode="emboss" title="仅将视频的凹凸立体纹理雕刻在底层桌面上（Pro 会员专属）">
-          浮雕纹理 <span class="mini-pro-tag">PRO</span>
+        <button class="seg-item mode-tab" data-mode="emboss" title="将视频立体轮廓雕刻在底层桌面上（Pro 会员专属）">
+          浮雕隐身 <span class="mini-pro-tag">PRO</span>
         </button>
-        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面透射混合（Pro 会员专属）">
-          彩透投影 <span class="mini-pro-tag">PRO</span>
+        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面融合（Pro 会员专属）">
+          彩透变色 <span class="mini-pro-tag">PRO</span>
         </button>
       </div>
 

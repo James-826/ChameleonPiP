@@ -90,11 +90,11 @@
       /* Top & Bottom Hover Glass Bars */
       .hud-top {
         position: absolute;
-        top: 0; left: 0; right: 0; height: 44px;
-        padding: 7px 10px;
+        top: 0; left: 0; right: 0; height: 46px;
+        padding: 10px 12px 4px 12px;
         display: flex; align-items: center; justify-content: space-between;
-        background: linear-gradient(to bottom, rgba(8, 12, 18, 0.84) 0%, rgba(8, 12, 18, 0.35) 70%, transparent 100%);
-        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+        background: linear-gradient(to bottom, rgba(8, 12, 18, 0.86) 0%, rgba(8, 12, 18, 0.36) 72%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 65;
       }
       .hud-bottom {
         position: absolute;
@@ -102,7 +102,7 @@
         padding: 10px 14px 10px 12px;
         display: flex; flex-direction: column; gap: 6px;
         background: linear-gradient(to top, rgba(8, 12, 18, 0.9) 0%, rgba(8, 12, 18, 0.5) 72%, transparent 100%);
-        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 65;
       }
       .pip-root.hovered:not(.boss-active) .hud-top,
       .pip-root.hovered:not(.boss-active) .hud-bottom {
@@ -168,12 +168,12 @@
 
       /* 8-Way Direct Resize Handles on Borderless Window (with visible 4-corner brackets on hover!) */
       .rz { position: absolute; z-index: 55; }
-      .rz-n  { top: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
-      .rz-s  { bottom: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
-      .rz-e  { right: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
-      .rz-w  { left: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
+      .rz-n  { top: 0; left: 22px; right: 22px; height: 8px; cursor: ns-resize; }
+      .rz-s  { bottom: 0; left: 22px; right: 22px; height: 8px; cursor: ns-resize; }
+      .rz-e  { right: 0; top: 22px; bottom: 22px; width: 10px; cursor: ew-resize; }
+      .rz-w  { left: 0; top: 22px; bottom: 22px; width: 10px; cursor: ew-resize; }
       .rz-nw, .rz-ne, .rz-sw, .rz-se {
-        width: 24px; height: 24px; z-index: 60;
+        width: 20px; height: 20px; z-index: 60;
         opacity: 0; transition: opacity 0.15s ease;
       }
       .rz-nw { top: 0; left: 0; cursor: nwse-resize; border-top: 2.5px solid rgba(52, 211, 153, 0.9); border-left: 2.5px solid rgba(52, 211, 153, 0.9); border-top-left-radius: 11px; }
@@ -223,9 +223,9 @@
     <div class="pip-root" id="pipRoot" data-mode="projector">
       <div class="hud-top">
         <div class="pill-group">
-          <button class="seg-btn active" data-mode="projector" title="光学投影：底层红绿背景原样透出，叠加视频明暗纹理">光影</button>
-          <button class="seg-btn" data-mode="emboss" title="浮雕纹理：将视频凹凸轮廓雕刻在底层桌面上">浮雕</button>
-          <button class="seg-btn" data-mode="cinema" title="彩透投影：保留轻度原片色彩并透出桌面背景">彩透</button>
+          <button class="seg-btn active" data-mode="projector" title="变色融合：像变色龙一样融入屏幕底色，红绿/代码原样透出">拟态</button>
+          <button class="seg-btn" data-mode="emboss" title="浮雕隐身：仅保留视频立体纹理，极高隐蔽度">浮雕</button>
+          <button class="seg-btn" data-mode="cinema" title="彩透变色：保留轻度原片色彩并与桌面融合">彩透</button>
         </div>
         <div style="display:flex;align-items:center;gap:3px">
           <button class="icon-btn" data-scale="0.85" title="缩小窗口 (-)">−</button>
@@ -233,7 +233,7 @@
           <button class="icon-btn" data-size="280" title="小尺寸">S</button>
           <button class="icon-btn" data-size="392" title="中尺寸">M</button>
           <button class="icon-btn" data-size="520" title="大尺寸">L</button>
-          <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（可在顶部系统菜单栏解锁）"></button>
+          <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（鼠标直接穿透小窗操作底下内容，在顶部灵动岛或按 ⌃⇧M 恢复）"></button>
           <button class="icon-btn" id="btnBoss" title="老板键隐藏"></button>
         </div>
       </div>
@@ -262,7 +262,7 @@
           </div>
 
           <div class="sliders-inline">
-            <label class="gecko-pill" title="光学投影浓度（底层颜色始终透出）">
+            <label class="gecko-pill" title="变色融合浓度（底层颜色始终透出）">
               <span>浓度</span>
               <input type="range" id="rngStealth" min="10" max="95" value="58" />
               <span class="gecko-pct" id="lblStealth">58%</span>
@@ -281,7 +281,7 @@
       <div class="rz rz-se" data-dir="se" id="cornerGrip" title="按住拖拽调整小窗尺寸"></div>
 
       <div class="idle-card" id="idleCard">
-        <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙光学投影画中画已就绪</div>
+        <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙画中画已就绪</div>
         <div style="color:#94a3b8">可在顶部摄像头灵动刘海控制/查看排行PK，也可直接拖拽四角自由缩放：</div>
         <div class="idle-btns">
           <button class="cta-btn" id="btnTryDemo">播放演示视频</button>
@@ -509,7 +509,7 @@
         const glProjector = createWebGlProjector(streamCanvas);
         const fallbackCtx = glProjector ? null : streamCanvas.getContext("2d", { alpha: false, desynchronized: true });
 
-        document.getElementById("btnThrough").innerHTML = Core.ICONS.cursorThrough;
+        document.getElementById("btnThrough").innerHTML = `${Core.ICONS.cursorThrough}<span style="font-size:10px">穿透</span>`;
         document.getElementById("btnBoss").innerHTML = Core.ICONS.eyeHide;
         document.getElementById("btnBack10").innerHTML = Core.ICONS.back10;
         document.getElementById("btnFwd10").innerHTML = Core.ICONS.fwd10;
@@ -835,7 +835,7 @@
             ctx.textAlign = "center";
             ctx.lineWidth = 4.2;
             ctx.strokeStyle = "#000";
-            const msg = "60fps 光学投影：拖到红绿或代码背景上，底色原样透出！";
+            const msg = "60fps 变色龙拟态：拖到红绿或代码背景上，底色原样透出！";
             ctx.strokeText(msg, w / 2, h - 22);
             ctx.fillStyle = "#fff";
             ctx.fillText(msg, w / 2, h - 22);
@@ -1073,7 +1073,7 @@
             if (b.dataset.mode !== "projector" && S && !S.isProMember()) {
               postNative({
                 action: "requestUpgrade",
-                reason: "「浮雕纹理」与「彩透投影」为 Pro 会员专属光学引擎，点击下方可免费试用 3 天或激活会员！",
+                reason: "「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙模式，点击下方可免费试用 3 天或激活会员！",
               });
               return;
             }
@@ -1104,15 +1104,9 @@
           broadcastStateUpdate({ stealth: Number(e.target.value) });
         });
 
-        document.getElementById("btnThrough").addEventListener("click", () => {
-          const S = window.ChameleonStats;
-          if (S && !S.isProMember()) {
-            postNative({
-              action: "requestUpgrade",
-              reason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费试用 3 天或输入激活码解锁！",
-            });
-            return;
-          }
+        document.getElementById("btnThrough").addEventListener("click", (e) => {
+          e.stopPropagation();
+          applyHoverReveal(false, false);
           postNative({ action: "enableClickThrough" });
         });
         document.getElementById("btnBoss").addEventListener("click", () => postNative({ action: "setBoss", value: true }));

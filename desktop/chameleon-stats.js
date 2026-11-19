@@ -1,5 +1,5 @@
 /**
- * ChameleonPiP (变色龙光学画中画) — Telemetry, Custom SVG Crests, Medals, Flags & Cloud Arena Client
+ * ChameleonPiP (变色龙画中画) — Telemetry, Custom SVG Crests, Medals, Flags & Cloud Arena Client
  * Uses 100% custom-crafted vector SVG emblems, metallic podium medals, and crisp vector mini-flags.
  */
 (function (global) {
@@ -208,16 +208,16 @@
   }
 
   const RANKS = [
-    { level: 1, code: "Lv.1", title: "透明实习生", minMin: 0, color: "#94a3b8", desc: "初入光学潜伏" },
+    { level: 1, code: "Lv.1", title: "透明实习生", minMin: 0, color: "#94a3b8", desc: "初入变色潜伏" },
     { level: 2, code: "Lv.2", title: "工位幼龙", minMin: 15, color: "#34d399", desc: "基础底色融合" },
     { level: 3, code: "Lv.3", title: "拟态学徒", minMin: 60, color: "#38bdf8", desc: "代码文档自如切换" },
-    { level: 4, code: "Lv.4", title: "光学猎手", minMin: 180, color: "#818cf8", desc: "三米外无法察觉" },
+    { level: 4, code: "Lv.4", title: "拟态猎手", minMin: 180, color: "#818cf8", desc: "三米外无法察觉" },
     { level: 5, code: "Lv.5", title: "幻影魔术师", minMin: 480, color: "#fbbf24", desc: "撞色背景无缝隐形" },
     { level: 6, code: "Lv.6", title: "死角艺术家", minMin: 1200, color: "#fb7185", desc: "余光与截屏双免疫" },
     { level: 7, code: "Lv.7", title: "带薪修行师", minMin: 3000, color: "#c084fc", desc: "周会同步追番" },
-    { level: 8, code: "Lv.8", title: "工位光学幽灵", minMin: 7200, color: "#2dd4bf", desc: "与屏幕融为一体" },
+    { level: 8, code: "Lv.8", title: "暗影变色龙", minMin: 7200, color: "#2dd4bf", desc: "与屏幕融为一体" },
     { level: 9, code: "Lv.9", title: "殿堂级变色龙", minMin: 18000, color: "#f59e0b", desc: "全球前 0.5% 宗师" },
-    { level: 10, code: "Lv.10", title: "摸鱼之神", minMin: 36000, color: "#f43f5e", desc: "光影即吾身" },
+    { level: 10, code: "Lv.10", title: "摸鱼之神", minMin: 36000, color: "#f43f5e", desc: "万物皆可融入" },
   ];
 
   const CITIES = [
@@ -351,9 +351,8 @@
   const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
 
   const PRO_FEATURE_CATALOG = [
-    { key: "optical_projector", name: "光影投影模式 + 老板键 + 窗口缩放", free: true, pro: true },
-    { key: "optical_modes", name: "浮雕纹理 (Emboss) & 彩透电影 (Cinema)", free: false, pro: true },
-    { key: "click_through", name: "鼠标穿透控制 (⌃⇧M) & 底层办公无干扰", free: false, pro: true },
+    { key: "optical_projector", name: "变色龙拟态融合 + 鼠标穿透 (⌃⇧M) + 老板键", free: true, pro: true },
+    { key: "optical_modes", name: "浮雕隐身 (Emboss) & 彩透变色 (Cinema) 进阶模式", free: false, pro: true },
     { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕自动隐身", free: false, pro: true },
     { key: "pk_unlimited", name: "1v1 线上耐力 PK 对战", free: "每日 3 局", pro: "无限畅玩" },
     { key: "room_pk", name: "创建 4 位暗号同事约战房 & 百人淘汰赛", free: false, pro: true },
@@ -361,7 +360,7 @@
   ];
 
   const PRICING_PLANS = [
-    { id: "monthly", name: "Pro 月度会员", priceCny: "¥9.9", priceUsd: "$3.99", period: "/ 月", tag: "灵活尝鲜", desc: "解锁全套光学模式、会议隐身、无限 PK，最多 2 台设备" },
+    { id: "monthly", name: "Pro 月度会员", priceCny: "¥9.9", priceUsd: "$3.99", period: "/ 月", tag: "灵活尝鲜", desc: "解锁浮雕隐身/彩透变色、会议共享隐身、无限 PK，最多 2 台设备" },
     { id: "yearly", name: "Pro 年度会员", priceCny: "¥49", priceUsd: "$19.9", period: "/ 年", tag: "最受欢迎 · 省 58%", recommended: true, desc: "折合仅 ¥4/月，全年畅享全功能与优先更新" },
     { id: "lifetime", name: "早鸟买断版 MAX", priceCny: "¥99", priceUsd: "$39", period: "终身买断", tag: "限量早鸟", desc: "一次付费永久使用，支持 3 台设备 + 专属 MAX 徽章" },
   ];

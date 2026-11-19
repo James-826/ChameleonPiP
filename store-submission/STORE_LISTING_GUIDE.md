@@ -22,36 +22,36 @@
 ## 3. 商品信息直接复制模板（中 / 英双语）
 
 ### 扩展名称（Extension Name）
-- 中文：`ChameleonPiP 变色龙光学画中画`
-- 英文：`ChameleonPiP — Optical Transparent Picture-in-Picture`
+- 中文：`ChameleonPiP 变色龙画中画`
+- 英文：`ChameleonPiP — Chameleon Camouflage Picture-in-Picture`
 
 ### 一句话简介（Summary，≤ 132 字符）
-- 中文：`60fps 光学透明画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海控制、瞬间静音、悬停开关与全球耐力排行榜。`
-- 英文：`60fps optical transparent Picture-in-Picture that blends video cleanly over code & spreadsheets with instant tab mute and live rankings.`
+- 中文：`像变色龙一样融进屏幕的 60fps 零边框画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海、鼠标穿透、瞬间静音与全球耐力榜。`
+- 英文：`60fps chameleon Picture-in-Picture that blends video cleanly over code & spreadsheets with click-through, instant tab mute and live rankings.`
 
 ### 详细介绍（Detailed Description）
 **中文版：**
 ```
-ChameleonPiP（变色龙光学画中画）重新定义网页画中画体验。
+ChameleonPiP（变色龙画中画）—— 像变色龙一样融进你的屏幕！
 
 【核心特性】
-• 60fps 光学透明投影引擎：不再是生硬的半透明黑框，实时将视频转化为纯净光影层，底层代码高亮、Excel 表格与红绿色块原样透出。
-• 一键投送与页内悬浮：支持 B站、YouTube、直播及任意 HTML5 视频，按 Ctrl+Shift+G 一键开启桌面端 60fps 无边框投影或页内悬浮。
-• 瞬间静音与悬停显形开关：Chrome 标签页级毫秒静音不卡顿；可自由开关「鼠标悬停显形」，关闭后鼠标划过不弹框、按住 Option 随时临时呼出。
-• 老板键秒隐：按 Ctrl+Shift+B 一键隐藏画面并自动暂停播放。
-• 全球排行榜 & 线上 1v1 耐力 PK：仅在视频真实播放时计时，参与同城 / 国家 / 全球排行与好友 4 位暗号房实时对战。
+• 60fps 变色龙拟态融合引擎：告别生硬的半透明黑框，底层代码高亮、Excel 表格与红绿色块原样透出，与桌面自然融为一体。
+• 一键投送与页内悬浮：支持 B站、YouTube、直播及任意 HTML5 视频，按 Ctrl+Shift+G 一键开启桌面端 60fps 无边框变色小窗或页内悬浮。
+• 鼠标穿透 + 悬停显形开关：点击小窗箭头按钮或按 Ctrl+Shift+M 即可开启鼠标穿透，隔着视频直接操作底下文档和代码；默认关闭悬停显形，鼠标划过不弹框、按住 Option 随时临时呼出。
+• 标签页级瞬间静音 & 老板键：毫秒级响应不卡顿，按 Ctrl+Shift+B 一键秒隐并自动暂停播放。
+• 全球变色龙排行榜 & 线上 1v1 耐力 PK：仅在视频真实播放时计时，参与同城 / 国家 / 全球排行与好友 4 位暗号房实时对战。
 • 100% 本地渲染隐私保护：视频帧与音频严格停留在您的本机回环通道（127.0.0.1），绝不上传任何网页内容或浏览记录。
 ```
 
 **English Version:**
 ```
-ChameleonPiP upgrades browser Picture-in-Picture with a real-time 60fps optical projection engine.
+ChameleonPiP blends Picture-in-Picture video into your desktop like a real chameleon.
 
 KEY FEATURES:
-• Optical Transparent Projection: Preserves underlying desktop colors, code syntax highlighting, and spreadsheets instead of covering them with an opaque dark box.
-• Instant Casting & In-Page Overlay: Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press Ctrl+Shift+G to cast to the native borderless desktop projector or float in-page.
-• Instant Tab-Level Mute & Hover-Reveal Switch: Zero-lag audio mute that works across every site. Toggle Hover-Reveal OFF so passing your mouse over the PiP never pops up distracting borders or HUD bars (hold Option/Alt to peek anytime).
-• One-Key Quick Hide: Press Ctrl+Shift+B to hide and pause playback instantaneously.
+• 60fps Chameleon Camouflage: Preserves underlying desktop colors, code syntax highlighting, and spreadsheets instead of covering them with an opaque dark box.
+• Instant Casting & In-Page Overlay: Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press Ctrl+Shift+G to cast to the native borderless desktop window or float in-page.
+• Instant Click-Through & Hover-Reveal Switch: Click the window arrow or press Ctrl+Shift+M to click right through the video onto your apps underneath. Hover-Reveal is OFF by default so passing your mouse over the window never pops up distracting HUD bars (hold Option/Alt to peek anytime).
+• Instant Tab-Level Mute & Quick Hide: Zero-lag audio mute across every site; press Ctrl+Shift+B to hide and pause instantaneously.
 • Live Global Arena & Endurance PK: Counts strictly during active video playback, with city/global leaderboards and private 4-digit room duels.
 • 100% Local Media Privacy: Video frames never leave localhost (127.0.0.1). No browsing history, no screen uploads, no ads.
 ```
