@@ -22,6 +22,7 @@
     feather: 28, // 镜头边缘柔化 (0% 清晰圆角 -> 80% 羽化无界)
     detail: 72,
     mirrorSubtitles: true,
+    hoverReveal: false, // 悬停小窗显示控制条开关（默认关闭：鼠标碰到小窗不显形、保持纯光学隐身）
     bossMode: false,
     pipWidth: 392,
     pipHeight: 220,

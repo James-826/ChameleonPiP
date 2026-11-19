@@ -667,6 +667,7 @@
     document.documentElement.appendChild(parasiteHost);
 
     parasiteHost.addEventListener("mouseenter", () => {
+      if (!state.hoverReveal && !state.bossMode) return;
       isHoveringStage = true;
       pRoot.classList.add("hovered");
     });
@@ -1046,6 +1047,10 @@
     parasiteHost.style.pointerEvents = parasiteClickThrough ? "none" : "auto";
     pRoot.classList.toggle("click-through", parasiteClickThrough);
     pRoot.classList.toggle("boss-active", Boolean(state.bossMode));
+    if (!state.hoverReveal && !state.bossMode) {
+      isHoveringStage = false;
+      pRoot.classList.remove("hovered");
+    }
 
     if (mediaEl) {
       Core.applySvgFilterToMedia(svgDefs, mediaEl, state, {
@@ -1140,6 +1145,9 @@
     if (msg.action === "togglePlay") {
       if (v.paused) v.play().catch(() => {});
       else v.pause();
+    } else if (msg.action === "setPaused") {
+      if (msg.value) v.pause();
+      else v.play().catch(() => {});
     } else if (msg.action === "pause") {
       v.pause();
     } else if (msg.action === "play") {
@@ -1148,8 +1156,18 @@
       v.currentTime = Core.clamp(v.currentTime + Number(msg.delta || 0), 0, v.duration || Infinity);
     } else if (msg.action === "seekTo" && Number.isFinite(msg.value)) {
       v.currentTime = Core.clamp(msg.value, 0, v.duration || Infinity);
+    } else if (msg.action === "setMuted") {
+      const targetMuted = Boolean(msg.value);
+      v.muted = targetMuted;
+      if (!targetMuted && v.volume < 0.05) {
+        v.volume = 0.85;
+      }
     } else if (msg.action === "toggleMute") {
-      v.muted = !v.muted;
+      const currentlyMuted = v.muted || v.volume === 0;
+      v.muted = !currentlyMuted;
+      if (currentlyMuted && v.volume < 0.05) {
+        v.volume = 0.85;
+      }
     } else if (msg.action === "setVolume" && Number.isFinite(msg.value)) {
       v.volume = Core.clamp(msg.value, 0, 1);
       if (v.volume > 0) v.muted = false;

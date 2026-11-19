@@ -4,7 +4,9 @@
   const GHOST_WS_URL = "ws://127.0.0.1:51937";
   const capVideo = document.getElementById("capVideo");
   const cropCanvas = document.getElementById("cropCanvas");
-  const ctx = cropCanvas.getContext("2d", { alpha: false, desynchronized: true });
+  const supportsOffscreen = typeof OffscreenCanvas !== "undefined";
+  const encodeCanvas = supportsOffscreen ? new OffscreenCanvas(448, 252) : cropCanvas;
+  const ctx = encodeCanvas.getContext("2d", { alpha: false, desynchronized: true });
 
   let mediaStream = null;
   let workerTicker = null;
@@ -17,6 +19,10 @@
   let frameSeq = 0;
   let lastSentSeq = 0;
   let lastCaptureTs = 0;
+  let streamStartedAt = 0;
+  let lastEncodedMediaTime = -1;
+  let lastRvfcMediaTime = -1;
+  let idleHeartbeatFrames = 0;
 
   // Normalized crop box [0..1] within the captured tab viewport
   let cropBox = { nx: 0, ny: 0, nw: 1, nh: 1, aspect: 16 / 9, subtitle: "" };
@@ -40,6 +46,8 @@
           connected: true,
         }).catch(() => {});
         sendMetaToGhost();
+        // Push first video frame immediately on WS connect for zero startup delay
+        processVideoFrame(true);
       };
 
       ws.onmessage = (ev) => {
@@ -110,6 +118,11 @@
   async function startCapture(streamId, initialState, initialCrop) {
     stopCapture(false);
     streamingActive = true;
+    streamStartedAt = performance.now();
+    lastEncodedMediaTime = -1;
+    lastRvfcMediaTime = -1;
+    idleHeartbeatFrames = 0;
+    inflightEncodes = 0;
     if (initialState) currentState = initialState;
     if (initialCrop) cropBox = { ...cropBox, ...initialCrop };
 
@@ -120,9 +133,9 @@
           mandatory: {
             chromeMediaSource: "tab",
             chromeMediaSourceId: streamId,
-            maxWidth: 854,
-            maxHeight: 480,
-            minFrameRate: 30,
+            maxWidth: 768,
+            maxHeight: 432,
+            minFrameRate: 24,
             maxFrameRate: 60,
           },
         },
@@ -176,16 +189,25 @@
     }
   }
 
-  function processVideoFrame() {
+  function processVideoFrame(force = false) {
     if (!streamingActive || inflightEncodes >= 1) return;
     if (capVideo.readyState < 2 || !capVideo.videoWidth) return;
     if (!wsConnected && !hasCrossTabViewers) return;
     if (currentState?.bossMode) return;
-    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount > 28 * 1024) return;
+    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount > 40 * 1024) return;
 
     const now = performance.now();
     // Cap at ~60fps (15.5ms min delta) so rvfc + backup timer never double-encode the same frame
-    if (now - lastCaptureTs < 15.0) return;
+    if (!force && now - lastCaptureTs < 15.5) return;
+
+    // Skip encoding identical unchanged frames (unless periodic keepalive every ~500ms)
+    const curMediaTime = lastRvfcMediaTime >= 0 ? lastRvfcMediaTime : capVideo.currentTime;
+    if (!force && curMediaTime === lastEncodedMediaTime && idleHeartbeatFrames < 30) {
+      idleHeartbeatFrames++;
+      return;
+    }
+    idleHeartbeatFrames = 0;
+    lastEncodedMediaTime = curMediaTime;
     lastCaptureTs = now;
 
     const vw = capVideo.videoWidth;
@@ -197,55 +219,63 @@
     const sh = Math.max(16, Math.min(vh - sy, Math.round(cropBox.nh * vh)));
 
     const aspect = sw / Math.max(1, sh);
-    const targetW = aspect < 0.85 ? 280 : 480;
+    const warmingUp = now - streamStartedAt < 1800;
+    const targetW = aspect < 0.85 ? 268 : (warmingUp ? 384 : 448);
     const targetH = Math.max(135, Math.round(targetW / aspect));
+    const quality = warmingUp ? 0.62 : 0.72;
 
-    if (cropCanvas.width !== targetW || cropCanvas.height !== targetH) {
-      cropCanvas.width = targetW;
-      cropCanvas.height = targetH;
+    if (encodeCanvas.width !== targetW || encodeCanvas.height !== targetH) {
+      encodeCanvas.width = targetW;
+      encodeCanvas.height = targetH;
     }
 
     ctx.drawImage(capVideo, sx, sy, sw, sh, 0, 0, targetW, targetH);
 
     const mySeq = ++frameSeq;
     inflightEncodes++;
-    cropCanvas.toBlob(
-      async (blob) => {
-        inflightEncodes = Math.max(0, inflightEncodes - 1);
-        if (!blob || !streamingActive || mySeq < lastSentSeq) return;
-        lastSentSeq = mySeq;
 
-        if (
-          ws &&
-          ws.readyState === WebSocket.OPEN &&
-          ws.bufferedAmount < 512 * 1024
-        ) {
-          try {
-            const buf = await blob.arrayBuffer();
-            if (mySeq >= lastSentSeq) ws.send(buf);
-          } catch (_) {}
-        }
+    const handleEncodedBlob = async (blob) => {
+      inflightEncodes = Math.max(0, inflightEncodes - 1);
+      if (!blob || !streamingActive || mySeq < lastSentSeq) return;
+      lastSentSeq = mySeq;
 
-        if (hasCrossTabViewers && mySeq % 2 === 0) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (typeof reader.result === "string") {
-              chrome.runtime
-                .sendMessage({
-                  type: "GECKO_BROADCAST_FRAME",
-                  dataUrl: reader.result,
-                  aspect,
-                  subtitle: cropBox.subtitle || "",
-                })
-                .catch(() => {});
-            }
-          };
-          reader.readAsDataURL(blob);
-        }
-      },
-      "image/jpeg",
-      0.76
-    );
+      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 128 * 1024) {
+        try {
+          const buf = await blob.arrayBuffer();
+          if (mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(buf);
+          }
+        } catch (_) {}
+      }
+
+      if (hasCrossTabViewers && mySeq % 2 === 0) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            chrome.runtime
+              .sendMessage({
+                type: "GECKO_BROADCAST_FRAME",
+                dataUrl: reader.result,
+                aspect,
+                subtitle: cropBox.subtitle || "",
+              })
+              .catch(() => {});
+          }
+        };
+        reader.readAsDataURL(blob);
+      }
+    };
+
+    if (supportsOffscreen && typeof encodeCanvas.convertToBlob === "function") {
+      encodeCanvas
+        .convertToBlob({ type: "image/jpeg", quality })
+        .then(handleEncodedBlob)
+        .catch(() => {
+          inflightEncodes = Math.max(0, inflightEncodes - 1);
+        });
+    } else {
+      cropCanvas.toBlob(handleEncodedBlob, "image/jpeg", quality);
+    }
   }
 
   function startHighFpsLoop() {
@@ -254,9 +284,12 @@
       workerTicker = null;
     }
     if (typeof capVideo.requestVideoFrameCallback === "function") {
-      const onFrame = () => {
+      const onFrame = (_now, metadata) => {
         if (!streamingActive) return;
-        processVideoFrame();
+        if (metadata && Number.isFinite(metadata.mediaTime)) {
+          lastRvfcMediaTime = metadata.mediaTime;
+        }
+        processVideoFrame(false);
         rvfcHandle = capVideo.requestVideoFrameCallback(onFrame);
       };
       rvfcHandle = capVideo.requestVideoFrameCallback(onFrame);
@@ -265,9 +298,9 @@
     try {
       const blob = new Blob(["setInterval(() => postMessage(1), 16);"], { type: "application/javascript" });
       workerTicker = new Worker(URL.createObjectURL(blob));
-      workerTicker.onmessage = processVideoFrame;
+      workerTicker.onmessage = () => processVideoFrame(false);
     } catch (_) {
-      setInterval(processVideoFrame, 16);
+      setInterval(() => processVideoFrame(false), 16);
     }
   }
 
@@ -296,7 +329,7 @@
         const prev = currentState || {};
         currentState = msg.state;
         const diff = {};
-        for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles"]) {
+        for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles", "hoverReveal"]) {
           if (msg.state[k] !== undefined && msg.state[k] !== prev[k]) diff[k] = msg.state[k];
         }
         if (Object.keys(diff).length > 0) sendStatePatchToGhost(diff);

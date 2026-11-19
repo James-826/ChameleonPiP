@@ -23,6 +23,7 @@
     valOpacity: document.getElementById("valOpacity"),
     rngFeather: document.getElementById("rngFeather"),
     valFeather: document.getElementById("valFeather"),
+    chkHoverReveal: document.getElementById("chkHoverReveal"),
     chkSubtitles: document.getElementById("chkSubtitles"),
   };
 
@@ -211,6 +212,7 @@
     els.rngFeather.value = String(state.feather);
     els.valFeather.textContent = `${state.feather}%`;
 
+    if (els.chkHoverReveal) els.chkHoverReveal.checked = Boolean(state.hoverReveal);
     els.chkSubtitles.checked = Boolean(state.mirrorSubtitles);
     renderMembershipBar();
   }
@@ -364,6 +366,10 @@
     updateState({ feather: Number(els.rngFeather.value) });
   });
 
+  els.chkHoverReveal?.addEventListener("change", () => {
+    updateState({ hoverReveal: els.chkHoverReveal.checked });
+  });
+
   els.chkSubtitles.addEventListener("change", () => {
     updateState({ mirrorSubtitles: els.chkSubtitles.checked });
   });
@@ -431,7 +437,15 @@
   document.getElementById("popMute")?.addEventListener("click", () => {
     livePlayer.muted = !livePlayer.muted;
     renderLivePlayerUi();
-    sendCmdToTabVideo({ action: "toggleMute" });
+    const tid = getTargetVideoTabId();
+    if (tid) {
+      chrome.runtime.sendMessage({
+        type: "GECKO_REMOTE_VIDEO_CMD",
+        tabId: tid,
+        action: "setMuted",
+        value: livePlayer.muted,
+      }).catch(() => {});
+    }
   });
   const popRates = [1.0, 1.25, 1.5, 2.0];
   document.getElementById("popRate")?.addEventListener("click", () => {

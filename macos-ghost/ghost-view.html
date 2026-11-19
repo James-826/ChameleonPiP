@@ -484,6 +484,13 @@
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
           }
 
+          // Pre-warm Metal WebGL pipeline immediately with 1x1 transparent pixel so Frame 1 renders in <1ms!
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+          gl.clearColor(0.0, 0.0, 0.0, 0.0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
           return {
             uploadAndDraw(source, w, h, st) {
               texW = w || source.videoWidth || source.width || 512;
@@ -508,13 +515,38 @@
         document.getElementById("btnFwd10").innerHTML = Core.ICONS.fwd10;
         document.getElementById("cornerGrip").innerHTML = Core.ICONS.resizeGrip;
 
-        document.addEventListener("mouseenter", () => {
-          isHovering = true;
-          root.classList.add("hovered");
+        function applyHoverReveal(hovered, forcePeek = false) {
+          const allow = Boolean(state.hoverReveal) || Boolean(forcePeek);
+          isHovering = Boolean(hovered) && allow;
+          root.classList.toggle("hovered", isHovering);
+        }
+
+        if (new URLSearchParams(window.location.search).get("hoverReveal") === "1") {
+          state.hoverReveal = true;
+        }
+
+        let pointerInsideDoc = false;
+        document.addEventListener("mouseenter", (e) => {
+          pointerInsideDoc = true;
+          applyHoverReveal(true, Boolean(e?.altKey));
+        });
+        document.addEventListener("mousemove", (e) => {
+          pointerInsideDoc = true;
+          if (e.altKey || state.hoverReveal) {
+            if (!isHovering) applyHoverReveal(true, Boolean(e.altKey));
+          } else if (isHovering) {
+            applyHoverReveal(false, false);
+          }
         });
         document.addEventListener("mouseleave", () => {
-          isHovering = false;
-          root.classList.remove("hovered");
+          pointerInsideDoc = false;
+          applyHoverReveal(false, false);
+        });
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Alt" && pointerInsideDoc) applyHoverReveal(true, true);
+        });
+        window.addEventListener("keyup", (e) => {
+          if (e.key === "Alt" && !state.hoverReveal) applyHoverReveal(false, false);
         });
 
         function postNative(payload) {
@@ -606,9 +638,14 @@
         }
 
         let lastAppliedFeatherKey = "";
+        let mutedLockUntil = 0;
+        let pausedLockUntil = 0;
         function render() {
           root.classList.toggle("boss-active", Boolean(state.bossMode));
           root.setAttribute("data-mode", state.mode);
+          if (!state.hoverReveal && !state.bossMode && isHovering) {
+            applyHoverReveal(false, false);
+          }
 
           if (glProjector) {
             streamCanvas.style.filter = "none";
@@ -634,13 +671,36 @@
         }
 
         function sendPlayerCmd(action, extra = {}) {
+          const now = performance.now();
           if (hasLiveChromeStream && ws?.readyState === WebSocket.OPEN) {
+            if (action === "toggleMute" || action === "setMuted") {
+              const targetMuted = action === "setMuted" ? Boolean(extra.value) : !player.muted;
+              player.muted = targetMuted;
+              mutedLockUntil = now + 800;
+              ws.send(JSON.stringify({ type: "cmd", action: "setMuted", value: targetMuted }));
+              renderPlayerControls(true);
+              return;
+            }
+            if (action === "togglePlay" || action === "setPaused" || action === "play" || action === "pause") {
+              const targetPaused =
+                action === "setPaused"
+                  ? Boolean(extra.value)
+                  : action === "play"
+                  ? false
+                  : action === "pause"
+                  ? true
+                  : !player.paused;
+              player.paused = targetPaused;
+              pausedLockUntil = now + 700;
+              ws.send(JSON.stringify({ type: "cmd", action: "setPaused", value: targetPaused }));
+              renderPlayerControls(true);
+              return;
+            }
             ws.send(JSON.stringify({ type: "cmd", action, ...extra }));
-            if (action === "togglePlay") player.paused = !player.paused;
-            else if (action === "toggleMute") player.muted = !player.muted;
-            else if (action === "setVolume" && Number.isFinite(extra.value)) {
+            if (action === "setVolume" && Number.isFinite(extra.value)) {
               player.volume = Core.clamp(extra.value, 0, 1);
               player.muted = player.volume === 0;
+              mutedLockUntil = now + 600;
             } else if (action === "setRate" && Number.isFinite(extra.value)) {
               player.playbackRate = extra.value;
             } else if (action === "seekTo" && Number.isFinite(extra.value)) {
@@ -652,31 +712,40 @@
             return;
           }
 
-          // If idle and user clicks Play from the Menu Bar, auto-start the built-in 60fps demo!
-          if (!demoRunning && localVideo.style.display === "none" && (action === "togglePlay" || action === "play")) {
+          const hasLocalMp4 = Boolean(localVideo.src) && !demoRunning && !hasLiveChromeStream;
+
+          // If idle (no Chrome stream, no local MP4, no demo) and user clicks Play from Dynamic Island, start built-in 60fps demo!
+          if (!demoRunning && !hasLocalMp4 && (action === "togglePlay" || action === "play" || (action === "setPaused" && !extra.value))) {
             startBuiltInDemo();
             return;
           }
 
-          if (localVideo.style.display !== "none") {
-            if (demoRunning && !hasLiveChromeStream && localVideo.srcObject) {
-              if (action === "togglePlay") player.paused = !player.paused;
-              else if (action === "play") player.paused = false;
-              else if (action === "pause") player.paused = true;
-              else if (action === "seek") player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, 180);
-              else if (action === "seekTo") player.currentTime = Core.clamp(extra.value, 0, 180);
-              else if (action === "setRate") player.playbackRate = extra.value;
-              else if (action === "toggleMute") player.muted = !player.muted;
-              else if (action === "setVolume" && Number.isFinite(extra.value)) {
-                player.volume = Core.clamp(extra.value, 0, 1);
-                player.muted = player.volume === 0;
-              }
-              renderPlayerControls(true);
-              return;
+          if (demoRunning && !hasLiveChromeStream) {
+            if (action === "togglePlay") player.paused = !player.paused;
+            else if (action === "setPaused") player.paused = Boolean(extra.value);
+            else if (action === "play") player.paused = false;
+            else if (action === "pause") player.paused = true;
+            else if (action === "seek") player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, 180);
+            else if (action === "seekTo") player.currentTime = Core.clamp(extra.value, 0, 180);
+            else if (action === "setRate") player.playbackRate = extra.value;
+            else if (action === "setMuted") player.muted = Boolean(extra.value);
+            else if (action === "toggleMute") player.muted = !player.muted;
+            else if (action === "setVolume" && Number.isFinite(extra.value)) {
+              player.volume = Core.clamp(extra.value, 0, 1);
+              player.muted = player.volume === 0;
             }
+            renderPlayerControls(true);
+            return;
+          }
+
+          // Local MP4 playback (works identically whether rendered via WebGL streamCanvas or <video>!)
+          if (hasLocalMp4) {
             if (action === "togglePlay") {
               if (localVideo.paused) localVideo.play().catch(() => {});
               else localVideo.pause();
+            } else if (action === "setPaused") {
+              if (extra.value) localVideo.pause();
+              else localVideo.play().catch(() => {});
             } else if (action === "play") {
               localVideo.play().catch(() => {});
             } else if (action === "pause") {
@@ -685,8 +754,14 @@
               localVideo.currentTime = Math.max(0, localVideo.currentTime + Number(extra.delta || 0));
             } else if (action === "seekTo" && Number.isFinite(localVideo.duration)) {
               localVideo.currentTime = Core.clamp(extra.value, 0, localVideo.duration);
+            } else if (action === "setMuted") {
+              const targetMuted = Boolean(extra.value);
+              localVideo.muted = targetMuted;
+              if (!targetMuted && localVideo.volume < 0.05) localVideo.volume = 0.85;
             } else if (action === "toggleMute") {
-              localVideo.muted = !localVideo.muted;
+              const currentlyMuted = localVideo.muted || localVideo.volume === 0;
+              localVideo.muted = !currentlyMuted;
+              if (currentlyMuted && localVideo.volume < 0.05) localVideo.volume = 0.85;
             } else if (action === "setVolume" && Number.isFinite(extra.value)) {
               localVideo.volume = Core.clamp(extra.value, 0, 1);
               localVideo.muted = localVideo.volume === 0;
@@ -874,7 +949,13 @@
                     if (msg.state && typeof msg.state.mirrorSubtitles === "boolean") {
                       state.mirrorSubtitles = msg.state.mirrorSubtitles;
                     }
-                    if (msg.player) player = { ...player, ...msg.player };
+                    if (msg.player) {
+                      const nowTs = performance.now();
+                      const incoming = { ...msg.player };
+                      if (nowTs < mutedLockUntil) delete incoming.muted;
+                      if (nowTs < pausedLockUntil) delete incoming.paused;
+                      player = { ...player, ...incoming };
+                    }
                     subtitleEl.textContent = state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "";
                     renderPlayerControls(false);
                   } else if (msg.type === "statePatch" && msg.patch) {
@@ -928,7 +1009,7 @@
           }
         });
         stage.addEventListener("mouseup", (e) => {
-          if (downPt && Math.hypot(e.screenX - downPt.x, e.screenY - downPt.y) < 5) {
+          if (downPt && Math.hypot(e.screenX - downPt.x, e.screenY - downPt.y) < 5 && (state.hoverReveal || isHovering)) {
             sendPlayerCmd("togglePlay");
           }
           downPt = null;
@@ -1038,9 +1119,8 @@
         document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
 
         window.GeckoNativeBridge = {
-          setHovered(val) {
-            isHovering = Boolean(val);
-            root.classList.toggle("hovered", isHovering);
+          setHovered(val, forcePeek = false) {
+            applyHoverReveal(val, forcePeek);
           },
           onMacSensor(sensor) {
             isTyping = Boolean(sensor.isTyping);

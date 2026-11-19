@@ -439,6 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var btnMute: IslandPillButton!
     private var segMode: NSSegmentedControl!
     private var stealthSlider: NSSlider!
+    private var btnHoverReveal: IslandPillButton!
     private var btnThrough: IslandPillButton!
     private var btnVis: IslandPillButton!
     private var lblStreakBadge: NSTextField!
@@ -456,6 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var autoSense: Bool = true
     private var hideFromCapture: Bool = true
     private var isVisible: Bool = true
+    private var hoverRevealEnabled: Bool = UserDefaults.standard.bool(forKey: "chameleonHoverReveal")
     private var isProMember: Bool = UserDefaults.standard.bool(forKey: "chameleonIsPro")
     private var pendingUpgradeReason: String? = nil
 
@@ -548,16 +550,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             webView.loadFileURL(htmlURL, allowingReadAccessTo: URL(fileURLWithPath: "/"))
         }
 
-        // Background-safe Hover Detector: shows 4-corner resize brackets & HUD even when Chrome/VSCode is active!
+        // Background-safe Hover Detector: respects the `hoverRevealEnabled` switch!
+        // When OFF, hovering the small window stays 100% stealthy (hold Option ⌥ to peek anytime).
         let hoverTimer = Timer(timeInterval: 0.06, repeats: true) { [weak self] _ in
             guard let self = self, self.isVisible, !self.clickThrough else { return }
             let inside = self.panel.frame.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
-            if inside != self.isWindowHovered {
-                self.isWindowHovered = inside
-                self.webView.evaluateJavaScript("window.GeckoNativeBridge?.setHovered(\(inside ? "true" : "false"));", completionHandler: nil)
+            let optionHeld = NSEvent.modifierFlags.contains(.option)
+            let shouldReveal = inside && (self.hoverRevealEnabled || optionHeld)
+            if shouldReveal != self.isWindowHovered {
+                self.isWindowHovered = shouldReveal
+                self.webView.evaluateJavaScript(
+                    "window.GeckoNativeBridge?.setHovered(\(shouldReveal ? "true" : "false"), \(optionHeld ? "true" : "false"));",
+                    completionHandler: nil
+                )
             }
         }
         RunLoop.main.add(hoverTimer, forMode: .common)
+
+        // Push saved hoverReveal preference into WebView right after boot
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            guard let self = self else { return }
+            self.webView.evaluateJavaScript(
+                "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false")});",
+                completionHandler: nil
+            )
+        }
 
         NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .scrollWheel, .magnify]) { [weak self] event in
             guard let self = self, !self.clickThrough, event.window === self.panel, !self.bossMode else { return event }
@@ -596,8 +613,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     return nil
                 }
 
-                let inTopHud = loc.y > b.height - 46
-                let inBottomHud = loc.y < 68
+                let hudVisible = self.hoverRevealEnabled || event.modifierFlags.contains(.option)
+                let inTopHud = hudVisible && loc.y > b.height - 46
+                let inBottomHud = hudVisible && loc.y < 68
                 if !inTopHud && !inBottomHud {
                     self.startNativeDrag(offset: loc)
                 }
@@ -790,7 +808,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             guard let self = self else { return }
             self.playerMuted.toggle()
             self.syncNativeIslandControls()
-            self.sendPlayerCmdToWebView("{\"action\":\"toggleMute\"}")
+            self.sendPlayerCmdToWebView("{\"action\":\"setMuted\",\"value\":\(self.playerMuted ? "true" : "false")}")
         }
 
         controlsContainer.addSubview(btnBack)
@@ -806,14 +824,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         segMode.segmentDistribution = .fillEqually
         controlsContainer.addSubview(segMode)
 
-        // Row 4 (y = 136): Intensity Slider + [穿透] [显隐] [本地] [退出]
-        let lblStealth = Self.makeLabel("浓度", frame: NSRect(x: 14, y: 141, width: 28, height: 16), alpha: 0.75)
+        // Row 4 (y = 136): Intensity Slider + [悬停] [穿透] [显示] [本地] [退出]
+        let lblStealth = Self.makeLabel("浓度", frame: NSRect(x: 14, y: 141, width: 26, height: 16), alpha: 0.75)
         stealthSlider = NSSlider(value: 58, minValue: 10, maxValue: 95, target: self, action: #selector(onStealthSlide(_:)))
-        stealthSlider.frame = NSRect(x: 42, y: 139, width: 76, height: 20)
+        stealthSlider.frame = NSRect(x: 40, y: 139, width: 66, height: 20)
         stealthSlider.isContinuous = true
         stealthSlider.controlSize = .small
 
-        btnThrough = IslandPillButton(frame: NSRect(x: 124, y: 136, width: 42, height: 25), title: "穿透")
+        btnHoverReveal = IslandPillButton(frame: NSRect(x: 110, y: 136, width: 36, height: 25), title: "悬停")
+        btnHoverReveal.isActiveTint = hoverRevealEnabled
+        btnHoverReveal.onClick = { [weak self] in
+            guard let self = self else { return }
+            self.setHoverReveal(!self.hoverRevealEnabled)
+        }
+
+        btnThrough = IslandPillButton(frame: NSRect(x: 150, y: 136, width: 36, height: 25), title: "穿透")
         btnThrough.onClick = { [weak self] in
             guard let self = self else { return }
             if !self.clickThrough && !self.isProMember {
@@ -823,7 +848,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             self.setClickThrough(!self.clickThrough)
         }
 
-        btnVis = IslandPillButton(frame: NSRect(x: 170, y: 136, width: 42, height: 25), title: "显示")
+        btnVis = IslandPillButton(frame: NSRect(x: 190, y: 136, width: 36, height: 25), title: "显示")
         btnVis.isActiveTint = true
         btnVis.onClick = { [weak self] in
             guard let self = self else { return }
@@ -833,14 +858,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             self.syncNativeIslandControls()
         }
 
-        let btnLocal = IslandPillButton(frame: NSRect(x: 216, y: 136, width: 42, height: 25), title: "本地")
+        let btnLocal = IslandPillButton(frame: NSRect(x: 230, y: 136, width: 36, height: 25), title: "本地")
         btnLocal.onClick = { [weak self] in self?.openLocalVideoFile() }
 
-        let btnQuit = IslandPillButton(frame: NSRect(x: 262, y: 136, width: 40, height: 25), title: "退出")
+        let btnQuit = IslandPillButton(frame: NSRect(x: 270, y: 136, width: 32, height: 25), title: "退出")
         btnQuit.onClick = { NSApp.terminate(nil) }
 
         controlsContainer.addSubview(lblStealth)
         controlsContainer.addSubview(stealthSlider)
+        controlsContainer.addSubview(btnHoverReveal)
         controlsContainer.addSubview(btnThrough)
         controlsContainer.addSubview(btnVis)
         controlsContainer.addSubview(btnLocal)
@@ -886,7 +912,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         isPlayerPaused.toggle()
         islandShell.isPlayerPaused = isPlayerPaused
         syncNativeIslandControls()
-        sendPlayerCmdToWebView("{\"action\":\"togglePlay\"}")
+        sendPlayerCmdToWebView("{\"action\":\"setPaused\",\"value\":\(isPlayerPaused ? "true" : "false")}")
+    }
+
+    private func setHoverReveal(_ enabled: Bool) {
+        hoverRevealEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "chameleonHoverReveal")
+        if !enabled {
+            isWindowHovered = false
+            webView.evaluateJavaScript("window.GeckoNativeBridge?.setHovered(false, false);", completionHandler: nil)
+        }
+        webView.evaluateJavaScript(
+            "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(enabled ? "true" : "false")});",
+            completionHandler: nil
+        )
+        syncNativeIslandControls()
     }
 
     @objc private func onProgressScrub(_ sender: NSSlider) {
@@ -946,6 +986,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if NSEvent.pressedMouseButtons == 0 {
             stealthSlider.integerValue = currentStealth
         }
+        btnHoverReveal?.isActiveTint = hoverRevealEnabled
         btnThrough.isActiveTint = clickThrough
         btnVis.isActiveTint = isVisible
         btnVis.title = isVisible ? "显示" : "已隐"
@@ -1166,6 +1207,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if let st = dict["state"] as? [String: Any] {
                 if let m = st["mode"] as? String { currentMode = m }
                 if let s = st["stealth"] as? Int { currentStealth = s }
+                if let hr = st["hoverReveal"] as? Bool, hr != hoverRevealEnabled {
+                    hoverRevealEnabled = hr
+                    UserDefaults.standard.set(hr, forKey: "chameleonHoverReveal")
+                    if !hr {
+                        isWindowHovered = false
+                        webView.evaluateJavaScript("window.GeckoNativeBridge?.setHovered(false, false);", completionHandler: nil)
+                    }
+                }
                 syncNativeIslandControls()
             }
         case "playerChanged":
@@ -1264,9 +1313,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     private func startAutoSceneLoop() {
-        Timer.scheduledTimer(withTimeInterval: 1.8, repeats: true) { [weak self] _ in
-            guard let self = self, self.isVisible, !self.bossMode else { return }
-            self.senseEnvironmentAsync()
+        // Defer first ScreenCaptureKit probe by 1.5s so macOS media startup never competes with video Frame 1!
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self else { return }
+            Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
+                guard let self = self, self.isVisible, !self.bossMode else { return }
+                self.senseEnvironmentAsync()
+            }
         }
     }
 

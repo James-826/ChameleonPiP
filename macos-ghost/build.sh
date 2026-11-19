@@ -62,6 +62,7 @@ cp "$ROOT_DIR/demo/index.html" "$RES_DIR/index.html"
 cp "$ROOT_DIR/extension/gecko-core.js" "$RES_DIR/gecko-core.js"
 cp "$ROOT_DIR/extension/chameleon-stats.js" "$RES_DIR/chameleon-stats.js"
 cp "$ROOT_DIR/extension/gecko-core.js" "$ROOT_DIR/macos-ghost/gecko-core.js"
+cp "$ROOT_DIR/extension/chameleon-stats.js" "$ROOT_DIR/macos-ghost/chameleon-stats.js"
 cp "$ROOT_DIR/extension/icons/icon128.png" "$RES_DIR/icon128.png"
 if [ -f "$ROOT_DIR/macos-ghost/assets/AppIcon.icns" ]; then
   cp "$ROOT_DIR/macos-ghost/assets/AppIcon.icns" "$RES_DIR/AppIcon.icns"

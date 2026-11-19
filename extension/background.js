@@ -4,7 +4,12 @@ let activePipTabId = null;
 let streamingTabId = null;
 let ghostWsConnected = false;
 let cropPollTimer = null;
+let cachedGeckoState = null;
 const parasitePorts = new Set();
+
+chrome.storage.local.get(["geckoState"], (res) => {
+  if (res?.geckoState) cachedGeckoState = res.geckoState;
+});
 
 async function ensureOffscreenDocument() {
   if (chrome.offscreen.hasDocument) {
@@ -26,10 +31,31 @@ async function ensureOffscreenDocument() {
 
 async function queryVideoCropFromTab(tabId) {
   try {
-    return await chrome.tabs.sendMessage(tabId, { type: "GECKO_GET_VIDEO_CROP" });
+    const [crop, tab] = await Promise.all([
+      chrome.tabs.sendMessage(tabId, { type: "GECKO_GET_VIDEO_CROP" }).catch(() => null),
+      chrome.tabs.get(tabId).catch(() => null),
+    ]);
+    if (crop && crop.player && tab) {
+      crop.player.tabMuted = Boolean(tab.mutedInfo?.muted);
+      crop.player.muted = Boolean(tab.mutedInfo?.muted) || Boolean(crop.player.muted);
+    }
+    return crop;
   } catch (_) {
     return null;
   }
+}
+
+async function pushImmediateMetaForTab(tabId) {
+  if (!tabId) return;
+  const crop = await queryVideoCropFromTab(tabId);
+  if (!crop) return;
+  chrome.runtime
+    .sendMessage({
+      type: "GECKO_OFFSCREEN_UPDATE_META",
+      crop,
+      hasCrossTabViewers: parasitePorts.size > 0,
+    })
+    .catch(() => {});
 }
 
 function startCropPolling() {
@@ -40,16 +66,15 @@ function startCropPolling() {
       return;
     }
     const crop = await queryVideoCropFromTab(streamingTabId);
-    const stored = await chrome.storage.local.get(["geckoState"]);
     chrome.runtime
       .sendMessage({
         type: "GECKO_OFFSCREEN_UPDATE_META",
         crop: crop || undefined,
-        state: stored?.geckoState || undefined,
+        state: cachedGeckoState || undefined,
         hasCrossTabViewers: parasitePorts.size > 0,
       })
       .catch(() => {});
-  }, 180);
+  }, 260);
 }
 
 function stopCropPolling() {
@@ -60,9 +85,7 @@ function stopCropPolling() {
 }
 
 async function startTabStream(tabId, preIssuedStreamId) {
-  if (chrome.offscreen.closeDocument) {
-    await chrome.offscreen.closeDocument().catch(() => {});
-  }
+  // Reuse existing offscreen document if already alive — avoids 400ms startup frame stutter!
   await ensureOffscreenDocument();
   const streamId =
     preIssuedStreamId ||
@@ -77,17 +100,20 @@ async function startTabStream(tabId, preIssuedStreamId) {
     return {
       ok: false,
       reason: "stream_id_failed",
-      error: chrome.runtime.lastError?.message || "无法获取标签页画面流，请点击浏览器右上角壁虎图标启动",
+      error: chrome.runtime.lastError?.message || "无法获取标签页画面流，请点击浏览器右上角变色龙图标启动",
     };
   }
 
   const crop = await queryVideoCropFromTab(tabId);
-  const stored = await chrome.storage.local.get(["geckoState"]);
+  if (!cachedGeckoState) {
+    const stored = await chrome.storage.local.get(["geckoState"]);
+    cachedGeckoState = stored?.geckoState || {};
+  }
 
   const res = await chrome.runtime.sendMessage({
     type: "GECKO_OFFSCREEN_START",
     streamId,
-    state: stored?.geckoState || {},
+    state: cachedGeckoState || {},
     crop: crop || { nx: 0, ny: 0, nw: 1, nh: 1, aspect: 16 / 9, subtitle: "" },
   });
 
@@ -187,14 +213,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "GECKO_REMOTE_VIDEO_CMD") {
-    const targetId = streamingTabId || activePipTabId;
+    const targetId = msg.tabId || streamingTabId || activePipTabId;
     if (targetId) {
+      // Instant OS-level Chrome Tab Mute (<5ms, immune to Bilibili/YouTube/Douyin player overrides!)
+      if (msg.action === "setMuted" || msg.action === "toggleMute") {
+        chrome.tabs.get(targetId, (tab) => {
+          if (chrome.runtime.lastError || !tab) return;
+          const nextMuted =
+            msg.action === "setMuted"
+              ? Boolean(msg.value)
+              : !Boolean(tab.mutedInfo?.muted);
+          chrome.tabs.update(targetId, { muted: nextMuted }).catch(() => {});
+          // When unmuting, also ensure the webpage <video> element isn't muted or volume===0
+          if (!nextMuted) {
+            chrome.tabs
+              .sendMessage(targetId, { type: "GECKO_EXEC_VIDEO_CMD", action: "setMuted", value: false })
+              .catch(() => {});
+          }
+          setTimeout(() => pushImmediateMetaForTab(targetId), 25);
+        });
+        return false;
+      }
+
       chrome.tabs
         .sendMessage(targetId, {
           type: "GECKO_EXEC_VIDEO_CMD",
           action: msg.action,
           delta: msg.delta,
           value: msg.value,
+        })
+        .then(() => {
+          setTimeout(() => pushImmediateMetaForTab(targetId), 30);
         })
         .catch(() => {});
     }
@@ -233,13 +282,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.geckoState?.newValue && streamingTabId) {
-    chrome.runtime
-      .sendMessage({
-        type: "GECKO_OFFSCREEN_UPDATE_META",
-        state: changes.geckoState.newValue,
-      })
-      .catch(() => {});
+  if (area === "local" && changes.geckoState?.newValue) {
+    cachedGeckoState = changes.geckoState.newValue;
+    if (streamingTabId) {
+      chrome.runtime
+        .sendMessage({
+          type: "GECKO_OFFSCREEN_UPDATE_META",
+          state: changes.geckoState.newValue,
+        })
+        .catch(() => {});
+    }
   }
 });
 
