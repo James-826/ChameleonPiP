@@ -934,10 +934,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve static web demo/arena files over Cloudflare HTTPS Tunnel
-  const cleanPath = parsedUrl.pathname.replace(/^\/chameleon-arena/, "") || "/arena.html";
-  const relPath = cleanPath === "/" ? "/arena.html" : cleanPath;
-  const candidateRoots = ["/var/www/chameleon-arena", path.resolve(__dirname, "..")];
+  // Serve official landing page (/ -> index.html), Arena (/arena.html), Privacy (/privacy.html)
+  const cleanPath = parsedUrl.pathname.replace(/^\/chameleon-arena/, "") || "/index.html";
+  const relPath = cleanPath === "/" ? "/index.html" : cleanPath;
+  const candidateRoots = ["/var/www/chameleon-arena", path.resolve(__dirname, "..", "web"), path.resolve(__dirname, "..")];
   for (const rootDir of candidateRoots) {
     const fullPath = path.resolve(rootDir, "." + relPath);
     if (fullPath.startsWith(rootDir) && fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {

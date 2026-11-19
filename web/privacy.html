@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>隐私政策 · Privacy Policy — ChameleonPiP</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh;
+        background: #070a0f;
+        color: #cbd5e1;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Inter", sans-serif;
+        line-height: 1.75;
+        padding: 36px 20px 64px;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 820px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #f8fafc;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 16px;
+      }
+      .brand img { width: 32px; height: 32px; border-radius: 8px; }
+      .nav-actions { display: flex; gap: 8px; }
+      .btn {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: #e2e8f0;
+        padding: 6px 12px;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+      .card {
+        background: #0f141d;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 14px;
+        padding: 24px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      h1 { font-size: 24px; color: #f8fafc; letter-spacing: -0.02em; }
+      h2 { font-size: 16px; color: #f1f5f9; margin-top: 6px; }
+      p, li { font-size: 13.5px; color: #94a3b8; }
+      ul { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+      strong { color: #e2e8f0; }
+      code {
+        background: rgba(255, 255, 255, 0.07);
+        color: #6ee7b7;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .meta { font-size: 12px; color: #64748b; }
+      .lang-en { display: none; }
+      body.en .lang-zh { display: none; }
+      body.en .lang-en { display: block; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <a class="brand" href="index.html">
+          <img src="icons/icon128.png" onerror="this.onerror=null;this.src='../extension/icons/icon128.png'" alt="ChameleonPiP" />
+          <span>ChameleonPiP</span>
+        </a>
+        <div class="nav-actions">
+          <button type="button" class="btn" id="btnLang">English / 中文</button>
+          <a class="btn" href="index.html">返回官网</a>
+        </div>
+      </header>
+
+      <!-- Chinese Version -->
+      <article class="card lang-zh">
+        <h1>隐私政策（Privacy Policy）</h1>
+        <p class="meta">生效日期：2026-11-19 · 适用范围：ChameleonPiP Chrome/Edge 浏览器扩展、macOS/Windows 桌面端及联机排行榜服务</p>
+
+        <h2>1. 核心承诺：视频画面与音频 100% 本地处理</h2>
+        <p>
+          ChameleonPiP 是一款专注于光学透明画中画（Picture-in-Picture）体验的桌面与浏览器工具。
+          <strong>我们绝不上传、存储、分析或向任何第三方传输您观看的视频画面、网页内容、音频、字幕或屏幕截图。</strong>
+        </p>
+        <ul>
+          <li>浏览器扩展通过 <code>tabCapture</code> 捕获的视频帧仅在您的本机回环地址（<code>ws://127.0.0.1:51937</code>）传输至您本地运行的桌面端进行 Metal/WebGL 实时光学渲染，数据从不离开您的电脑。</li>
+          <li>桌面端使用 macOS <code>ScreenCaptureKit</code> 采样底层背景亮度时，仅在本地内存计算平均 RGB 亮度值并立即丢弃像素，绝不写入磁盘或网络发送。</li>
+        </ul>
+
+        <h2>2. 浏览器扩展权限用途说明</h2>
+        <ul>
+          <li><code>tabCapture</code> &amp; <code>offscreen</code>：仅在您主动点击投送或按下快捷键（<code>⌃⇧G</code>）后，将当前标签页的视频区域渲染到本机画中画窗口。</li>
+          <li><code>activeTab</code> &amp; <code>scripting</code>：定位当前网页中的 <code>&lt;video&gt;</code> 元素坐标、同步播放/暂停/进度/字幕控制。</li>
+          <li><code>tabs</code>：实现低延迟标签页级静音切换以及跨标签页悬浮控制。</li>
+          <li><code>storage</code>：在本地保存您的投影模式、浓度、羽化、悬停开关等个人偏好设置。</li>
+        </ul>
+
+        <h2>3. 排行榜与会员激活所涉及的最小化数据</h2>
+        <p>当您主动使用全球/同城排行榜、1v1 耐力 PK 或 Pro 会员激活码功能时，服务端仅保存以下最小化必要字段：</p>
+        <ul>
+          <li>您自定义的匿名代号（Nickname）、自选城市/地区标签、行业标签。</li>
+          <li>真实视频播放累计时长、连续纪录、PK 胜负场次与 ELO 积分。</li>
+          <li>随机生成的匿名设备标识（<code>userId</code> / <code>deviceId</code>）与激活码授权状态（用于防止单码超限多设备滥用）。</li>
+        </ul>
+        <p><strong>我们不收集您的真实姓名、邮箱、浏览历史、Cookie、密码或任何个人身份敏感信息（PII），也不会向广告商出售或共享任何用户数据。</strong></p>
+
+        <h2>4. 数据删除与联系方式</h2>
+        <p>
+          您可随时在浏览器本地存储中清除扩展数据，或卸载扩展与桌面端以停止一切数据同步。
+          如需清除云端匿名排行榜记录或咨询隐私问题，请通过 GitHub Issues（<code>https://github.com/James-826/ChameleonPiP</code>）或邮件联系我们。
+        </p>
+      </article>
+
+      <!-- English Version (Required for Chrome Web Store & Edge Add-ons Global Review) -->
+      <article class="card lang-en">
+        <h1>Privacy Policy</h1>
+        <p class="meta">Effective Date: November 19, 2026 · Applies to ChameleonPiP Chrome/Edge Extension, macOS/Windows Desktop App, and Arena Services</p>
+
+        <h2>1. Zero Media Upload Guarantee (100% Local Processing)</h2>
+        <p>
+          ChameleonPiP is an optical Picture-in-Picture (PiP) productivity and viewing tool.
+          <strong>We never upload, record, store, inspect, or share your video frames, audio streams, webpage contents, subtitles, or screen captures with any external server or third party.</strong>
+        </p>
+        <ul>
+          <li>Video frames captured via <code>tabCapture</code> are streamed strictly over your machine's local loopback interface (<code>ws://127.0.0.1:51937</code>) to your local desktop window for real-time WebGL/Metal rendering and never leave your device.</li>
+          <li>Ambient color sampling (e.g., via macOS <code>ScreenCaptureKit</code>) computes an in-memory average RGB value locally and discards the sample immediately; nothing is saved to disk or transmitted over the network.</li>
+        </ul>
+
+        <h2>2. Browser Extension Permissions Justification</h2>
+        <ul>
+          <li><code>tabCapture</code> &amp; <code>offscreen</code>: Invoked strictly upon explicit user action (clicking the extension button or pressing <code>⌃⇧G</code>) to relay the active video region to your local PiP window.</li>
+          <li><code>activeTab</code> &amp; <code>scripting</code>: Used solely to detect the <code>&lt;video&gt;</code> bounding box, read optional subtitles, and execute play/pause/seek/rate commands you trigger.</li>
+          <li><code>tabs</code>: Used to provide instant tab-level mute/unmute synchronization and detect when a streaming tab closes.</li>
+          <li><code>storage</code>: Stores your local visual preferences (projection mode, intensity, feathering, hover-reveal toggle) and membership license status.</li>
+        </ul>
+
+        <h2>3. Minimal Data Used for Optional Leaderboard &amp; Pro Licensing</h2>
+        <p>Only when you use the optional Leaderboard / PK Arena or Pro License Key activation, our server stores the following minimal non-PII fields:</p>
+        <ul>
+          <li>A self-chosen anonymous nickname, self-selected city/region tag, and optional industry tag.</li>
+          <li>Active video playback timer totals, streak records, and PK ELO score.</li>
+          <li>A randomly generated anonymous identifier (<code>userId</code> / <code>deviceId</code>) and license entitlement metadata to enforce per-license device limits.</li>
+        </ul>
+        <p><strong>We do not collect browsing history, cookies, passwords, payment card details, or personally identifiable information (PII). We do not sell user data or serve third-party ads.</strong></p>
+
+        <h2>4. Data Deletion &amp; Contact</h2>
+        <p>
+          You may clear local extension storage or uninstall ChameleonPiP at any time. To request removal of an anonymous leaderboard entry or ask privacy questions, please open an issue at <code>https://github.com/James-826/ChameleonPiP</code> or contact our support team.
+        </p>
+      </article>
+    </div>
+
+    <script>
+      document.getElementById("btnLang").addEventListener("click", () => {
+        document.body.classList.toggle("en");
+      });
+    </script>
+  </body>
+</html>

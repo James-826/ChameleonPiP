@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "ChameleonPiP 变色龙光学画中画",
-  "version": "5.0.0",
-  "description": "将网页视频投送到无边框变色龙光学投影窗，底色原样透出、60fps 丝滑融合，内置全球摸鱼排行榜与线上不间断耐力 PK。",
+  "version": "5.2.0",
+  "homepage_url": "https://passenger-leave-merger-permission.trycloudflare.com",
+  "description": "60fps 光学透明画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海控制、标签页瞬间静音、悬停显形开关与全球耐力 PK 排行。",
   "permissions": [
     "storage",
     "activeTab",

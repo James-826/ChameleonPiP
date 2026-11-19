@@ -618,6 +618,7 @@
       </div>
     </div>
 
+    <script src="store-config.js?v=5.2" onerror="this.remove()"></script>
     <script src="../extension/chameleon-stats.js?v=5.2"></script>
     <script>
       if (!window.ChameleonStats) {
@@ -965,6 +966,7 @@
         }
 
         function renderProModalStatic() {
+          const checkoutUrls = window.CHAMELEON_STORE_CONFIG?.checkoutUrls || {};
           document.getElementById("planCardsGrid").innerHTML = S.PRICING_PLANS.map(
             (p) => `
               <div class="plan-card ${p.recommended ? "rec" : ""}">
@@ -972,10 +974,25 @@
                 <div class="plan-name">${p.name}</div>
                 <div class="plan-price">${p.priceCny}<span>${p.period}</span></div>
                 <div class="plan-usd">海外定价 ${p.priceUsd} ${p.period}</div>
-                <div class="plan-desc">${p.desc}</div>
+                <div class="plan-desc" style="flex:1">${p.desc}</div>
+                <button type="button" class="btn ${p.recommended ? "btn-primary" : ""}" data-modal-buy="${p.id}" style="margin-top:8px;padding:7px 10px;font-size:11.5px">
+                  ${checkoutUrls[p.id] ? "立即购买激活码" : "获取激活码"}
+                </button>
               </div>
             `
           ).join("");
+
+          document.querySelectorAll("[data-modal-buy]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const url = window.CHAMELEON_STORE_CONFIG?.checkoutUrls?.[btn.dataset.modalBuy];
+              if (url) {
+                window.open(url, "_blank", "noopener");
+              } else {
+                showModalNotice("在线购买链接配置中！你现在可以先点击下方「一键免费体验 3 天 Pro」，或直接输入已领取的激活码兑换。", false);
+                document.getElementById("inpLicenseKey")?.focus();
+              }
+            });
+          });
 
           document.getElementById("compareTable").innerHTML =
             `<div class="cmp-row head"><span>核心功能权益</span><span style="text-align:center">Free 免费版</span><span style="text-align:center;color:#fde68a">Pro 会员</span></div>` +

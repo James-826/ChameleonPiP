@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChameleonPiP 变色龙光学画中画 — 60fps 零边框桌面拟态投影 · 灵动刘海 · 全球摸鱼榜</title>
+    <meta
+      name="description"
+      content="ChameleonPiP 变色龙光学画中画：Apple Metal 60fps 光学透明投影引擎，底层代码、表格与色彩原样透出；原生 MacBook 灵动刘海控制、会议共享隐身、全球摸鱼排行榜与实时 1v1 耐力 PK。"
+    />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --bg: #070a0f;
+        --panel: #0e131b;
+        --panel-2: #121925;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --dim: #64748b;
+        --emerald: #34d399;
+        --emerald-deep: #059669;
+        --gold: #fbbf24;
+      }
+      html { scroll-behavior: smooth; }
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse 90% 50% at 50% -10%, rgba(16, 185, 129, 0.14), transparent 65%),
+          radial-gradient(ellipse 60% 40% at 85% 18%, rgba(56, 189, 248, 0.08), transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Inter", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.55;
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { max-width: 1140px; margin: 0 auto; padding: 0 22px; }
+
+      /* Sticky Glass Navbar */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: rgba(7, 10, 15, 0.78);
+        backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .nav-inner {
+        height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15.5px; color: #f8fafc; }
+      .brand img { width: 32px; height: 32px; border-radius: 8px; }
+      .ver-pill {
+        font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+        background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(52, 211, 153, 0.3); color: #6ee7b7;
+      }
+      .nav-links { display: flex; align-items: center; gap: 22px; font-size: 13px; color: var(--muted); font-weight: 500; }
+      .nav-links a:hover { color: #fff; }
+      .nav-cta { display: flex; align-items: center; gap: 8px; }
+
+      .btn {
+        appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+        padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.04); color: #e2e8f0;
+        transition: all 0.16s ease; white-space: nowrap;
+      }
+      .btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.22); }
+      .btn-primary {
+        background: linear-gradient(135deg, #059669, #0d9488);
+        border-color: rgba(52, 211, 153, 0.45); color: #fff;
+        box-shadow: 0 8px 26px rgba(5, 150, 105, 0.28);
+      }
+      .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 10px 30px rgba(16, 185, 129, 0.38); }
+      .btn-gold {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.24), rgba(217, 119, 6, 0.14));
+        border-color: rgba(251, 191, 36, 0.5); color: #fde68a;
+      }
+      .btn-gold:hover { background: linear-gradient(135deg, rgba(245, 158, 11, 0.36), rgba(217, 119, 6, 0.22)); color: #fffbeb; }
+      .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 7px; }
+
+      /* Hero */
+      .hero { padding: 64px 0 42px; text-align: center; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 5px 13px; border-radius: 999px; font-size: 12px; font-weight: 600;
+        background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(52, 211, 153, 0.28); color: #6ee7b7;
+        margin-bottom: 20px;
+      }
+      .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+      .hero h1 {
+        font-size: clamp(32px, 5vw, 52px); font-weight: 800; color: #f8fafc;
+        letter-spacing: -0.03em; line-height: 1.14; max-width: 820px; margin: 0 auto 16px;
+      }
+      .hero h1 .accent {
+        background: linear-gradient(135deg, #6ee7b7 0%, #34d399 45%, #38bdf8 100%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .hero-sub {
+        font-size: 16px; color: var(--muted); max-width: 660px; margin: 0 auto 28px;
+      }
+      .hero-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+      .hero-meta { font-size: 12px; color: var(--dim); }
+
+      /* Interactive Optical Sandbox */
+      .sandbox-wrap {
+        margin: 34px auto 0; max-width: 980px;
+        background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px; overflow: hidden;
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.65);
+        text-align: left;
+      }
+      .sandbox-toolbar {
+        padding: 12px 16px; background: #0b1018;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      }
+      .mac-dots { display: flex; align-items: center; gap: 6px; }
+      .mac-dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.16); }
+      .mac-dots span:nth-child(1) { background: #ef4444; }
+      .mac-dots span:nth-child(2) { background: #f59e0b; }
+      .mac-dots span:nth-child(3) { background: #10b981; }
+      .sandbox-ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .seg {
+        display: inline-flex; background: rgba(255,255,255,0.04); padding: 3px; border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08); gap: 2px;
+      }
+      .seg button {
+        appearance: none; border: none; background: transparent; color: var(--muted);
+        padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+      }
+      .seg button.active { background: rgba(16, 185, 129, 0.22); color: #a7f3d0; }
+      .slider-pill {
+        display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: #cbd5e1;
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+        padding: 4px 10px; border-radius: 8px;
+      }
+      .slider-pill input { width: 88px; accent-color: #34d399; cursor: pointer; }
+
+      .sandbox-stage {
+        position: relative; height: 390px; overflow: hidden; user-select: none;
+        display: grid; grid-template-columns: 1.1fr 1fr 0.75fr;
+      }
+      /* Pane 1: VS Code Dark */
+      .pane-code {
+        background: #0d1117; padding: 18px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.7;
+        color: #8b949e; border-right: 1px solid rgba(255,255,255,0.06);
+      }
+      .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; } .c-num { color: #79c0ff; } .c-cm { color: #484f58; }
+      /* Pane 2: Light Excel Sheet */
+      .pane-sheet {
+        background: #f8fafc; color: #1e293b; padding: 14px;
+        font-size: 11px; border-right: 1px solid rgba(15,23,42,0.1);
+      }
+      .sheet-head { font-weight: 700; color: #0f172a; margin-bottom: 8px; font-size: 12px; display: flex; justify-content: space-between; }
+      .sheet-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      .sheet-table th, .sheet-table td { border: 1px solid #cbd5e1; padding: 5px 6px; text-align: left; }
+      .sheet-table th { background: #e2e8f0; color: #334155; font-weight: 700; }
+      .sheet-pos { color: #059669; font-weight: 700; }
+      /* Pane 3: Red/Green Optical Proof Blocks */
+      .pane-chroma {
+        display: grid; grid-template-rows: 1fr 1fr;
+      }
+      .chroma-red {
+        background: #dc2626; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: rgba(255,255,255,0.92); font-weight: 700; font-size: 12.5px; padding: 12px; text-align: center;
+      }
+      .chroma-green {
+        background: #16a34a; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: rgba(255,255,255,0.92); font-weight: 700; font-size: 12.5px; padding: 12px; text-align: center;
+      }
+
+      /* Floating Draggable Optical Projection Window inside Hero */
+      .demo-pip {
+        position: absolute; left: 270px; top: 76px; width: 360px; height: 210px;
+        cursor: grab; z-index: 15; border-radius: 12px;
+      }
+      .demo-pip:active { cursor: grabbing; }
+      .demo-pip canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+      .drag-hint {
+        position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 20;
+        padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600;
+        background: rgba(7, 10, 15, 0.84); border: 1px solid rgba(52, 211, 153, 0.35); color: #a7f3d0;
+        pointer-events: none; white-space: nowrap;
+      }
+
+      /* Sections */
+      section.block { padding: 66px 0; }
+      .sec-head { text-align: center; max-width: 680px; margin: 0 auto 38px; }
+      .sec-head h2 { font-size: 30px; font-weight: 800; color: #f8fafc; letter-spacing: -0.02em; margin-bottom: 10px; }
+      .sec-head p { font-size: 14.5px; color: var(--muted); }
+
+      /* Feature Bento Grid */
+      .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .feat-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+        padding: 20px; display: flex; flex-direction: column; gap: 10px;
+        transition: border-color 0.16s ease, transform 0.16s ease;
+      }
+      .feat-card:hover { border-color: rgba(52, 211, 153, 0.35); transform: translateY(-2px); }
+      .feat-ico {
+        width: 36px; height: 36px; border-radius: 9px;
+        background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(52, 211, 153, 0.25);
+        color: #6ee7b7; display: flex; align-items: center; justify-content: center;
+      }
+      .feat-card h3 { font-size: 15px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 7px; }
+      .feat-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+      .pro-chip {
+        font-size: 9.5px; font-weight: 800; padding: 1.5px 5.5px; border-radius: 4px;
+        background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(251, 191, 36, 0.4); color: #fde68a;
+      }
+
+      /* Live Leaderboard Strip */
+      .arena-preview {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px;
+        display: grid; grid-template-columns: 1fr 1.35fr; gap: 24px; align-items: center;
+      }
+      .arena-list { display: flex; flex-direction: column; gap: 6px; }
+      .arena-row {
+        display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px;
+        padding: 9px 12px; border-radius: 9px;
+        background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); font-size: 12.5px;
+      }
+      .arena-score { font-weight: 700; color: #34d399; font-variant-numeric: tabular-nums; }
+
+      /* Downloads */
+      .dl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      .dl-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px;
+        display: flex; flex-direction: column; gap: 12px; justify-content: space-between;
+      }
+      .dl-card.featured {
+        border-color: rgba(52, 211, 153, 0.35);
+        background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, var(--panel) 100%);
+      }
+      .dl-card h3 { font-size: 18px; color: #f8fafc; font-weight: 700; }
+      .dl-card p { font-size: 13px; color: var(--muted); }
+      .dl-specs { font-size: 11.5px; color: var(--dim); display: flex; gap: 12px; flex-wrap: wrap; }
+
+      /* Pricing */
+      .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .price-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+        padding: 22px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+      }
+      .price-card.pop {
+        border-color: rgba(251, 191, 36, 0.55);
+        background: linear-gradient(180deg, rgba(245, 158, 11, 0.12) 0%, var(--panel) 100%);
+      }
+      .p-tag { font-size: 11px; font-weight: 700; color: #fbbf24; margin-bottom: 4px; }
+      .p-name { font-size: 16px; font-weight: 700; color: #f8fafc; }
+      .p-val { font-size: 30px; font-weight: 800; color: #fff; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+      .p-val span { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+      .p-usd { font-size: 11.5px; color: var(--dim); margin-bottom: 12px; }
+      .p-list { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: #cbd5e1; }
+      .p-list li { display: flex; align-items: flex-start; gap: 7px; }
+      .p-check { color: #34d399; font-weight: 800; }
+
+      .checkout-toast {
+        margin-top: 16px; padding: 12px 16px; border-radius: 10px;
+        background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(52, 211, 153, 0.35);
+        color: #a7f3d0; font-size: 12.5px; text-align: center; display: none;
+      }
+      .checkout-toast.show { display: block; }
+
+      /* Footer */
+      footer {
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding: 32px 0 46px; font-size: 12.5px; color: var(--dim);
+      }
+      .foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
+      .foot-links a:hover { color: #e2e8f0; }
+
+      @media (max-width: 960px) {
+        .bento { grid-template-columns: repeat(2, 1fr); }
+        .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+        .arena-preview { grid-template-columns: 1fr; }
+        .sandbox-stage { grid-template-columns: 1fr 1fr; }
+        .pane-chroma { display: none; }
+      }
+      @media (max-width: 640px) {
+        .nav-links { display: none; }
+        .bento, .dl-grid, .pricing-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Top Navbar -->
+    <nav class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="#top">
+          <img src="icons/icon128.png" onerror="this.onerror=null;this.src='../extension/icons/icon128.png'" alt="ChameleonPiP" />
+          <span>ChameleonPiP</span>
+          <span class="ver-pill">v5.2</span>
+        </a>
+        <div class="nav-links">
+          <a href="#playground" data-zh="光学演示" data-en="Live Demo">光学演示</a>
+          <a href="#features" data-zh="核心能力" data-en="Features">核心能力</a>
+          <a href="#arena" data-zh="全球排行" data-en="Arena">全球排行</a>
+          <a href="#download" data-zh="下载安装" data-en="Download">下载安装</a>
+          <a href="#pricing" data-zh="会员价格" data-en="Pricing">会员价格</a>
+        </div>
+        <div class="nav-cta">
+          <button type="button" class="btn btn-sm" id="btnToggleLang">EN</button>
+          <a class="btn btn-sm" href="arena.html" data-zh="进入竞技场" data-en="Open Arena">进入竞技场</a>
+          <a class="btn btn-primary btn-sm" href="#download" data-zh="免费下载" data-en="Download Free">免费下载</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero & Interactive Live Optical Playground -->
+    <header class="hero" id="top">
+      <div class="wrap">
+        <div class="eyebrow">
+          <span class="live-dot"></span>
+          <span id="heroOnlineLabel">Apple Metal 60fps 光学投影 · 全球实时联机服运行中</span>
+        </div>
+        <h1 data-zh-html='把视频<span class="accent">融进你的屏幕底色</span>，<br />而不是贴一块生硬的半透明方块'
+            data-en-html='Project Video <span class="accent">Into Your Desktop</span>,<br />Zero Borders, Pure Optical Fusion'>
+          把视频<span class="accent">融进你的屏幕底色</span>，<br />而不是贴一块生硬的半透明方块
+        </h1>
+        <p class="hero-sub" data-zh="ChameleonPiP 变色龙光学画中画：60fps 双极明暗光学投影让底层代码、Excel 表格与红绿色块原样透出；搭配 MacBook 原生刘海灵动岛、会议共享隐身与全球实时摸鱼耐力 PK。"
+           data-en="60fps Apple Metal optical projection lets underlying code, spreadsheets, and colors shine through untouched—paired with MacBook Notch Dynamic Island controls, screen-share stealth, and live global endurance PK.">
+          ChameleonPiP 变色龙光学画中画：60fps 双极明暗光学投影让底层代码、Excel 表格与红绿色块原样透出；搭配 MacBook 原生刘海灵动岛、会议共享隐身与全球实时摸鱼耐力 PK。
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#download" id="heroBtnMac">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-zh="下载 macOS 桌面端 + Chrome 扩展" data-en="Download macOS App + Chrome Extension">下载 macOS 桌面端 + Chrome 扩展</span>
+          </a>
+          <a class="btn btn-gold" href="arena.html#upgrade">
+            <span data-zh="免费体验 3 天 Pro 会员" data-en="Start 3-Day Pro Trial">免费体验 3 天 Pro 会员</span>
+          </a>
+          <a class="btn" href="arena.html">
+            <span data-zh="查看全球实时排行榜" data-en="Live Global Leaderboard">查看全球实时排行榜</span>
+          </a>
+        </div>
+        <div class="hero-meta" data-zh="支持 macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge 浏览器 · 100% 本地视频渲染，零画面上传"
+             data-en="macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge · 100% local video rendering, zero media uploads">
+          支持 macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge 浏览器 · 100% 本地视频渲染，零画面上传
+        </div>
+
+        <!-- Live Interactive Optical Projection Playground -->
+        <div class="sandbox-wrap" id="playground">
+          <div class="sandbox-toolbar">
+            <div class="mac-dots">
+              <span></span><span></span><span></span>
+              <span style="width:auto;height:auto;background:none;margin-left:8px;font-size:11.5px;color:#94a3b8;font-weight:600" data-zh="实时交互体验台 — 拖动悬浮视频窗到红绿/代码/表格上看看透射效果" data-en="Interactive Optical Sandbox — Drag the floating projector across code, spreadsheet &amp; red/green blocks">
+                实时交互体验台 — 拖动悬浮视频窗到红绿/代码/表格上看看透射效果
+              </span>
+            </div>
+            <div class="sandbox-ctrl">
+              <div class="seg" id="sandboxModes">
+                <button type="button" class="active" data-mode="projector" data-zh="光影投影" data-en="Projector">光影投影</button>
+                <button type="button" data-mode="emboss" data-zh="浮雕纹理 PRO" data-en="Emboss PRO">浮雕纹理 PRO</button>
+                <button type="button" data-mode="cinema" data-zh="彩透投影 PRO" data-en="Cinema PRO">彩透投影 PRO</button>
+              </div>
+              <label class="slider-pill">
+                <span data-zh="浓度" data-en="Intensity">浓度</span>
+                <input type="range" id="sandboxIntensity" min="15" max="92" value="58" />
+                <strong id="sandboxPct" style="color:#6ee7b7;min-width:30px">58%</strong>
+              </label>
+            </div>
+          </div>
+
+          <div class="sandbox-stage" id="sandboxStage">
+            <div class="pane-code">
+              <div class="c-cm">// shader/optical_projector.glsl</div>
+              <div><span class="c-kw">uniform</span> sampler2D uTex;</div>
+              <div><span class="c-kw">uniform</span> <span class="c-fn">float</span> uIntensity;</div>
+              <div><span class="c-kw">void</span> <span class="c-fn">main</span>() {</div>
+              <div>&nbsp;&nbsp;vec4 src = texture2D(uTex, vUv);</div>
+              <div>&nbsp;&nbsp;<span class="c-fn">float</span> lum = dot(src.rgb, vec3(<span class="c-num">0.21</span>, <span class="c-num">0.72</span>, <span class="c-num">0.07</span>));</div>
+              <div>&nbsp;&nbsp;<span class="c-kw">if</span> (lum &lt; pivot) {</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;gl_FragColor = vec4(<span class="c-num">0.0</span>, <span class="c-num">0.0</span>, <span class="c-num">0.0</span>, aDark);</div>
+              <div>&nbsp;&nbsp;} <span class="c-kw">else</span> {</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;gl_FragColor = vec4(aLight);</div>
+              <div>&nbsp;&nbsp;}</div>
+              <div>}</div>
+              <div class="c-cm">// 底层代码高亮与语义色完全保留</div>
+              <div><span class="c-kw">const</span> fps = <span class="c-str">"60-120Hz Apple Metal"</span>;</div>
+            </div>
+
+            <div class="pane-sheet">
+              <div class="sheet-head"><span>Q4 业务核心增长指标.xlsx</span><span style="color:#059669">已同步</span></div>
+              <table class="sheet-table">
+                <thead>
+                  <tr><th>区域</th><th>DAU</th><th>留存率</th><th>环比</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>上海研发中心</td><td>48,920</td><td>71.4%</td><td class="sheet-pos">+18.2%</td></tr>
+                  <tr><td>深圳南山园区</td><td>42,150</td><td>68.9%</td><td class="sheet-pos">+14.6%</td></tr>
+                  <tr><td>北京中关村</td><td>39,840</td><td>66.2%</td><td class="sheet-pos">+12.1%</td></tr>
+                  <tr><td>硅谷 / 湾区</td><td>31,400</td><td>74.8%</td><td class="sheet-pos">+22.5%</td></tr>
+                  <tr><td>东京涩谷区</td><td>27,610</td><td>69.5%</td><td class="sheet-pos">+16.0%</td></tr>
+                  <tr><td>新加坡滨海湾</td><td>19,380</td><td>72.1%</td><td class="sheet-pos">+19.3%</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pane-chroma">
+              <div class="chroma-red">
+                <span>纯红背景验证区</span>
+                <span style="font-size:11px;opacity:0.85;font-weight:500">拖过来依然保持纯红底色</span>
+              </div>
+              <div class="chroma-green">
+                <span>纯绿背景验证区</span>
+                <span style="font-size:11px;opacity:0.85;font-weight:500">绝不发灰、绝无生硬黑框</span>
+              </div>
+            </div>
+
+            <div class="demo-pip" id="demoPip">
+              <canvas id="heroGlCanvas" width="440" height="256"></canvas>
+            </div>
+            <div class="drag-hint" data-zh="按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果" data-en="Drag the live projected video anywhere across the code, sheet, and color blocks">
+              按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Core Features -->
+    <section class="block" id="features">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 data-zh="专为现代工位打造的光学与交互细节" data-en="Engineered for Effortless Desktop Stealth">专为现代工位打造的光学与交互细节</h2>
+          <p data-zh="从 Apple Metal GPU 着色器到 macOS 摄像头灵动刘海，每一处交互都做到毫秒级响应。" data-en="From Apple Metal shaders to native MacBook Notch controls, every detail runs at native speed.">
+            从 Apple Metal GPU 着色器到 macOS 摄像头灵动刘海，每一处交互都做到毫秒级响应。
+          </p>
+        </div>
+
+        <div class="bento">
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            </div>
+            <h3><span data-zh="60fps 双极光学投影" data-en="60fps Optical Projection">60fps 双极光学投影</span></h3>
+            <p data-zh="将视频实时拆解为纯透明光影层，底层红绿背景、IDE 代码高亮与白底文档 100% 原色透出，彻底消除传统画中画的黑框违和感。" data-en="Separates video into pure light and shadow alpha layers via WebGL/Metal so underlying code, spreadsheets, and colors shine through untouched.">
+              将视频实时拆解为纯透明光影层，底层红绿背景、IDE 代码高亮与白底文档 100% 原色透出，彻底消除传统画中画的黑框违和感。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M8 4v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4"/></svg>
+            </div>
+            <h3><span data-zh="MacBook 灵动刘海控制" data-en="MacBook Notch Dynamic Island">MacBook 灵动刘海控制</span></h3>
+            <p data-zh="与屏幕顶部摄像头刘海无缝融合，轻点展开原生面板，随时调节进度、静音、浓度、窗口缩放与悬停显形开关，不占任务栏一像素。" data-en="Fuses seamlessly with your MacBook camera notch. Click to expand native AppKit controls for scrubbing, mute, intensity, zoom, and hover-reveal.">
+              与屏幕顶部摄像头刘海无缝融合，轻点展开原生面板，随时调节进度、静音、浓度、窗口缩放与悬停显形开关，不占任务栏一像素。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M1 1l22 22"/></svg>
+            </div>
+            <h3><span data-zh="会议共享 &amp; 录屏隐身" data-en="Screen-Share Stealth">会议共享 &amp; 录屏隐身</span> <span class="pro-chip">PRO</span></h3>
+            <p data-zh="系统级开启 NSWindow 共享屏蔽，腾讯会议、飞书、Zoom 共享桌面或录屏时自动隐身不可见；搭配一键老板键 ⌃⇧B 秒隐静音。" data-en="Native macOS window sharing exclusion hides the PiP window from Zoom, Feishu, Slack, and screen recordings automatically.">
+              系统级开启 NSWindow 共享屏蔽，腾讯会议、飞书、Zoom 共享桌面或录屏时自动隐身不可见；搭配一键老板键 ⌃⇧B 秒隐静音。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/></svg>
+            </div>
+            <h3><span data-zh="鼠标穿透 &amp; 悬停开关" data-en="Click-Through &amp; Hover Switch">鼠标穿透 &amp; 悬停开关</span> <span class="pro-chip">PRO</span></h3>
+            <p data-zh="默认关闭悬停显形，鼠标划过不弹框、不露馅；按 ⌃⇧M 开启鼠标穿透，直接隔着视频点选底下表格与写代码，按住 ⌥ 可随时偷瞄控制条。" data-en="Hover-reveal is toggleable (OFF by default). Press ⌃⇧M for full click-through editing underneath the video, or hold Option to peek.">
+              默认关闭悬停显形，鼠标划过不弹框、不露馅；按 ⌃⇧M 开启鼠标穿透，直接隔着视频点选底下表格与写代码，按住 ⌥ 可随时偷瞄控制条。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            </div>
+            <h3><span data-zh="全球排行榜 &amp; 1v1 耐力 PK" data-en="Global Arena &amp; 1v1 PK">全球排行榜 &amp; 1v1 耐力 PK</span></h3>
+            <p data-zh="严格仅在真实视频播放时计时，按同城、国家、全球实时排位；支持随机匹配或输入 4 位暗号和同事 1v1 比拼谁不断连更久。" data-en="Counts strictly during active video playback. Climb city, country, and global rankings or challenge colleagues in live 1v1 room-code endurance duels.">
+              严格仅在真实视频播放时计时，按同城、国家、全球实时排位；支持随机匹配或输入 4 位暗号和同事 1v1 比拼谁不断连更久。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3><span data-zh="100% 本地渲染零上传" data-en="100% Local Privacy">100% 本地渲染零上传</span></h3>
+            <p data-zh="所有视频帧与音频严格停留在您的本机回环通道（127.0.0.1），绝不上传任何网页内容、视频画面或浏览历史，符合官方商店隐私规范。" data-en="Video frames stay strictly on local loopback (127.0.0.1). Zero browsing history, zero media uploads, fully compliant with browser store policies.">
+              所有视频帧与音频严格停留在您的本机回环通道（127.0.0.1），绝不上传任何网页内容、视频画面或浏览历史，符合官方商店隐私规范。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Global Leaderboard Preview -->
+    <section class="block" id="arena" style="padding-top:20px">
+      <div class="wrap">
+        <div class="arena-preview">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="eyebrow" style="width:fit-content;margin-bottom:0">
+              <span class="live-dot"></span>
+              <span id="arenaLiveCount">实时云端榜单同步中...</span>
+            </div>
+            <h2 style="font-size:26px;font-weight:800;color:#f8fafc;letter-spacing:-0.02em" data-zh="看看此刻同城与全球谁最稳" data-en="Live Global &amp; City Rankings">
+              看看此刻同城与全球谁最稳
+            </h2>
+            <p style="font-size:13.5px;color:var(--muted)" data-zh="严格验证视频播放状态才计入时长。十阶变色龙矢量徽章体系、同城/国家/全球三榜切换，支持和好友开 4 位暗号房实时耐力 PK。" data-en="Strictly verified against live video playback. Unlock 10 geometric Chameleon rank crests and duel friends with 4-digit private room codes.">
+              严格验证视频播放状态才计入时长。十阶变色龙矢量徽章体系、同城/国家/全球三榜切换，支持和好友开 4 位暗号房实时耐力 PK。
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+              <a class="btn btn-primary" href="arena.html" data-zh="打开完整全球排行榜 &amp; PK 厅" data-en="Open Full Leaderboard &amp; PK">打开完整全球排行榜 &amp; PK 厅</a>
+            </div>
+          </div>
+
+          <div class="arena-list" id="liveTopList">
+            <div class="arena-row"><span>#1</span><span>正在加载实时榜单...</span><span class="arena-score">--:--</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download Section -->
+    <section class="block" id="download">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 data-zh="30 秒完成安装，立刻开启光学投影" data-en="Install in 30 Seconds">30 秒完成安装，立刻开启光学投影</h2>
+          <p data-zh="推荐使用「macOS 桌面端 + Chrome/Edge 扩展」组合以获得 60fps 全桌面穿透体验；也支持仅安装浏览器扩展页内使用。" data-en="Pair the native macOS desktop app with the Chrome/Edge extension for full-desktop 60fps optical projection, or use the extension standalone.">
+            推荐使用「macOS 桌面端 + Chrome/Edge 扩展」组合以获得 60fps 全桌面穿透体验；也支持仅安装浏览器扩展页内使用。
+          </p>
+        </div>
+
+        <div class="dl-grid">
+          <div class="dl-card featured">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.2</span>
+              <h3 data-zh="ChameleonPiP macOS 桌面端（GeckoGhost.app）" data-en="ChameleonPiP for macOS (Native App)">ChameleonPiP macOS 桌面端（GeckoGhost.app）</h3>
+              <p data-zh="原生 Swift + Apple Metal 渲染，零边框桌面置顶、刘海灵动岛控制、四角拖拽缩放、本地 MP4 播放及 Pro 共享屏幕隐身。" data-en="Native Swift + Apple Metal engine with MacBook Notch Dynamic Island, borderless corner resizing, local MP4 playback, and screen-share stealth.">
+                原生 Swift + Apple Metal 渲染，零边框桌面置顶、刘海灵动岛控制、四角拖拽缩放、本地 MP4 播放及 Pro 共享屏幕隐身。
+              </p>
+              <div class="dl-specs">
+                <span>macOS 13.0+</span><span>Apple Silicon &amp; Intel</span><span>解压即用（~3 MB）</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <a class="btn btn-primary" id="btnDlMac" href="#" target="_blank" rel="noopener" data-zh="下载 macOS 客户端 (.zip)" data-en="Download macOS App (.zip)">下载 macOS 客户端 (.zip)</a>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 浏览器扩展 · v5.2</span>
+              <h3 data-zh="ChameleonPiP 浏览器视频投送扩展" data-en="ChameleonPiP Browser Extension">ChameleonPiP 浏览器视频投送扩展</h3>
+              <p data-zh="支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。" data-en="Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press ⌃⇧G to cast at 60fps with instant tab-level mute and subtitle sync.">
+                支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。
+              </p>
+              <div class="dl-specs">
+                <span>Chrome 116+ / Edge / Arc / Brave</span><span>Manifest V3</span><span>通过隐私规范校验</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <a class="btn btn-primary" id="btnDlExt" href="#" target="_blank" rel="noopener" data-zh="下载浏览器扩展包 (.zip)" data-en="Download Extension (.zip)">下载浏览器扩展包 (.zip)</a>
+              <a class="btn" id="btnChromeStore" href="#" target="_blank" rel="noopener" style="display:none" data-zh="Chrome 应用商店安装" data-en="Chrome Web Store">Chrome 应用商店安装</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="block" id="pricing">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 data-zh="基础功能永久免费，按需升级 Pro" data-en="Free Forever Core, Upgrade Anytime">基础功能永久免费，按需升级 Pro</h2>
+          <p data-zh="每个账号均支持免费体验 3 天全功能 Pro；付款后自动发放激活码，在客户端或排行榜弹窗输入即可秒级解锁。" data-en="Every account gets a 3-day full Pro trial. License keys activate instantly across desktop and browser.">
+            每个账号均支持免费体验 3 天全功能 Pro；付款后自动发放激活码，在客户端或排行榜弹窗输入即可秒级解锁。
+          </p>
+        </div>
+
+        <div class="pricing-grid">
+          <!-- Free -->
+          <div class="price-card">
+            <div>
+              <div class="p-tag" style="color:#6ee7b7" data-zh="永久免费" data-en="FREE FOREVER">永久免费</div>
+              <div class="p-name">Free 免费版</div>
+              <div class="p-val">¥0<span> / 永久</span></div>
+              <div class="p-usd">$0 forever</div>
+              <ul class="p-list">
+                <li><span class="p-check">✓</span><span>60fps 光影投影模式</span></li>
+                <li><span class="p-check">✓</span><span>老板键 ⌃⇧B + 悬停显形开关</span></li>
+                <li><span class="p-check">✓</span><span>参与全球 / 同城实时排行榜</span></li>
+                <li><span class="p-check">✓</span><span>每日 3 局 1v1 耐力 PK</span></li>
+              </ul>
+            </div>
+            <a class="btn" href="#download" data-zh="免费下载使用" data-en="Download Free">免费下载使用</a>
+          </div>
+
+          <!-- Monthly -->
+          <div class="price-card">
+            <div>
+              <div class="p-tag" data-zh="灵活尝鲜" data-en="FLEXIBLE">灵活尝鲜</div>
+              <div class="p-name">Pro 月度会员</div>
+              <div class="p-val">¥9.9<span> / 月</span></div>
+              <div class="p-usd">海外 $3.99 / mo</div>
+              <ul class="p-list">
+                <li><span class="p-check">✓</span><span>解锁浮雕纹理 &amp; 彩透投影</span></li>
+                <li><span class="p-check">✓</span><span>鼠标穿透 ⌃⇧M + 会议共享隐身</span></li>
+                <li><span class="p-check">✓</span><span>无限 1v1 PK + 暗号房 + 百人赛</span></li>
+                <li><span class="p-check">✓</span><span>榜单 PRO 鎏金徽章 · 2 台设备</span></li>
+              </ul>
+            </div>
+            <button type="button" class="btn btn-gold" data-buy="monthly" data-zh="购买月卡激活码" data-en="Get Monthly Key">购买月卡激活码</button>
+          </div>
+
+          <!-- Yearly -->
+          <div class="price-card pop">
+            <div>
+              <div class="p-tag" data-zh="最受欢迎 · 立省 58%" data-en="MOST POPULAR · SAVE 58%">最受欢迎 · 立省 58%</div>
+              <div class="p-name">Pro 年度会员</div>
+              <div class="p-val">¥49<span> / 年</span></div>
+              <div class="p-usd">折合 ¥4/月 · 海外 $19.9 / yr</div>
+              <ul class="p-list">
+                <li><span class="p-check">✓</span><span>包含 Pro 月卡全部完整功能</span></li>
+                <li><span class="p-check">✓</span><span>全年 60–120Hz 新特性优先体验</span></li>
+                <li><span class="p-check">✓</span><span>无限创建同事约战房 + 百人赛</span></li>
+                <li><span class="p-check">✓</span><span>榜单 PRO 鎏金徽章 · 2 台设备</span></li>
+              </ul>
+            </div>
+            <button type="button" class="btn btn-primary" data-buy="yearly" data-zh="立即开通年卡" data-en="Get Yearly Pro">立即开通年卡</button>
+          </div>
+
+          <!-- Lifetime -->
+          <div class="price-card">
+            <div>
+              <div class="p-tag" data-zh="早鸟限量买断" data-en="EARLY BIRD LIFETIME">早鸟限量买断</div>
+              <div class="p-name">早鸟买断版 MAX</div>
+              <div class="p-val">¥99<span> 终身</span></div>
+              <div class="p-usd">一次付费 · 海外 $39 one-time</div>
+              <ul class="p-list">
+                <li><span class="p-check">✓</span><span>永久解锁当前及后续全部 Pro 能力</span></li>
+                <li><span class="p-check">✓</span><span>支持最多 3 台设备同时激活</span></li>
+                <li><span class="p-check">✓</span><span>榜单专属 MAX 鎏金标识</span></li>
+                <li><span class="p-check">✓</span><span>免续费、永久云端授权校验</span></li>
+              </ul>
+            </div>
+            <button type="button" class="btn btn-gold" data-buy="lifetime" data-zh="抢购早鸟买断版" data-en="Get Lifetime MAX">抢购早鸟买断版</button>
+          </div>
+        </div>
+
+        <div class="checkout-toast" id="checkoutToast"></div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="wrap foot-inner">
+        <div>© 2026 ChameleonPiP · 变色龙光学投影画中画</div>
+        <div class="foot-links">
+          <a href="arena.html">全球排行榜 &amp; PK</a>
+          <a href="privacy.html">隐私政策 (Privacy Policy)</a>
+          <a href="https://github.com/James-826/ChameleonPiP" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </footer>
+
+    <canvas id="srcDemoCanvas" width="420" height="240" style="display:none"></canvas>
+
+    <script src="store-config.js?v=5.2"></script>
+    <script src="chameleon-stats.js?v=5.2"></script>
+    <script>
+      if (!window.ChameleonStats) {
+        document.write('<script src="../extension/chameleon-stats.js?v=5.2"><\/script>');
+      }
+    </script>
+    <script>
+      (function () {
+        const cfg = window.CHAMELEON_STORE_CONFIG || {};
+        const S = window.ChameleonStats;
+
+        // Wire download links from centralized store-config.js
+        const btnMac = document.getElementById("btnDlMac");
+        const btnExt = document.getElementById("btnDlExt");
+        const btnStore = document.getElementById("btnChromeStore");
+        if (btnMac && cfg.downloads?.macAppZip) btnMac.href = cfg.downloads.macAppZip;
+        if (btnExt && cfg.downloads?.chromeExtZip) btnExt.href = cfg.downloads.chromeExtZip;
+        if (btnStore && cfg.downloads?.chromeWebStore) {
+          btnStore.href = cfg.downloads.chromeWebStore;
+          btnStore.style.display = "inline-flex";
+        }
+
+        // Bilingual switcher (ZH / EN)
+        let isEn = false;
+        const btnLang = document.getElementById("btnToggleLang");
+        btnLang.addEventListener("click", () => {
+          isEn = !isEn;
+          btnLang.textContent = isEn ? "中文" : "EN";
+          document.querySelectorAll("[data-zh]").forEach((el) => {
+            el.textContent = isEn ? el.dataset.en : el.dataset.zh;
+          });
+          document.querySelectorAll("[data-zh-html]").forEach((el) => {
+            el.innerHTML = isEn ? el.dataset.enHtml : el.dataset.zhHtml;
+          });
+        });
+
+        // Checkout button routing (uses checkoutUrls in store-config.js when configured)
+        const toast = document.getElementById("checkoutToast");
+        document.querySelectorAll("[data-buy]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const plan = btn.dataset.buy;
+            const url = cfg.checkoutUrls?.[plan];
+            if (url) {
+              window.open(url, "_blank", "noopener");
+              return;
+            }
+            toast.innerHTML =
+              '线上收款通道正在配置中，现在即可先前往 <a href="arena.html#upgrade" style="color:#fff;text-decoration:underline;font-weight:700">会员分级中心免费开启 3 天全功能 Pro 体验</a>，或输入已有激活码立即解锁！';
+            toast.classList.add("show");
+          });
+        });
+
+        // -----------------------------------------------------------------
+        // Live 60fps WebGL Optical Projector Hero Playground
+        // -----------------------------------------------------------------
+        let demoMode = "projector";
+        let demoIntensity = 58;
+        const glCanvas = document.getElementById("heroGlCanvas");
+        const srcCanvas = document.getElementById("srcDemoCanvas");
+        const sctx = srcCanvas.getContext("2d", { alpha: false });
+        const gl = glCanvas.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false });
+
+        let prog = null, tex = null, uMode, uInt, uTexel;
+        if (gl) {
+          const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv=vec2(p.x*0.5+0.5, 0.5-p.y*0.5); gl_Position=vec4(p,0.0,1.0); }`;
+          const fs = `
+            precision mediump float;
+            varying vec2 uv;
+            uniform sampler2D uTex;
+            uniform int uMode;
+            uniform float uInt;
+            uniform vec2 uTexel;
+            void main() {
+              float fx = smoothstep(0.01, 0.14, uv.x) * smoothstep(0.01, 0.14, 1.0 - uv.x);
+              float fy = smoothstep(0.01, 0.14, uv.y) * smoothstep(0.01, 0.12, 1.0 - uv.y);
+              float mask = fx * fy;
+              vec4 c = texture2D(uTex, uv);
+              float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+              if (uMode == 0) {
+                float p = 0.50;
+                float k = clamp(uInt * 0.94, 0.08, 0.94);
+                float cl = clamp((lum - p) * 1.18 + p, 0.0, 1.0);
+                if (cl < p) {
+                  float a = clamp(k * ((p - cl) / p), 0.0, 0.94) * mask;
+                  gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+                } else {
+                  float a = clamp(k * ((cl - p) / (1.0 - p)), 0.0, 0.94) * mask;
+                  gl_FragColor = vec4(a, a, a, a);
+                }
+                return;
+              }
+              if (uMode == 1) {
+                float l1 = dot(texture2D(uTex, uv - uTexel * 1.4).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float l2 = dot(texture2D(uTex, uv + uTexel * 1.4).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float d = (l2 - l1) * (1.6 + uInt * 2.8);
+                if (abs(d) < 0.02) { gl_FragColor = vec4(0.0); }
+                else if (d < 0.0) { float a = clamp(-d * uInt * 1.35, 0.0, 0.94) * mask; gl_FragColor = vec4(0.0,0.0,0.0,a); }
+                else { float a = clamp(d * uInt * 1.35, 0.0, 0.94) * mask; gl_FragColor = vec4(a,a,a,a); }
+                return;
+              }
+              float a = clamp(uInt * 0.85, 0.1, 0.9) * mask;
+              gl_FragColor = vec4(c.rgb * 1.08 * a, a);
+            }
+          `;
+          const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
+          prog = gl.createProgram();
+          gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+          gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+          gl.linkProgram(prog);
+          gl.useProgram(prog);
+          const buf = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+          const loc = gl.getAttribLocation(prog, "p");
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+          tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          uMode = gl.getUniformLocation(prog, "uMode");
+          uInt = gl.getUniformLocation(prog, "uInt");
+          uTexel = gl.getUniformLocation(prog, "uTexel");
+        }
+
+        let t = 0;
+        function animateHero() {
+          t += 0.032;
+          const w = srcCanvas.width, h = srcCanvas.height;
+          const grad = sctx.createLinearGradient(0, 0, w, h);
+          grad.addColorStop(0, "#7dd3fc");
+          grad.addColorStop(1, "#2563eb");
+          sctx.fillStyle = grad;
+          sctx.fillRect(0, 0, w, h);
+
+          sctx.fillStyle = "#0f172a";
+          sctx.beginPath();
+          sctx.moveTo(0, h);
+          for (let x = 0; x <= w; x += 18) sctx.lineTo(x, h * 0.64 + Math.sin(x * 0.022 + t) * 18);
+          sctx.lineTo(w, h);
+          sctx.fill();
+
+          const cx = w * 0.5 + Math.sin(t * 1.1) * 86;
+          const cy = h * 0.44 + Math.cos(t * 1.8) * 13;
+          sctx.fillStyle = "#111827";
+          sctx.beginPath(); sctx.ellipse(cx, cy + 44, 36, 44, 0, 0, Math.PI * 2); sctx.fill();
+          sctx.fillStyle = "#ffffff";
+          sctx.beginPath(); sctx.arc(cx, cy - 4, 25, 0, Math.PI * 2); sctx.fill();
+          sctx.fillStyle = "#090d16";
+          sctx.beginPath(); sctx.arc(cx, cy - 10, 26, Math.PI, Math.PI * 2); sctx.fill();
+          sctx.fillRect(cx - 10, cy - 4, 5, 7);
+          sctx.fillRect(cx + 5, cy - 4, 5, 7);
+
+          sctx.font = "700 13.5px -apple-system, 'PingFang SC', sans-serif";
+          sctx.textAlign = "center";
+          sctx.lineWidth = 3.5;
+          sctx.strokeStyle = "#000";
+          const txt = "ChameleonPiP 60fps · 拖动我到红绿区试试！";
+          sctx.strokeText(txt, w / 2, h - 18);
+          sctx.fillStyle = "#fff";
+          sctx.fillText(txt, w / 2, h - 18);
+
+          if (gl && prog) {
+            gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
+            gl.uniform1i(uMode, demoMode === "emboss" ? 1 : demoMode === "cinema" ? 2 : 0);
+            gl.uniform1f(uInt, demoIntensity / 100);
+            gl.uniform2f(uTexel, 1 / w, 1 / h);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          }
+          requestAnimationFrame(animateHero);
+        }
+        requestAnimationFrame(animateHero);
+
+        document.querySelectorAll("#sandboxModes button").forEach((b) => {
+          b.addEventListener("click", () => {
+            demoMode = b.dataset.mode;
+            document.querySelectorAll("#sandboxModes button").forEach((x) => x.classList.toggle("active", x === b));
+          });
+        });
+        const rngInt = document.getElementById("sandboxIntensity");
+        rngInt.addEventListener("input", () => {
+          demoIntensity = Number(rngInt.value);
+          document.getElementById("sandboxPct").textContent = `${demoIntensity}%`;
+        });
+
+        // Smooth dragging for the Hero PiP window
+        const pip = document.getElementById("demoPip");
+        const stage = document.getElementById("sandboxStage");
+        let dragState = null;
+        pip.addEventListener("mousedown", (e) => {
+          const r = pip.getBoundingClientRect();
+          const sr = stage.getBoundingClientRect();
+          dragState = { dx: e.clientX - r.left, dy: e.clientY - r.top, sr, w: r.width, h: r.height };
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!dragState) return;
+          const x = Math.max(0, Math.min(dragState.sr.width - dragState.w, e.clientX - dragState.sr.left - dragState.dx));
+          const y = Math.max(0, Math.min(dragState.sr.height - dragState.h, e.clientY - dragState.sr.top - dragState.dy));
+          pip.style.left = `${x}px`;
+          pip.style.top = `${y}px`;
+        });
+        window.addEventListener("mouseup", () => { dragState = null; });
+
+        // Fetch live global leaderboard preview from cloud server
+        if (S) {
+          fetch(`${S.getApiBase()}/api/leaderboard?scope=global&metric=streak`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+              if (!data || !Array.isArray(data.items)) return;
+              const online = data.onlineCount || 1;
+              document.getElementById("heroOnlineLabel").textContent = `Apple Metal 60fps 光学投影 · 全球此刻 ${online} 位变色龙实时在线`;
+              document.getElementById("arenaLiveCount").textContent = `实时云端联机服 · ${online} 人在线潜伏`;
+              const top5 = data.items.slice(0, 5);
+              document.getElementById("liveTopList").innerHTML = top5
+                .map((r, i) => {
+                  const badge = r.isPro ? S.renderProBadgeSvg(r.tier) : "";
+                  return `
+                    <div class="arena-row">
+                      <span style="display:flex;align-items:center">${S.renderPodiumBadgeSvg(i + 1)}</span>
+                      <span style="display:flex;align-items:center;gap:7px;min-width:0">
+                        ${S.renderFlagSvg(r.regionCode || "CN")}
+                        <strong style="color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.nickname}</strong>
+                        ${badge}
+                        <span style="font-size:11px;color:#64748b">${r.city || ""}</span>
+                      </span>
+                      <span class="arena-score">${S.formatDuration(Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0), true)}</span>
+                    </div>
+                  `;
+                })
+                .join("");
+            })
+            .catch(() => {});
+        }
+      })();
+    </script>
+  </body>
+</html>
