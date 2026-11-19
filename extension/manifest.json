@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ChameleonPiP 变色龙光学画中画",
   "version": "5.2.0",
-  "homepage_url": "https://passenger-leave-merger-permission.trycloudflare.com",
+  "homepage_url": "https://chameleonpip.site",
   "description": "60fps 光学透明画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海控制、标签页瞬间静音、悬停显形开关与全球耐力 PK 排行。",
   "permissions": [
     "storage",
@@ -16,7 +16,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.trycloudflare.com wss://*.trycloudflare.com ws://127.0.0.1:51937 http://127.0.0.1:51937 ws://127.0.0.1:51938 http://127.0.0.1:51938;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://chameleonpip.site wss://chameleonpip.site https://www.chameleonpip.site wss://www.chameleonpip.site ws://127.0.0.1:51937 http://127.0.0.1:51937 ws://127.0.0.1:51938 http://127.0.0.1:51938;"
   },
   "icons": {
     "16": "icons/icon16.png",

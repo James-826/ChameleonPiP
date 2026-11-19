@@ -11,8 +11,7 @@
     brandName: "ChameleonPiP",
     brandNameZh: "变色龙光学画中画",
     version: "v5.2.0",
-    // Once your custom domain is bound, update this to e.g. "https://chameleonpip.com"
-    siteUrl: "https://passenger-leave-merger-permission.trycloudflare.com",
+    siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",
     downloads: {
       macAppZip: "https://github.com/James-826/ChameleonPiP/releases/download/v5.2.0/ChameleonPiP-macOS-App-v5.2.zip",
@@ -26,6 +25,6 @@
       yearly: "",
       lifetime: "",
     },
-    supportEmail: "support@chameleonpip.app",
+    supportEmail: "support@chameleonpip.site",
   };
 })(typeof window !== "undefined" ? window : globalThis);

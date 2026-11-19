@@ -7,12 +7,12 @@
 
   const STORAGE_KEY = "chameleon_arena_v2";
   const API_BASE_KEY = "chameleon_api_base";
-  const DEFAULT_API_BASE = "https://passenger-leave-merger-permission.trycloudflare.com";
+  const DEFAULT_API_BASE = "https://chameleonpip.site";
 
   function getApiBase() {
     try {
       const saved = localStorage.getItem(API_BASE_KEY);
-      if (saved && saved.startsWith("https://")) {
+      if (saved && saved.startsWith("https://") && !saved.includes("trycloudflare.com")) {
         return saved.replace(/\/+$/, "");
       }
       return DEFAULT_API_BASE;

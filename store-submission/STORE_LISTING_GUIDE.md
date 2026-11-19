@@ -75,8 +75,7 @@ KEY FEATURES:
   - **`host_permissions` (`<all_urls>`)**: Allows users to enable optical PiP and detect `<video>` elements on any video website they choose to watch.
 
 - **Privacy Policy URL（隐私政策地址）**：
-  - 绑定正式域名后填写：`https://你的域名/privacy.html`
-  - （当前临时线上演示地址：`https://passenger-leave-merger-permission.trycloudflare.com/privacy.html`）
+  - 正式官方地址：`https://chameleonpip.site/privacy.html`
 
 - **Remote Code（是否使用远程代码）**：选 **No, I am not using remote code**（全部 JS 均已打包在扩展内部）。
 - **Data Usage Disclosures（数据使用勾选）**：

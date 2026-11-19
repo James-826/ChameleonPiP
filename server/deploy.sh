@@ -12,7 +12,7 @@ fi
 
 TARGET="${1:-$CHAMELEON_SSH_TARGET}"
 SSH_KEY="${2:-${CHAMELEON_SSH_KEY:-}}"
-PUBLIC_URL="${3:-https://passenger-leave-merger-permission.trycloudflare.com}"
+PUBLIC_URL="${3:-https://chameleonpip.site}"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SSH_OPTS=()

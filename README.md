@@ -12,8 +12,9 @@
 
 ## 在线体验与全球实时排位
 
-- **全球潜伏排位与 1v1 耐力对战竞技场**：[https://passenger-leave-merger-permission.trycloudflare.com/demo/arena.html](https://passenger-leave-merger-permission.trycloudflare.com/demo/arena.html)
-- **变色龙光学投影在线体验台**：[https://passenger-leave-merger-permission.trycloudflare.com/demo/index.html](https://passenger-leave-merger-permission.trycloudflare.com/demo/index.html)
+- **官方产品主页与实时光学体验**：[https://chameleonpip.site](https://chameleonpip.site)
+- **全球潜伏排位与 1v1 耐力对战竞技场**：[https://chameleonpip.site/arena.html](https://chameleonpip.site/arena.html)
+- **隐私政策（Privacy Policy）**：[https://chameleonpip.site/privacy.html](https://chameleonpip.site/privacy.html)
 
 ---
 
