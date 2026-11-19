@@ -885,6 +885,17 @@
                     state = { ...state, ...p };
                     render();
                     postNative({ action: "stateChanged", state });
+                  } else if (msg.type === "membershipUpdated" && msg.membership) {
+                    const S = window.ChameleonStats;
+                    if (S) {
+                      const saved = S.saveMembership(msg.membership);
+                      postNative({
+                        action: "membershipChanged",
+                        isPro: S.isProMember(saved),
+                        tier: saved.tier || "free",
+                        planName: saved.planName || "Free 免费版",
+                      });
+                    }
                   } else if (msg.type === "streamStopped") {
                     hasLiveChromeStream = false;
                     stage.style.display = "none";
@@ -954,8 +965,39 @@
           renderPlayerControls();
         });
 
+        function syncMembershipWithNative() {
+          const S = window.ChameleonStats;
+          if (!S) return;
+          const cur = S.loadMembership();
+          postNative({
+            action: "membershipChanged",
+            isPro: S.isProMember(cur),
+            tier: cur.tier || "free",
+            planName: cur.planName || "Free 免费版",
+          });
+          S.refreshMembership(S.loadProfile().userId).then((fresh) => {
+            postNative({
+              action: "membershipChanged",
+              isPro: S.isProMember(fresh),
+              tier: fresh.tier || "free",
+              planName: fresh.planName || "Free 免费版",
+            });
+          });
+        }
+        syncMembershipWithNative();
+
         document.querySelectorAll(".seg-btn").forEach((b) => {
-          b.addEventListener("click", () => broadcastStateUpdate({ mode: b.dataset.mode }));
+          b.addEventListener("click", () => {
+            const S = window.ChameleonStats;
+            if (b.dataset.mode !== "projector" && S && !S.isProMember()) {
+              postNative({
+                action: "requestUpgrade",
+                reason: "「浮雕纹理」与「彩透投影」为 Pro 会员专属光学引擎，点击下方可免费试用 3 天或激活会员！",
+              });
+              return;
+            }
+            broadcastStateUpdate({ mode: b.dataset.mode });
+          });
         });
         document.querySelectorAll("[data-size]").forEach((b) => {
           b.addEventListener("click", () => {
@@ -981,7 +1023,17 @@
           broadcastStateUpdate({ stealth: Number(e.target.value) });
         });
 
-        document.getElementById("btnThrough").addEventListener("click", () => postNative({ action: "enableClickThrough" }));
+        document.getElementById("btnThrough").addEventListener("click", () => {
+          const S = window.ChameleonStats;
+          if (S && !S.isProMember()) {
+            postNative({
+              action: "requestUpgrade",
+              reason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费试用 3 天或输入激活码解锁！",
+            });
+            return;
+          }
+          postNative({ action: "enableClickThrough" });
+        });
         document.getElementById("btnBoss").addEventListener("click", () => postNative({ action: "setBoss", value: true }));
         document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
 

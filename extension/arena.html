@@ -266,6 +266,112 @@
         .main-grid { grid-template-columns: 1fr; }
         .tiers-grid { grid-template-columns: repeat(2, 1fr); }
       }
+
+      /* Membership Button & Pro Upgrade Modal */
+      .btn-pro {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 7px; cursor: pointer;
+        border: 1px solid rgba(245, 158, 11, 0.45);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.1));
+        color: #fde68a; font-size: 12px; font-weight: 700;
+        transition: all 0.15s; white-space: nowrap;
+      }
+      .btn-pro:hover {
+        border-color: rgba(251, 191, 36, 0.8);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.32), rgba(217, 119, 6, 0.18));
+        color: #fffbeb;
+      }
+      .btn-pro.active-pro {
+        border-color: rgba(52, 211, 153, 0.45);
+        background: rgba(16, 185, 129, 0.14);
+        color: #6ee7b7;
+      }
+      .pro-lock-chip {
+        display: inline-flex; align-items: center; margin-left: 4px;
+        padding: 1px 4px; border-radius: 4px; font-size: 9px; font-weight: 800;
+        background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #fde68a; letter-spacing: 0.04em;
+      }
+
+      .modal-backdrop {
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(5, 8, 13, 0.78); backdrop-filter: blur(10px);
+        display: none; align-items: center; justify-content: center; padding: 18px;
+      }
+      .modal-backdrop.open { display: flex; }
+      .modal-card {
+        width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto;
+        background: #0e131b; border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px; padding: 22px 24px;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.72);
+        display: flex; flex-direction: column; gap: 16px;
+      }
+      .modal-head {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      }
+      .modal-title { font-size: 18px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+      .modal-sub { font-size: 12px; color: #94a3b8; margin-top: 3px; }
+      .modal-close {
+        appearance: none; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
+        color: #94a3b8; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px;
+      }
+      .modal-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      .modal-notice {
+        padding: 9px 12px; border-radius: 9px; font-size: 12px;
+        background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fde68a;
+        display: none;
+      }
+      .modal-notice.show { display: block; }
+      .modal-notice.ok {
+        background: rgba(16, 185, 129, 0.14); border-color: rgba(52, 211, 153, 0.4); color: #a7f3d0;
+      }
+
+      .plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .plan-card {
+        position: relative; background: #131a25; border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px;
+      }
+      .plan-card.rec {
+        border-color: rgba(245, 158, 11, 0.55);
+        background: linear-gradient(180deg, rgba(245, 158, 11, 0.12) 0%, #131a25 100%);
+      }
+      .plan-tag {
+        font-size: 10px; font-weight: 700; color: #fbbf24; letter-spacing: 0.03em;
+      }
+      .plan-name { font-size: 14px; font-weight: 700; color: #f8fafc; }
+      .plan-price { font-size: 24px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+      .plan-price span { font-size: 11.5px; font-weight: 500; color: #94a3b8; margin-left: 3px; }
+      .plan-usd { font-size: 11px; color: #64748b; }
+      .plan-desc { font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin-top: 2px; }
+
+      .compare-table {
+        border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; overflow: hidden;
+        background: rgba(255,255,255,0.015);
+      }
+      .cmp-row {
+        display: grid; grid-template-columns: 1.8fr 0.7fr 0.8fr;
+        padding: 8px 12px; font-size: 12px; align-items: center;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+      }
+      .cmp-row:last-child { border-bottom: none; }
+      .cmp-row.head { background: rgba(255,255,255,0.04); font-size: 11px; font-weight: 700; color: #94a3b8; }
+      .cmp-yes { color: #34d399; font-weight: 700; text-align: center; }
+      .cmp-no { color: #475569; text-align: center; }
+      .cmp-pro { color: #fde68a; font-weight: 700; text-align: center; }
+
+      .activate-box {
+        background: #0a0e15; border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 11px; padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;
+      }
+      .activate-row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .activate-row .inp { flex: 1; min-width: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; text-transform: uppercase; }
+      .modal-status-bar {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+        font-size: 11.5px; color: #94a3b8;
+      }
+      @media (max-width: 720px) {
+        .plan-grid { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
@@ -296,6 +402,9 @@
             <option value="游戏引擎">游戏引擎</option>
             <option value="独立开发">独立开发</option>
           </select>
+          <button type="button" class="btn-pro" id="btnOpenPro">
+            <span>升级 Pro 会员</span>
+          </button>
           <a class="btn-ghost" href="index.html">返回体验台</a>
         </div>
       </header>
@@ -367,14 +476,17 @@
             </div>
             <div class="seg-tabs">
               <button type="button" class="seg-tab active" data-pkmode="duel" id="tabDuel">1v1 实时对战</button>
-              <button type="button" class="seg-tab" data-pkmode="royale" id="tabRoyale">百人淘汰赛</button>
+              <button type="button" class="seg-tab" data-pkmode="royale" id="tabRoyale">百人淘汰赛 <span class="pro-lock-chip" id="royaleProTag">PRO</span></button>
             </div>
           </div>
 
           <div class="pk-box">
             <div class="pk-meta-bar">
               <span id="pkBanner">需在变色龙小窗播放视频才开始计时；视频暂停 &gt;10s 或触发老板键判负</span>
-              <span class="tag" id="pkEloBadge">ELO 1200</span>
+              <span style="display:inline-flex;align-items:center;gap:6px">
+                <span class="tag" id="pkQuotaBadge" style="color:#94a3b8">今日免费 3/3 局</span>
+                <span class="tag" id="pkEloBadge">ELO 1200</span>
+              </span>
             </div>
 
             <div class="versus-grid" id="duelView">
@@ -408,7 +520,7 @@
 
             <div class="pk-actions">
               <button type="button" class="btn btn-primary" id="btnStartPk">随机匹配在线对手</button>
-              <button type="button" class="btn" id="btnRoomPk">输入房间号约战</button>
+              <button type="button" class="btn" id="btnRoomPk">输入房间号约战 <span class="pro-lock-chip" id="roomProTag">PRO</span></button>
               <button type="button" class="btn btn-danger" id="btnStopPk" style="display:none">中断认输</button>
             </div>
 
@@ -468,6 +580,44 @@
       </section>
     </div>
 
+    <!-- Membership Tier & License Key Activation Modal -->
+    <div class="modal-backdrop" id="proModal" role="dialog" aria-modal="true" aria-labelledby="proModalTitle">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="proModalTitle">
+              <span>ChameleonPiP 会员分级中心</span>
+              <span id="modalCurrentBadge"></span>
+            </div>
+            <div class="modal-sub" id="modalSubText">基础光学投影与排行榜永久免费 · 升级 Pro 解锁高阶隐身与无限联机权益</div>
+          </div>
+          <button type="button" class="modal-close" id="btnClosePro" aria-label="关闭">×</button>
+        </div>
+
+        <div class="modal-notice" id="proModalNotice"></div>
+
+        <div class="plan-grid" id="planCardsGrid"></div>
+
+        <div class="compare-table" id="compareTable"></div>
+
+        <div class="activate-box">
+          <div class="modal-status-bar">
+            <span id="lblMembershipState">当前版本：Free 免费版</span>
+            <button type="button" class="btn-pro" id="btnStartTrial" style="padding:5px 11px;font-size:11.5px">
+              一键免费体验 3 天 Pro
+            </button>
+          </div>
+          <div class="activate-row">
+            <input class="inp" id="inpLicenseKey" placeholder="输入 Pro 激活码，例如 CHM-PRO-XXXX-XXXX-XXXX" />
+            <button type="button" class="btn btn-primary" id="btnActivateKey" style="flex:0 0 auto;padding:8px 18px">激活兑换</button>
+          </div>
+          <div style="font-size:11px;color:#64748b">
+            购买后自动发放激活码 · 同一激活码支持多设备云端同步 · 激活后 Mac 桌面灵动岛与浏览器扩展即刻生效
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="../extension/chameleon-stats.js?v=5.2"></script>
     <script>
       if (!window.ChameleonStats) {
@@ -478,6 +628,7 @@
       (function () {
         const S = window.ChameleonStats;
         let profile = S.loadProfile();
+        let membership = S.loadMembership();
         let currentScope = "city";
         let currentMetric = "streak";
         let pkMode = "duel";
@@ -487,6 +638,7 @@
         let cachedLbItems = null;
         let cachedCountryStats = null;
         let arenaWs = null;
+        let localBridgeWs = null;
 
         let pkActive = false;
         let pkMySec = 0;
@@ -562,6 +714,10 @@
               serverOnlineCount = hbData.onlineCount || 1;
               if (hbData.cityRank) {
                 document.getElementById("kpiCityRank").textContent = `${profile.city} #${hbData.cityRank}`;
+              }
+              if (hbData.entitlement) {
+                membership = S.saveMembership(hbData.entitlement);
+                broadcastMembershipToDesktop(membership);
               }
             }
 
@@ -648,6 +804,11 @@
                   addFeed(`<strong>[${msg.from}]</strong> ${msg.text}`);
                 } else if (msg.type === "pk_ended") {
                   onServerMatchEnded(msg.won, msg.eloDelta, msg.newElo, msg.reason);
+                } else if (msg.type === "pro_required") {
+                  if (msg.entitlement) membership = S.saveMembership(msg.entitlement);
+                  addFeed(`<strong>[Pro 专属]</strong> ${msg.message || "该功能需要 Pro 会员"}`);
+                  openProModal(msg.message || "升级 Pro 会员即可解锁该功能");
+                  renderMembershipUi();
                 }
               } catch (_) {}
             };
@@ -655,16 +816,30 @@
         }
         connectArenaWebSocket();
 
+        function broadcastMembershipToDesktop(mem) {
+          if (localBridgeWs && localBridgeWs.readyState === WebSocket.OPEN) {
+            try {
+              localBridgeWs.send(JSON.stringify({ type: "membershipUpdated", membership: mem }));
+            } catch (_) {}
+          }
+        }
+
         // Listen to local GeckoGhost desktop window (ws://127.0.0.1:51937) for real video playback & Boss Key events
         function connectLocalDesktopBridge() {
           try {
             const ws = new WebSocket("ws://127.0.0.1:51937");
-            ws.onopen = () => ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
+            localBridgeWs = ws;
+            ws.onopen = () => {
+              ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
+              broadcastMembershipToDesktop(membership);
+            };
             ws.onmessage = (ev) => {
               if (typeof ev.data !== "string") return;
               try {
                 const msg = JSON.parse(ev.data);
-                if (msg.type === "videoPlaybackState") {
+                if (msg.type === "openUpgradeModal") {
+                  openProModal(msg.reason || "升级 Pro 解锁浮雕纹理、彩透电影、鼠标穿透与会议共享隐身！");
+                } else if (msg.type === "videoPlaybackState") {
                   const prev = videoPlaying;
                   videoPlaying = Boolean(msg.playing);
                   lastVideoSignalAt = Date.now();
@@ -773,9 +948,178 @@
           handleStreakInterrupted("触发老板键 ⌃⇧B 紧急避险");
         });
 
+        // -------------------------------------------------------------------
+        // Membership Tier UI, Modal & Real License Activation
+        // -------------------------------------------------------------------
+        const proModal = document.getElementById("proModal");
+        const proModalNotice = document.getElementById("proModalNotice");
+
+        function showModalNotice(text, isOk = false) {
+          if (!text) {
+            proModalNotice.className = "modal-notice";
+            proModalNotice.textContent = "";
+            return;
+          }
+          proModalNotice.className = `modal-notice show ${isOk ? "ok" : ""}`;
+          proModalNotice.textContent = text;
+        }
+
+        function renderProModalStatic() {
+          document.getElementById("planCardsGrid").innerHTML = S.PRICING_PLANS.map(
+            (p) => `
+              <div class="plan-card ${p.recommended ? "rec" : ""}">
+                <div class="plan-tag">${p.tag}</div>
+                <div class="plan-name">${p.name}</div>
+                <div class="plan-price">${p.priceCny}<span>${p.period}</span></div>
+                <div class="plan-usd">海外定价 ${p.priceUsd} ${p.period}</div>
+                <div class="plan-desc">${p.desc}</div>
+              </div>
+            `
+          ).join("");
+
+          document.getElementById("compareTable").innerHTML =
+            `<div class="cmp-row head"><span>核心功能权益</span><span style="text-align:center">Free 免费版</span><span style="text-align:center;color:#fde68a">Pro 会员</span></div>` +
+            S.PRO_FEATURE_CATALOG.map((f) => {
+              const freeCell = f.free === true ? '<span class="cmp-yes">支持</span>' : f.free === false ? '<span class="cmp-no">—</span>' : `<span style="text-align:center;color:#94a3b8">${f.free}</span>`;
+              const proCell = f.pro === true ? '<span class="cmp-pro">完整解锁</span>' : `<span class="cmp-pro">${f.pro}</span>`;
+              return `<div class="cmp-row"><span>${f.name}</span>${freeCell}${proCell}</div>`;
+            }).join("");
+        }
+        renderProModalStatic();
+
+        function renderMembershipUi() {
+          const isPro = S.isProMember(membership);
+          const btnPro = document.getElementById("btnOpenPro");
+          if (isPro) {
+            btnPro.className = "btn-pro active-pro";
+            btnPro.innerHTML = `${S.renderProBadgeSvg(membership.tier)}<span>${membership.planName || "Pro 会员"}</span>`;
+          } else {
+            btnPro.className = "btn-pro";
+            btnPro.innerHTML = `<span>升级 Pro 会员</span>`;
+          }
+
+          document.getElementById("modalCurrentBadge").innerHTML = isPro
+            ? S.renderProBadgeSvg(membership.tier)
+            : '<span class="tag" style="color:#94a3b8">FREE</span>';
+
+          const lblState = document.getElementById("lblMembershipState");
+          if (isPro) {
+            lblState.innerHTML = `当前身份：<strong style="color:#6ee7b7">${membership.planName}</strong>（有效期至 ${S.formatExpiryDate(membership.expiresAt)}）`;
+          } else {
+            lblState.innerHTML = `当前身份：<strong style="color:#e2e8f0">Free 免费版</strong>（每日 3 局免费 PK，支持基础光影投影）`;
+          }
+
+          const btnTrial = document.getElementById("btnStartTrial");
+          if (isPro) {
+            btnTrial.style.display = "none";
+          } else if (membership.trialUsed) {
+            btnTrial.style.display = "inline-flex";
+            btnTrial.disabled = true;
+            btnTrial.style.opacity = "0.45";
+            btnTrial.textContent = "已体验过 3 天试用";
+          } else {
+            btnTrial.style.display = "inline-flex";
+            btnTrial.disabled = false;
+            btnTrial.style.opacity = "1";
+            btnTrial.textContent = "一键免费体验 3 天 Pro";
+          }
+
+          const quotaBadge = document.getElementById("pkQuotaBadge");
+          if (quotaBadge) {
+            if (isPro) {
+              quotaBadge.textContent = "PRO 无限对战";
+              quotaBadge.style.color = "#fde68a";
+              quotaBadge.style.borderColor = "rgba(245,158,11,0.35)";
+            } else {
+              const rem = membership.dailyPkRemaining ?? 3;
+              quotaBadge.textContent = `今日免费 ${rem}/${membership.dailyPkLimit || 3} 局`;
+              quotaBadge.style.color = rem > 0 ? "#94a3b8" : "#fda4af";
+              quotaBadge.style.borderColor = "rgba(255,255,255,0.08)";
+            }
+          }
+          const rTag = document.getElementById("roomProTag");
+          const royTag = document.getElementById("royaleProTag");
+          if (rTag) rTag.style.display = isPro ? "none" : "inline-flex";
+          if (royTag) royTag.style.display = isPro ? "none" : "inline-flex";
+        }
+
+        function openProModal(reason = "") {
+          showModalNotice(reason, false);
+          renderMembershipUi();
+          proModal.classList.add("open");
+        }
+        window.openProModal = openProModal;
+
+        document.getElementById("btnOpenPro").addEventListener("click", () => openProModal(""));
+        document.getElementById("btnClosePro").addEventListener("click", () => proModal.classList.remove("open"));
+        proModal.addEventListener("click", (e) => {
+          if (e.target === proModal) proModal.classList.remove("open");
+        });
+
+        document.getElementById("btnStartTrial").addEventListener("click", async () => {
+          const btn = document.getElementById("btnStartTrial");
+          btn.disabled = true;
+          btn.textContent = "正在开通试用...";
+          const res = await S.startFreeTrial(profile.userId);
+          if (res?.ok && res.entitlement) {
+            membership = S.saveMembership(res.entitlement);
+            broadcastMembershipToDesktop(membership);
+            showModalNotice(res.message || "已成功开启 3 天 Pro 全功能体验！", true);
+            addFeed("<strong>[会员开通]</strong> 已开启 3 天 Pro 全功能体验，所有光学模式与联机房已解锁！");
+            syncHeartbeatAndFetchLeaderboard();
+          } else {
+            showModalNotice(res?.message || "无法开启试用，请稍后重试。", false);
+          }
+          renderMembershipUi();
+          renderAll();
+        });
+
+        document.getElementById("btnActivateKey").addEventListener("click", async () => {
+          const inp = document.getElementById("inpLicenseKey");
+          const key = inp.value.trim();
+          if (!key) {
+            showModalNotice("请先输入激活码（格式：CHM-PRO-XXXX-XXXX-XXXX）。", false);
+            inp.focus();
+            return;
+          }
+          const btn = document.getElementById("btnActivateKey");
+          btn.disabled = true;
+          btn.textContent = "校验中...";
+          const res = await S.activateLicenseKey(key, profile.userId);
+          btn.disabled = false;
+          btn.textContent = "激活兑换";
+          if (res?.ok && res.entitlement) {
+            membership = S.saveMembership(res.entitlement);
+            broadcastMembershipToDesktop(membership);
+            inp.value = "";
+            showModalNotice(res.message || "激活成功！Pro 会员已生效。", true);
+            addFeed(`<strong>[会员激活]</strong> ${membership.planName} 激活成功！`);
+            syncHeartbeatAndFetchLeaderboard();
+          } else {
+            showModalNotice(res?.message || "激活失败，请检查激活码是否正确。", false);
+          }
+          renderMembershipUi();
+          renderAll();
+        });
+
+        S.refreshMembership(profile.userId).then((m) => {
+          membership = m;
+          broadcastMembershipToDesktop(membership);
+          renderMembershipUi();
+          renderAll();
+        });
+
+        if (window.location.hash === "#upgrade") {
+          setTimeout(() => openProModal("升级 Pro 解锁浮雕纹理、彩透电影、鼠标穿透与会议共享隐身！"), 200);
+        }
+
         document.getElementById("btnStartPk").addEventListener("click", () => {
           if (!requireVideoPlayingForPk()) return;
           if (pkMode === "royale") {
+            if (!S.isProMember(membership)) {
+              openProModal("「百人淘汰赛」为 Pro 会员专属玩法，开启 3 天免费体验或输入激活码即可加入！");
+              return;
+            }
             pkActive = true;
             pkMySec = 0;
             royaleAlive = 100;
@@ -795,7 +1139,11 @@
 
         document.getElementById("btnRoomPk").addEventListener("click", () => {
           if (!requireVideoPlayingForPk()) return;
-          const code = prompt("输入 4 位数字房间号（两台设备输入相同房间号即可实时 1v1 对战）：", "8848");
+          const isPro = S.isProMember(membership);
+          const hint = isPro
+            ? "输入 4 位数字房间号（两台设备输入相同房间号即可实时 1v1 对战）："
+            : "输入好友已创建的 4 位房间号即可免费加入（自己创建新房需 Pro 会员）：";
+          const code = prompt(hint, "8848");
           if (!code) return;
           if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
             arenaWs.send(JSON.stringify({ type: "join_room", roomCode: code.trim() }));
@@ -861,6 +1209,10 @@
         document.querySelectorAll("[data-pkmode]").forEach((btn) => {
           btn.addEventListener("click", () => {
             if (pkActive) return;
+            if (btn.dataset.pkmode === "royale" && !S.isProMember(membership)) {
+              openProModal("「百人淘汰赛」为 Pro 会员专属模式，点击下方可免费体验 3 天 Pro！");
+              return;
+            }
             pkMode = btn.dataset.pkmode;
             document.querySelectorAll("[data-pkmode]").forEach((b) => b.classList.toggle("active", b === btn));
             document.getElementById("duelView").style.display = pkMode === "duel" ? "grid" : "none";
@@ -946,6 +1298,7 @@
                     ${S.renderFlagSvg(r.regionCode)}
                     <span class="region-pill">${r.regionCode}</span>
                     <span class="user-name">${r.nickname}</span>
+                    ${r.isPro ? S.renderProBadgeSvg(r.tier) : ""}
                     <span style="font-size:11px;color:#64748b">${r.city}</span>
                   </div>
                   <div class="meta-cell">
@@ -1039,6 +1392,7 @@
           pkMyState.textContent = videoPlaying ? `视频播放潜伏中 (${activeVideoModeLabel})` : "未检测到视频播放 · 待机";
           pkMyState.style.color = videoPlaying ? "#34d399" : "#fbbf24";
 
+          renderMembershipUi();
           renderLeaderboard();
           renderTiers();
         }

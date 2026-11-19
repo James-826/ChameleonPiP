@@ -350,6 +350,10 @@ final class LocalWebSocketHub {
                     } else if text.contains("\"role\":\"arenaView\"") {
                         self.arenaViewIds.insert(id)
                         self.onArenaConnected?()
+                    } else if self.arenaViewIds.contains(id) {
+                        if text.contains("\"type\":\"membershipUpdated\"") {
+                            self.broadcast(data: data, opcode: .text, toGhostViews: true, sender: id)
+                        }
                     } else if self.ghostViewIds.contains(id) {
                         if text.contains("\"type\":\"videoPlaybackState\"") {
                             let meta = NWProtocolWebSocket.Metadata(opcode: .text)
@@ -452,6 +456,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var autoSense: Bool = true
     private var hideFromCapture: Bool = true
     private var isVisible: Bool = true
+    private var isProMember: Bool = UserDefaults.standard.bool(forKey: "chameleonIsPro")
+    private var pendingUpgradeReason: String? = nil
 
     private var isPlayerPaused: Bool = true
     private var hasActiveVideoPlaying: Bool = false
@@ -525,7 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.sharingType = .none
+        panel.sharingType = (hideFromCapture && isProMember) ? .none : .readOnly
         panel.ignoresMouseEvents = clickThrough
         panel.minSize = NSSize(width: 190, height: 110)
 
@@ -810,6 +816,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnThrough = IslandPillButton(frame: NSRect(x: 124, y: 136, width: 42, height: 25), title: "穿透")
         btnThrough.onClick = { [weak self] in
             guard let self = self else { return }
+            if !self.clickThrough && !self.isProMember {
+                self.openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
+                return
+            }
             self.setClickThrough(!self.clickThrough)
         }
 
@@ -889,6 +899,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc private func onModeChanged(_ sender: NSSegmentedControl) {
         let modes = ["projector", "emboss", "cinema"]
         let idx = max(0, min(2, sender.selectedSegment))
+        if idx > 0 && !isProMember {
+            sender.selectedSegment = 0
+            openArenaWindow(upgradeReason: "「浮雕纹理」与「彩透电影」为 Pro 会员专属光学引擎，点击下方可免费体验 3 天 Pro！")
+            return
+        }
         currentMode = modes[idx]
         webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch({\"mode\":\"\(currentMode)\"});", completionHandler: nil)
     }
@@ -992,8 +1007,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
-    private func openArenaWindow() {
+    private func applyMembershipEntitlement(_ isPro: Bool) {
+        isProMember = isPro
+        UserDefaults.standard.set(isPro, forKey: "chameleonIsPro")
+        // Screen-sharing / screen-recording stealth (.none) is a Pro exclusive capability
+        panel?.sharingType = (hideFromCapture && isProMember) ? .none : .readOnly
+        if !isProMember && currentMode != "projector" {
+            currentMode = "projector"
+            webView?.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch({\"mode\":\"projector\"});", completionHandler: nil)
+        }
+        syncNativeIslandControls()
+    }
+
+    private func openArenaWindow(upgradeReason: String? = nil) {
         setIslandExpanded(false)
+        let isNewWindow = (arenaWindow == nil)
         if arenaWindow == nil {
             let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
             let w: CGFloat = min(1180, screenFrame.width - 60)
@@ -1005,7 +1033,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 backing: .buffered,
                 defer: false
             )
-            win.title = "ChameleonPiP 变色龙 · 全球摸鱼排位与线上耐力 PK 竞技场"
+            win.title = "ChameleonPiP 变色龙 · 全球摸鱼排位、会员中心与线上耐力 PK"
             win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.04, blue: 0.07, alpha: 1.0)
             win.isReleasedWhenClosed = false
@@ -1022,6 +1050,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
         arenaWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        if let reason = upgradeReason {
+            let escaped = reason.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+            let delay: TimeInterval = isNewWindow ? 0.55 : 0.05
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.arenaWebView?.evaluateJavaScript("window.openProModal?.('\(escaped)');", completionHandler: nil)
+                self?.wsHub.sendTextToArena("{\"type\":\"openUpgradeModal\",\"reason\":\"\(escaped)\"}")
+            }
+        }
     }
 
     private func setIslandExpanded(_ expanded: Bool) {
@@ -1111,7 +1148,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         switch action {
         case "enableClickThrough":
-            setClickThrough(true)
+            if !isProMember {
+                openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
+            } else {
+                setClickThrough(true)
+            }
+        case "membershipChanged":
+            if let pro = dict["isPro"] as? Bool {
+                applyMembershipEntitlement(pro)
+            }
+        case "requestUpgrade":
+            let reason = (dict["reason"] as? String) ?? "升级 Pro 解锁全部光学模式、会议隐身与无限联机对战！"
+            openArenaWindow(upgradeReason: reason)
         case "setBoss":
             if let v = dict["value"] as? Bool { setBoss(v) }
         case "stateChanged":
@@ -1200,7 +1248,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case 2:
             setBoss(!bossMode)
         case 3:
-            setClickThrough(!clickThrough)
+            if !clickThrough && !isProMember {
+                openArenaWindow(upgradeReason: "「鼠标穿透 (⌃⇧M)」为 Pro 会员专属功能，点击下方可免费体验 3 天 Pro！")
+            } else {
+                setClickThrough(!clickThrough)
+            }
         default: break
         }
     }

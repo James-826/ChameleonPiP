@@ -19,6 +19,26 @@
       </button>
     </header>
 
+    <div class="member-strip" id="memberStrip">
+      <div class="member-left">
+        <span class="member-pill" id="popMemberBadge">FREE</span>
+        <span class="member-desc" id="popMemberDesc">基础投影永久免费 · 解锁 Pro 高阶隐身</span>
+      </div>
+      <button type="button" class="member-btn" id="btnPopUpgrade">升级 / 激活</button>
+    </div>
+
+    <div class="pro-drawer" id="popProDrawer" style="display:none">
+      <div class="pro-drawer-msg" id="popProMsg">解锁浮雕纹理、彩透电影、鼠标穿透、会议隐身与无限 PK</div>
+      <div class="pro-drawer-row">
+        <input type="text" id="popKeyInput" class="pro-input" placeholder="输入激活码 CHM-PRO-..." />
+        <button type="button" id="btnPopActivate" class="pro-act-btn">激活</button>
+      </div>
+      <div class="pro-drawer-actions">
+        <button type="button" id="btnPopTrial" class="pro-trial-btn">一键免费试用 3 天 Pro</button>
+        <button type="button" id="btnPopPlans" class="pro-link-btn">查看权益与价格</button>
+      </div>
+    </div>
+
     <div class="launch-stack">
       <button id="btnMacGhost" class="btn-primary">
         <span>投送到桌面无边框投影窗 (60fps)</span>
@@ -71,11 +91,11 @@
         <button class="seg-item mode-tab" data-mode="projector" title="像投影仪打在墙上：底层红绿保持红绿，叠加视频完整明暗光影">
           光影投影
         </button>
-        <button class="seg-item mode-tab" data-mode="emboss" title="仅将视频的凹凸立体纹理雕刻在底层桌面上">
-          浮雕纹理
+        <button class="seg-item mode-tab" data-mode="emboss" title="仅将视频的凹凸立体纹理雕刻在底层桌面上（Pro 会员专属）">
+          浮雕纹理 <span class="mini-pro-tag">PRO</span>
         </button>
-        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面透射混合">
-          彩透投影
+        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面透射混合（Pro 会员专属）">
+          彩透投影 <span class="mini-pro-tag">PRO</span>
         </button>
       </div>
 
@@ -99,7 +119,8 @@
       <span>可在屏幕顶部系统菜单栏图标或小窗四角直接调整</span>
     </footer>
 
-    <script src="gecko-core.js?v=4.0"></script>
-    <script src="popup.js?v=4.0"></script>
+    <script src="gecko-core.js?v=5.2"></script>
+    <script src="chameleon-stats.js?v=5.2"></script>
+    <script src="popup.js?v=5.2"></script>
   </body>
 </html>

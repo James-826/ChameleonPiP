@@ -2,7 +2,9 @@
   "use strict";
 
   const Core = window.GeckoCore;
+  const Stats = window.ChameleonStats;
   let state = { ...Core.DEFAULT_STATE };
+  let membership = Stats ? Stats.loadMembership() : { tier: "free", isPro: false };
   let activeTabId = null;
   let streamingTabId = null;
   let ghostWsConnected = false;
@@ -78,10 +80,71 @@
     }
   }
 
+  function renderMembershipBar() {
+    if (!Stats) return;
+    const isPro = Stats.isProMember(membership);
+    const strip = document.getElementById("memberStrip");
+    const pill = document.getElementById("popMemberBadge");
+    const desc = document.getElementById("popMemberDesc");
+    const btn = document.getElementById("btnPopUpgrade");
+    const btnTrial = document.getElementById("btnPopTrial");
+
+    if (strip) strip.classList.toggle("is-pro", isPro);
+    if (pill) {
+      pill.textContent = membership.tier === "lifetime" ? "MAX" : isPro ? "PRO" : "FREE";
+      pill.classList.toggle("pro", isPro);
+    }
+    if (desc) {
+      desc.textContent = isPro
+        ? `${membership.planName || "Pro 会员"} · 有效期至 ${Stats.formatExpiryDate(membership.expiresAt)}`
+        : "免费版 · 升级解锁浮雕/彩透/会议隐身";
+    }
+    if (btn) btn.textContent = isPro ? "会员中心" : "升级 / 激活";
+    if (btnTrial) {
+      btnTrial.style.display = isPro ? "none" : "inline-block";
+      if (membership.trialUsed) {
+        btnTrial.disabled = true;
+        btnTrial.textContent = "已用过 3 天试用";
+        btnTrial.style.opacity = "0.5";
+      }
+    }
+    document.querySelectorAll(".mini-pro-tag").forEach((el) => {
+      el.style.display = isPro ? "none" : "inline-block";
+    });
+  }
+
+  function openPopupProDrawer(reason) {
+    const drawer = document.getElementById("popProDrawer");
+    const msg = document.getElementById("popProMsg");
+    if (msg && reason) msg.textContent = reason;
+    if (drawer) drawer.style.display = "flex";
+  }
+
+  function syncMembershipToDesktopApp(mem) {
+    try {
+      const ws = new WebSocket("ws://127.0.0.1:51937");
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
+        ws.send(JSON.stringify({ type: "membershipUpdated", membership: mem }));
+        setTimeout(() => ws.close(), 120);
+      };
+    } catch (_) {}
+  }
+
   async function init() {
-    const stored = await chrome.storage.local.get(["geckoState"]);
+    const stored = await chrome.storage.local.get(["geckoState", "geckoMembership"]);
     if (stored?.geckoState) {
       state = { ...Core.DEFAULT_STATE, ...stored.geckoState };
+    }
+    if (stored?.geckoMembership && Stats) {
+      membership = Stats.saveMembership(stored.geckoMembership);
+    }
+    if (Stats) {
+      const prof = Stats.loadProfile();
+      Stats.refreshMembership(prof.userId).then((m) => {
+        membership = m;
+        renderMembershipBar();
+      });
     }
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -149,6 +212,7 @@
     els.valFeather.textContent = `${state.feather}%`;
 
     els.chkSubtitles.checked = Boolean(state.mirrorSubtitles);
+    renderMembershipBar();
   }
 
   // Primary Action: Stream to Mac Desktop Borderless Ghost Window
@@ -222,11 +286,66 @@
     updateState({ autoSense: els.chkAutoSense.checked });
   });
 
-  // Style tabs do NOT disable AutoSense color matching!
+  // Style tabs: Emboss & Cinema require Pro membership
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      updateState({ mode: tab.dataset.mode });
+      const targetMode = tab.dataset.mode;
+      if (targetMode !== "projector" && Stats && !Stats.isProMember(membership)) {
+        openPopupProDrawer("「浮雕纹理」与「彩透投影」为 Pro 会员专属光学引擎，可一键开启 3 天免费体验或输入激活码解锁！");
+        return;
+      }
+      updateState({ mode: targetMode });
     });
+  });
+
+  document.getElementById("btnPopUpgrade")?.addEventListener("click", () => {
+    const drawer = document.getElementById("popProDrawer");
+    if (!drawer) return;
+    drawer.style.display = drawer.style.display === "none" ? "flex" : "none";
+  });
+
+  document.getElementById("btnPopPlans")?.addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("arena.html#upgrade") });
+  });
+
+  document.getElementById("btnPopTrial")?.addEventListener("click", async () => {
+    if (!Stats) return;
+    const btn = document.getElementById("btnPopTrial");
+    const msg = document.getElementById("popProMsg");
+    btn.disabled = true;
+    btn.textContent = "开通中...";
+    const res = await Stats.startFreeTrial(Stats.loadProfile().userId);
+    if (res?.ok && res.entitlement) {
+      membership = Stats.saveMembership(res.entitlement);
+      syncMembershipToDesktopApp(membership);
+      if (msg) msg.textContent = res.message || "已开启 3 天 Pro 体验，所有模式已解锁！";
+    } else {
+      btn.disabled = false;
+      btn.textContent = "一键免费试用 3 天 Pro";
+      if (msg) msg.textContent = res?.message || "试用开通失败，请稍后重试。";
+    }
+    renderMembershipBar();
+  });
+
+  document.getElementById("btnPopActivate")?.addEventListener("click", async () => {
+    if (!Stats) return;
+    const inp = document.getElementById("popKeyInput");
+    const msg = document.getElementById("popProMsg");
+    const key = inp?.value.trim();
+    if (!key) {
+      if (msg) msg.textContent = "请输入 Pro 激活码（CHM-PRO-...）";
+      return;
+    }
+    const res = await Stats.activateLicenseKey(key, Stats.loadProfile().userId);
+    if (res?.ok && res.entitlement) {
+      membership = Stats.saveMembership(res.entitlement);
+      syncMembershipToDesktopApp(membership);
+      if (inp) inp.value = "";
+      if (msg) msg.textContent = res.message || "激活成功！已解锁全部 Pro 权益。";
+    } else if (msg) {
+      msg.textContent = res?.message || "激活码无效，请检查后重试。";
+    }
+    renderMembershipBar();
   });
 
   document.querySelectorAll(".mark-btn").forEach((btn) => {

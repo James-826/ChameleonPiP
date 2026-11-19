@@ -347,27 +347,203 @@
     return `${m}m ${rem}s`;
   }
 
+  const MEMBERSHIP_STORAGE_KEY = "chameleon_membership_v1";
+  const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
+
+  const PRO_FEATURE_CATALOG = [
+    { key: "optical_projector", name: "光影投影模式 + 老板键 + 窗口缩放", free: true, pro: true },
+    { key: "optical_modes", name: "浮雕纹理 (Emboss) & 彩透电影 (Cinema)", free: false, pro: true },
+    { key: "click_through", name: "鼠标穿透控制 (⌃⇧M) & 底层办公无干扰", free: false, pro: true },
+    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕自动隐身", free: false, pro: true },
+    { key: "pk_unlimited", name: "1v1 线上耐力 PK 对战", free: "每日 3 局", pro: "无限畅玩" },
+    { key: "room_pk", name: "创建 4 位暗号同事约战房 & 百人淘汰赛", free: false, pro: true },
+    { key: "pro_badge", name: "全球/同城榜 PRO 鎏金专属徽章", free: false, pro: true },
+  ];
+
+  const PRICING_PLANS = [
+    { id: "monthly", name: "Pro 月度会员", priceCny: "¥9.9", priceUsd: "$3.99", period: "/ 月", tag: "灵活尝鲜", desc: "解锁全套光学模式、会议隐身、无限 PK，最多 2 台设备" },
+    { id: "yearly", name: "Pro 年度会员", priceCny: "¥49", priceUsd: "$19.9", period: "/ 年", tag: "最受欢迎 · 省 58%", recommended: true, desc: "折合仅 ¥4/月，全年畅享全功能与优先更新" },
+    { id: "lifetime", name: "早鸟买断版 MAX", priceCny: "¥99", priceUsd: "$39", period: "终身买断", tag: "限量早鸟", desc: "一次付费永久使用，支持 3 台设备 + 专属 MAX 徽章" },
+  ];
+
+  function getDeviceId() {
+    try {
+      let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+      if (!id) {
+        id = "dev_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+      }
+      return id;
+    } catch (_) {
+      return "dev_local";
+    }
+  }
+
+  function defaultMembership() {
+    return {
+      tier: "free",
+      isPro: false,
+      plan: "free",
+      planName: "Free 免费版",
+      expiresAt: null,
+      trialUsed: false,
+      dailyPkLimit: 3,
+      dailyPkUsed: 0,
+      dailyPkRemaining: 3,
+      updatedAt: 0,
+    };
+  }
+
+  function loadMembership() {
+    try {
+      const raw = localStorage.getItem(MEMBERSHIP_STORAGE_KEY);
+      if (!raw) return defaultMembership();
+      const m = { ...defaultMembership(), ...JSON.parse(raw) };
+      if (m.tier === "pro" && m.expiresAt && Date.now() > m.expiresAt) {
+        m.tier = "free";
+        m.isPro = false;
+        m.plan = "free";
+        m.planName = "Free 免费版";
+        saveMembership(m);
+      } else {
+        m.isPro = m.tier === "pro" || m.tier === "lifetime";
+      }
+      return m;
+    } catch (_) {
+      return defaultMembership();
+    }
+  }
+
+  function saveMembership(m) {
+    const clean = {
+      ...defaultMembership(),
+      ...m,
+      isPro: m?.tier === "pro" || m?.tier === "lifetime",
+      updatedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(clean));
+    } catch (_) {}
+    try {
+      if (typeof chrome !== "undefined" && chrome?.storage?.local) {
+        chrome.storage.local.set({ geckoMembership: clean });
+      }
+    } catch (_) {}
+    return clean;
+  }
+
+  function isProMember(m) {
+    const cur = m || loadMembership();
+    if (cur.tier === "lifetime") return true;
+    if (cur.tier === "pro") return !cur.expiresAt || Date.now() <= cur.expiresAt;
+    return false;
+  }
+
+  function hasFeature(featureKey, m) {
+    const pro = isProMember(m);
+    if (featureKey === "optical_projector" || featureKey === "projector") return true;
+    return pro;
+  }
+
+  async function refreshMembership(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/status?userId=${encodeURIComponent(uid)}`);
+      if (!res.ok) return loadMembership();
+      const data = await res.json();
+      if (data?.ok && data.entitlement) {
+        return saveMembership(data.entitlement);
+      }
+    } catch (_) {}
+    return loadMembership();
+  }
+
+  async function startFreeTrial(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/trial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: uid }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法连接鉴权服务器，请稍后再试。" };
+    }
+  }
+
+  async function activateLicenseKey(key, userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: String(key || "").trim(), userId: uid, deviceId: getDeviceId() }),
+      });
+      const data = await res.json();
+      if (data?.ok && data.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "无法连接鉴权服务器，请确认网络畅通后重试。" };
+    }
+  }
+
+  function formatExpiryDate(ts) {
+    if (!ts) return "永久有效";
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function renderProBadgeSvg(tier = "pro") {
+    const isMax = tier === "lifetime";
+    const label = isMax ? "MAX" : "PRO";
+    const gStart = isMax ? "#fde68a" : "#fcd34d";
+    const gMid = isMax ? "#f59e0b" : "#f59e0b";
+    const gEnd = isMax ? "#d97706" : "#b45309";
+    return `<svg viewBox="0 0 34 15" width="34" height="15" style="flex-shrink:0;vertical-align:middle" aria-label="${label}">
+      <defs>
+        <linearGradient id="pg-${label}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${gStart}"/>
+          <stop offset="55%" stop-color="${gMid}"/>
+          <stop offset="100%" stop-color="${gEnd}"/>
+        </linearGradient>
+      </defs>
+      <rect x="0.6" y="0.6" width="32.8" height="13.8" rx="4" fill="url(#pg-${label})" fill-opacity="0.2" stroke="url(#pg-${label})" stroke-width="1.1"/>
+      <text x="17" y="10.6" text-anchor="middle" fill="#fde68a" font-size="8.2" font-weight="800" letter-spacing="0.06em" font-family="ui-monospace,SFMono-Regular,Menlo,sans-serif">${label}</text>
+    </svg>`;
+  }
+
   function computeSalaryEarned(seconds, hourlyWage = 85) {
     return ((Math.max(0, seconds) / 3600) * Math.max(0, hourlyWage)).toFixed(2);
   }
 
   function normalizeLeaderboardItems(rawItems, profile) {
-    return rawItems.map((r, idx) => ({
-      pos: r.pos || idx + 1,
-      userId: r.userId,
-      isMe: Boolean(r.isMe || r.userId === profile.userId),
-      nickname: r.nickname,
-      city: r.city,
-      country: r.country,
-      regionCode: r.regionCode || "CN",
-      industry: r.industry || "互联网",
-      mode: r.mode || "光影 58%",
-      streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
-      today: r.todaySeconds || 0,
-      pkElo: r.pkElo || 1200,
-      rankInfo: getRankForSeconds(r.totalSeconds || 1800).current,
-      live: Boolean(r.live),
-    }));
+    const myMem = loadMembership();
+    return rawItems.map((r, idx) => {
+      const isMe = Boolean(r.isMe || r.userId === profile.userId);
+      const tier = isMe ? myMem.tier : (r.tier || "free");
+      const isPro = isMe ? isProMember(myMem) : Boolean(r.isPro || tier === "pro" || tier === "lifetime");
+      return {
+        pos: r.pos || idx + 1,
+        userId: r.userId,
+        isMe,
+        nickname: r.nickname,
+        city: r.city,
+        country: r.country,
+        regionCode: r.regionCode || "CN",
+        industry: r.industry || "互联网",
+        mode: r.mode || "光影 58%",
+        streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
+        today: r.todaySeconds || 0,
+        pkElo: r.pkElo || 1200,
+        rankInfo: getRankForSeconds(r.totalSeconds || 1800).current,
+        tier,
+        isPro,
+        live: Boolean(r.live),
+      };
+    });
   }
 
   function buildFallbackLeaderboard(profile, scope = "city", metric = "streak") {
@@ -404,18 +580,31 @@
 
   global.ChameleonStats = {
     STORAGE_KEY,
+    MEMBERSHIP_STORAGE_KEY,
     DEFAULT_API_BASE,
     SVG_ICONS,
     RANKS,
     CITIES,
     FALLBACK_RIVALS,
+    PRO_FEATURE_CATALOG,
+    PRICING_PLANS,
     renderFlagSvg,
     renderPodiumBadgeSvg,
     renderRankCrestSvg,
+    renderProBadgeSvg,
     getApiBase,
     setApiBase,
+    getDeviceId,
     loadProfile,
     saveProfile,
+    loadMembership,
+    saveMembership,
+    isProMember,
+    hasFeature,
+    refreshMembership,
+    startFreeTrial,
+    activateLicenseKey,
+    formatExpiryDate,
     getRankForSeconds,
     formatDuration,
     computeSalaryEarned,

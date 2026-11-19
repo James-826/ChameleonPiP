@@ -19,24 +19,177 @@ const { URL } = require("url");
 const PORT = Number(process.env.PORT || 51938);
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "arena-db.json");
+const LICENSES_FILE = path.join(DATA_DIR, "licenses-db.json");
+const ADMIN_KEY = process.env.CHAMELEON_ADMIN_KEY || "";
+const FREE_DAILY_PK_LIMIT = 3;
+
+const PLAN_CATALOG = {
+  trial: { tier: "pro", plan: "trial", planName: "Pro 3天体验版", durationDays: 3, maxDevices: 2 },
+  monthly: { tier: "pro", plan: "monthly", planName: "Pro 月度会员", durationDays: 30, maxDevices: 2 },
+  yearly: { tier: "pro", plan: "yearly", planName: "Pro 年度会员", durationDays: 365, maxDevices: 2 },
+  lifetime: { tier: "lifetime", plan: "lifetime", planName: "Pro 早鸟买断版", durationDays: 0, maxDevices: 3 },
+};
 
 const SEED_PLAYERS = [
-  { userId: "seed-sh-1", nickname: "Lin_Optics", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "光影 55%", currentStreakSeconds: 8420, bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, pkWins: 29, pkLosses: 4, seeded: true },
-  { userId: "seed-sz-1", nickname: "Nanshan_Ghost", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "浮雕 62%", currentStreakSeconds: 6910, bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, pkWins: 24, pkLosses: 6, seeded: true },
-  { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "光影 48%", currentStreakSeconds: 5840, bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, pkWins: 21, pkLosses: 5, seeded: true },
-  { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "彩透 42%", currentStreakSeconds: 4920, bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, pkWins: 19, pkLosses: 7, seeded: true },
-  { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "光影 60%", currentStreakSeconds: 4380, bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, pkWins: 17, pkLosses: 6, seeded: true },
-  { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "浮雕 58%", currentStreakSeconds: 3690, bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, pkWins: 15, pkLosses: 8, seeded: true },
-  { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "光影 38%", currentStreakSeconds: 0, bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, pkWins: 14, pkLosses: 6, seeded: true },
-  { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "浮雕 50%", currentStreakSeconds: 2980, bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, pkWins: 12, pkLosses: 7, seeded: true },
-  { userId: "seed-sh-2", nickname: "Caohejing_ Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "光影 58%", currentStreakSeconds: 2410, bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, pkWins: 10, pkLosses: 5, seeded: true },
-  { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "浮雕 45%", currentStreakSeconds: 1850, bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, pkWins: 8, pkLosses: 4, seeded: true },
-  { userId: "seed-bl-1", nickname: "Kreuzberg_Vim", city: "柏林", country: "德国", regionCode: "DE", industry: "开源社区", mode: "彩透 52%", currentStreakSeconds: 0, bestStreakSeconds: 2940, todaySeconds: 5100, totalSeconds: 138000, pkElo: 1280, pkWins: 6, pkLosses: 4, seeded: true },
-  { userId: "seed-cd-1", nickname: "Tianfu_Pixel", city: "成都", country: "中国", regionCode: "CN", industry: "独立开发", mode: "彩透 60%", currentStreakSeconds: 640, bestStreakSeconds: 1520, todaySeconds: 2800, totalSeconds: 42000, pkElo: 1230, pkWins: 3, pkLosses: 2, seeded: true },
+  { userId: "seed-sh-1", nickname: "Lin_Optics", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "光影 55%", currentStreakSeconds: 8420, bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, pkWins: 29, pkLosses: 4, tier: "lifetime", seeded: true },
+  { userId: "seed-sz-1", nickname: "Nanshan_Ghost", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "浮雕 62%", currentStreakSeconds: 6910, bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, pkWins: 24, pkLosses: 6, tier: "pro", seeded: true },
+  { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "光影 48%", currentStreakSeconds: 5840, bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, pkWins: 21, pkLosses: 5, tier: "pro", seeded: true },
+  { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "彩透 42%", currentStreakSeconds: 4920, bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, pkWins: 19, pkLosses: 7, tier: "lifetime", seeded: true },
+  { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "光影 60%", currentStreakSeconds: 4380, bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, pkWins: 17, pkLosses: 6, tier: "free", seeded: true },
+  { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "浮雕 58%", currentStreakSeconds: 3690, bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, pkWins: 15, pkLosses: 8, tier: "pro", seeded: true },
+  { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "光影 38%", currentStreakSeconds: 0, bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, pkWins: 14, pkLosses: 6, tier: "free", seeded: true },
+  { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "浮雕 50%", currentStreakSeconds: 2980, bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, pkWins: 12, pkLosses: 7, tier: "free", seeded: true },
+  { userId: "seed-sh-2", nickname: "Caohejing_Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "光影 58%", currentStreakSeconds: 2410, bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, pkWins: 10, pkLosses: 5, tier: "pro", seeded: true },
+  { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "浮雕 45%", currentStreakSeconds: 1850, bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, pkWins: 8, pkLosses: 4, tier: "free", seeded: true },
+  { userId: "seed-bl-1", nickname: "Kreuzberg_Vim", city: "柏林", country: "德国", regionCode: "DE", industry: "开源社区", mode: "彩透 52%", currentStreakSeconds: 0, bestStreakSeconds: 2940, todaySeconds: 5100, totalSeconds: 138000, pkElo: 1280, pkWins: 6, pkLosses: 4, tier: "free", seeded: true },
+  { userId: "seed-cd-1", nickname: "Tianfu_Pixel", city: "成都", country: "中国", regionCode: "CN", industry: "独立开发", mode: "彩透 60%", currentStreakSeconds: 640, bestStreakSeconds: 1520, todaySeconds: 2800, totalSeconds: 42000, pkElo: 1230, pkWins: 3, pkLosses: 2, tier: "free", seeded: true },
 ];
 
 const players = new Map();
+const licenses = new Map();
+const userMemberships = new Map();
 let saveTimer = null;
+let licenseSaveTimer = null;
+
+function todayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function generateLicenseKey(plan = "yearly") {
+  const prefix = plan === "lifetime" ? "CHM-MAX" : "CHM-PRO";
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const seg = () => {
+    let out = "";
+    const bytes = crypto.randomBytes(4);
+    for (let i = 0; i < 4; i++) out += alphabet[bytes[i] % alphabet.length];
+    return out;
+  };
+  return `${prefix}-${seg()}-${seg()}-${seg()}`;
+}
+
+function scheduleLicenseSave() {
+  if (licenseSaveTimer) return;
+  licenseSaveTimer = setTimeout(() => {
+    licenseSaveTimer = null;
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      const payload = JSON.stringify(
+        {
+          updatedAt: Date.now(),
+          licenses: Array.from(licenses.values()),
+          userMemberships: Object.fromEntries(userMemberships.entries()),
+        },
+        null,
+        2
+      );
+      fs.writeFileSync(LICENSES_FILE, payload, "utf8");
+    } catch (_) {}
+  }, 400);
+}
+
+let lastLicenseFileMtime = 0;
+function loadLicensesDatabase(force = false) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (fs.existsSync(LICENSES_FILE)) {
+      const st = fs.statSync(LICENSES_FILE);
+      if (!force && st.mtimeMs <= lastLicenseFileMtime) return;
+      lastLicenseFileMtime = st.mtimeMs;
+      const raw = JSON.parse(fs.readFileSync(LICENSES_FILE, "utf8"));
+      if (Array.isArray(raw.licenses)) {
+        for (const lic of raw.licenses) {
+          if (lic && lic.key) licenses.set(lic.key, lic);
+        }
+      }
+      if (raw.userMemberships && typeof raw.userMemberships === "object") {
+        for (const [uid, rec] of Object.entries(raw.userMemberships)) {
+          if (uid && rec && !userMemberships.has(uid)) userMemberships.set(uid, rec);
+        }
+      }
+    }
+  } catch (_) {}
+}
+
+function getUserEntitlement(userId) {
+  const today = todayDateKey();
+  const rec = userMemberships.get(userId) || {
+    tier: "free",
+    plan: "free",
+    planName: "Free 免费版",
+    key: null,
+    expiresAt: null,
+    trialUsed: false,
+    dailyPkDate: today,
+    dailyPkCount: 0,
+  };
+
+  if (rec.dailyPkDate !== today) {
+    rec.dailyPkDate = today;
+    rec.dailyPkCount = 0;
+  }
+
+  let activeTier = rec.tier || "free";
+  let activePlan = rec.plan || "free";
+  let activePlanName = rec.planName || "Free 免费版";
+  let activeExpiresAt = rec.expiresAt || null;
+
+  if (activeTier === "pro" && activeExpiresAt && Date.now() > activeExpiresAt) {
+    activeTier = "free";
+    activePlan = "free";
+    activePlanName = "Free 免费版";
+    rec.tier = "free";
+    rec.plan = "free";
+    rec.planName = "Free 免费版";
+    scheduleLicenseSave();
+  }
+
+  const isPro = activeTier === "pro" || activeTier === "lifetime";
+  const remaining = isPro ? 999 : Math.max(0, FREE_DAILY_PK_LIMIT - (rec.dailyPkCount || 0));
+
+  return {
+    userId,
+    tier: activeTier,
+    isPro,
+    plan: activePlan,
+    planName: activePlanName,
+    expiresAt: activeExpiresAt,
+    trialUsed: Boolean(rec.trialUsed),
+    dailyPkLimit: isPro ? -1 : FREE_DAILY_PK_LIMIT,
+    dailyPkUsed: rec.dailyPkCount || 0,
+    dailyPkRemaining: remaining,
+    features: {
+      opticalModes: isPro ? ["projector", "emboss", "cinema"] : ["projector"],
+      clickThrough: isPro,
+      screenShareStealth: isPro,
+      roomPkCreate: isPro,
+      royalePk: isPro,
+      unlimitedPk: isPro,
+      proBadge: isPro,
+    },
+  };
+}
+
+function recordUserPkStart(userId) {
+  const today = todayDateKey();
+  const rec = userMemberships.get(userId) || {
+    tier: "free",
+    plan: "free",
+    planName: "Free 免费版",
+    key: null,
+    expiresAt: null,
+    trialUsed: false,
+    dailyPkDate: today,
+    dailyPkCount: 0,
+  };
+  if (rec.dailyPkDate !== today) {
+    rec.dailyPkDate = today;
+    rec.dailyPkCount = 0;
+  }
+  rec.dailyPkCount = (rec.dailyPkCount || 0) + 1;
+  userMemberships.set(userId, rec);
+  scheduleLicenseSave();
+}
 
 function loadDatabase() {
   try {
@@ -57,6 +210,13 @@ function loadDatabase() {
       players.set(sp.userId, { ...sp, lastSeenAt: now });
     }
     scheduleSave();
+  } else {
+    // Backfill tier metadata onto pre-existing seeded benchmark rows
+    const seedById = new Map(SEED_PLAYERS.map((s) => [s.userId, s]));
+    for (const p of players.values()) {
+      const sp = seedById.get(p.userId);
+      if (sp && !p.tier && sp.tier) p.tier = sp.tier;
+    }
   }
 }
 
@@ -72,6 +232,7 @@ function scheduleSave() {
 }
 
 loadDatabase();
+loadLicensesDatabase();
 
 // Advance active seed benchmarks gently so global leaderboard stays alive
 setInterval(() => {
@@ -105,6 +266,7 @@ function buildLeaderboardResponse({ scope, city, country, metric, userId }) {
   const mapped = filtered.map((p) => {
     const live = isPlayerLive(p);
     const bestStreak = Math.max(p.bestStreakSeconds || 0, p.currentStreakSeconds || 0);
+    const ent = p.seeded ? { tier: p.tier || "free", isPro: p.tier === "pro" || p.tier === "lifetime" } : getUserEntitlement(p.userId);
     return {
       userId: p.userId,
       isMe: Boolean(userId && p.userId === userId),
@@ -119,6 +281,8 @@ function buildLeaderboardResponse({ scope, city, country, metric, userId }) {
       todaySeconds: p.todaySeconds || 0,
       totalSeconds: p.totalSeconds || 0,
       pkElo: p.pkElo || 1200,
+      tier: ent.tier,
+      isPro: ent.isPro,
       live,
     };
   });
@@ -376,6 +540,17 @@ function handleWsMessage(client, msg) {
   }
 
   if (msg.type === "join_queue") {
+    const ent = getUserEntitlement(client.userId);
+    if (!ent.isPro && ent.dailyPkRemaining <= 0) {
+      sendWsJson(client, {
+        type: "pro_required",
+        feature: "daily_pk_limit",
+        message: `免费版每日限 ${FREE_DAILY_PK_LIMIT} 局 1v1 耐力 PK（今日已用完），升级 Pro 或开启 3 天试用解锁无限对战。`,
+        entitlement: ent,
+      });
+      return;
+    }
+    recordUserPkStart(client.userId);
     if (client.matchId) finishMatch(client.matchId, "b", "重新匹配");
     if (msg.targetRivalId) {
       pairWithSimulatedOnlineRival(client, msg.targetRivalId);
@@ -400,10 +575,21 @@ function handleWsMessage(client, msg) {
   if (msg.type === "join_room") {
     const code = String(msg.roomCode || "").trim();
     if (!code) return;
+    const ent = getUserEntitlement(client.userId);
+    const existing = waitingRooms.get(code);
+    // Viral PLG: Creating a private room requires Pro; joining an existing room created by a Pro friend is free!
+    if (!existing && !ent.isPro) {
+      sendWsJson(client, {
+        type: "pro_required",
+        feature: "room_pk",
+        message: "创建私人 4 位暗号约战房为 Pro 会员专属功能（受邀加入好友房间免费）。开启 3 天试用或升级 Pro 即可创建！",
+        entitlement: ent,
+      });
+      return;
+    }
     if (client.matchId) finishMatch(client.matchId, "b", "切换房间");
     removeClientFromQueues(client);
 
-    const existing = waitingRooms.get(code);
     if (existing && existing !== client && !existing.closed) {
       waitingRooms.delete(code);
       pairTwoHumanClients(existing, client, code);
@@ -457,7 +643,7 @@ function handleWsMessage(client, msg) {
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key");
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -466,6 +652,192 @@ const server = http.createServer((req, res) => {
   }
 
   const parsedUrl = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
+
+  function readJsonBody(cb) {
+    let body = "";
+    req.on("data", (chunk) => {
+      if (body.length < 64 * 1024) body += chunk;
+    });
+    req.on("end", () => {
+      try {
+        cb(null, JSON.parse(body || "{}"));
+      } catch (err) {
+        cb(err, null);
+      }
+    });
+  }
+
+  if (req.method === "GET" && parsedUrl.pathname === "/api/license/status") {
+    const userId = String(parsedUrl.searchParams.get("userId") || "").trim();
+    if (!userId) {
+      res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "missing_userId" }));
+      return;
+    }
+    const entitlement = getUserEntitlement(userId);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: true, entitlement }));
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/license/trial") {
+    readJsonBody((err, data) => {
+      if (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_json" }));
+        return;
+      }
+      const userId = String(data.userId || "").trim();
+      if (!userId) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "missing_userId" }));
+        return;
+      }
+      const prev = userMemberships.get(userId);
+      const curEnt = getUserEntitlement(userId);
+      if (curEnt.isPro) {
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true, message: "您已是 Pro 会员，无需重复开启试用", entitlement: curEnt }));
+        return;
+      }
+      if (prev && prev.trialUsed) {
+        res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "trial_already_used", message: "当前账号已使用过 3 天免费试用，请输入 Pro 激活码升级。", entitlement: curEnt }));
+        return;
+      }
+      const spec = PLAN_CATALOG.trial;
+      const expiresAt = Date.now() + spec.durationDays * 24 * 3600 * 1000;
+      const nextRec = {
+        ...(prev || {}),
+        tier: spec.tier,
+        plan: spec.plan,
+        planName: spec.planName,
+        key: "TRIAL-3D",
+        expiresAt,
+        trialUsed: true,
+        dailyPkDate: todayDateKey(),
+        dailyPkCount: prev?.dailyPkCount || 0,
+      };
+      userMemberships.set(userId, nextRec);
+      const pl = players.get(userId);
+      if (pl) {
+        pl.tier = spec.tier;
+        scheduleSave();
+      }
+      scheduleLicenseSave();
+      const entitlement = getUserEntitlement(userId);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, message: "已成功开启 3 天 Pro 全功能免费体验！", entitlement }));
+    });
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/license/activate") {
+    readJsonBody((err, data) => {
+      if (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_json" }));
+        return;
+      }
+      const userId = String(data.userId || "").trim();
+      const deviceId = String(data.deviceId || userId || "web").slice(0, 64);
+      const key = String(data.key || "").trim().toUpperCase();
+      if (!userId || !key) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "missing_params", message: "请输入完整的激活码（格式：CHM-PRO-XXXX-XXXX-XXXX）。" }));
+        return;
+      }
+      if (!licenses.has(key)) loadLicensesDatabase(false);
+      const lic = licenses.get(key);
+      if (!lic || lic.status !== "active") {
+        res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_key", message: "激活码无效或已被停用，请检查拼写或联系客服。" }));
+        return;
+      }
+      if (lic.expiresAt && Date.now() > lic.expiresAt) {
+        res.writeHead(410, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "expired_key", message: "该激活码已过期。" }));
+        return;
+      }
+      lic.activatedBy = Array.isArray(lic.activatedBy) ? lic.activatedBy : [];
+      const alreadyBound = lic.activatedBy.some((a) => a.userId === userId || a.deviceId === deviceId);
+      if (!alreadyBound && lic.activatedBy.length >= (lic.maxDevices || 2)) {
+        res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "device_limit_reached", message: `该激活码已达设备绑定上限（${lic.maxDevices || 2} 台设备）。` }));
+        return;
+      }
+      if (!alreadyBound) {
+        lic.activatedBy.push({ userId, deviceId, activatedAt: Date.now() });
+      }
+      if (!lic.expiresAt && lic.durationDays > 0) {
+        lic.expiresAt = Date.now() + lic.durationDays * 24 * 3600 * 1000;
+      }
+      const prev = userMemberships.get(userId);
+      userMemberships.set(userId, {
+        ...(prev || {}),
+        tier: lic.tier || "pro",
+        plan: lic.plan || "yearly",
+        planName: lic.planName || "Pro 会员",
+        key: lic.key,
+        expiresAt: lic.expiresAt || null,
+        trialUsed: Boolean(prev?.trialUsed),
+        dailyPkDate: todayDateKey(),
+        dailyPkCount: prev?.dailyPkCount || 0,
+      });
+      const pl = players.get(userId);
+      if (pl) {
+        pl.tier = lic.tier || "pro";
+        scheduleSave();
+      }
+      scheduleLicenseSave();
+      const entitlement = getUserEntitlement(userId);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, message: `激活成功！已解锁 ${entitlement.planName} 全部权益。`, entitlement }));
+    });
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/admin/license/generate") {
+    const providedAdmin = String(req.headers["x-admin-key"] || "");
+    if (!ADMIN_KEY || providedAdmin !== ADMIN_KEY) {
+      res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "forbidden" }));
+      return;
+    }
+    readJsonBody((err, data) => {
+      if (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_json" }));
+        return;
+      }
+      const plan = PLAN_CATALOG[data.plan] ? data.plan : "yearly";
+      const spec = PLAN_CATALOG[plan];
+      const count = Math.min(200, Math.max(1, Number(data.count || 1)));
+      const created = [];
+      for (let i = 0; i < count; i++) {
+        let key = generateLicenseKey(plan);
+        while (licenses.has(key)) key = generateLicenseKey(plan);
+        const rec = {
+          key,
+          tier: spec.tier,
+          plan: spec.plan,
+          planName: spec.planName,
+          durationDays: spec.durationDays,
+          maxDevices: Number(data.maxDevices || spec.maxDevices),
+          activatedBy: [],
+          createdAt: Date.now(),
+          expiresAt: null,
+          status: "active",
+        };
+        licenses.set(key, rec);
+        created.push(key);
+      }
+      scheduleLicenseSave();
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, plan, count: created.length, keys: created }));
+    });
+    return;
+  }
 
   if (req.method === "GET" && parsedUrl.pathname === "/api/health") {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
@@ -551,6 +923,7 @@ const server = http.createServer((req, res) => {
             cityRank: lb.myRank,
             onlineCount: lb.onlineCount,
             profile: updated,
+            entitlement: getUserEntitlement(userId),
           })
         );
       } catch (err) {
