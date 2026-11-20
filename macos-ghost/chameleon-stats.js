@@ -489,6 +489,51 @@
     }
   }
 
+  async function fetchFuelStatus(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/status?userId=${encodeURIComponent(uid)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.ok && data.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function claimDailyFuel(userId, taskType = "daily_30m") {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: uid, taskType }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法连接能量补给站服务器。" };
+    }
+  }
+
+  async function claimReferralBonus(inviterId, inviteeId) {
+    const uid = inviteeId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/referral`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviterId, inviteeId: uid }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法验证好友邀请。" };
+    }
+  }
+
   function formatExpiryDate(ts) {
     if (!ts) return "永久有效";
     const d = new Date(ts);
@@ -603,6 +648,9 @@
     refreshMembership,
     startFreeTrial,
     activateLicenseKey,
+    fetchFuelStatus,
+    claimDailyFuel,
+    claimReferralBonus,
     formatExpiryDate,
     getRankForSeconds,
     formatDuration,

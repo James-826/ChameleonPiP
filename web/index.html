@@ -262,6 +262,34 @@
       }
       .checkout-toast.show { display: block; }
 
+      .install-steps {
+        margin-top: 6px; padding: 12px 13px; border-radius: 10px;
+        background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #cbd5e1;
+      }
+      .install-steps-title { font-size: 11.5px; font-weight: 700; color: #6ee7b7; }
+      .step-row { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+      .step-num {
+        flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; margin-top: 1px;
+        background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(52, 211, 153, 0.38);
+        color: #6ee7b7; font-size: 10.5px; font-weight: 800;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .copy-pill {
+        appearance: none; border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.05); color: #7dd3fc;
+        padding: 2px 7px; border-radius: 5px; font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer;
+      }
+      .copy-pill:hover { background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.45); }
+
+      .fuel-banner {
+        margin-top: 18px; padding: 20px 22px; border-radius: 15px;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(56, 189, 248, 0.06));
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+      }
+
       /* Footer */
       footer {
         border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -547,6 +575,11 @@
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <a class="btn btn-primary" id="btnDlMac" href="#" target="_blank" rel="noopener" data-zh="下载 macOS 客户端 (.zip)" data-en="Download macOS App (.zip)">下载 macOS 客户端 (.zip)</a>
             </div>
+            <div class="install-steps">
+              <div class="install-steps-title" data-zh="2 步 10 秒运行说明" data-en="2-Step Setup (10 Seconds)">2 步 10 秒运行说明</div>
+              <div class="step-row"><span class="step-num">1</span><span data-zh="解压后把 GeckoGhost.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。" data-en="Unzip and drag GeckoGhost.app into Applications, then open it (the Dynamic Island appears beside your notch).">解压后把 GeckoGhost.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。</span></div>
+              <div class="step-row"><span class="step-num">2</span><span data-zh="首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。" data-en="If macOS Gatekeeper prompts on first launch: Right-click the app -> Open, or allow it in System Settings -> Privacy &amp; Security.">首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。</span></div>
+            </div>
           </div>
 
           <div class="dl-card">
@@ -557,12 +590,25 @@
                 支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。
               </p>
               <div class="dl-specs">
-                <span>Chrome 116+ / Edge / Arc / Brave</span><span>Manifest V3</span><span>通过隐私规范校验</span>
+                <span>Chrome 116+ / Edge / Arc / Brave</span><span>Manifest V3</span><span>无需商店 15 秒安装</span>
               </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <a class="btn btn-primary" id="btnDlExt" href="#" target="_blank" rel="noopener" data-zh="下载浏览器扩展包 (.zip)" data-en="Download Extension (.zip)">下载浏览器扩展包 (.zip)</a>
               <a class="btn" id="btnChromeStore" href="#" target="_blank" rel="noopener" style="display:none" data-zh="Chrome 应用商店安装" data-en="Chrome Web Store">Chrome 应用商店安装</a>
+            </div>
+            <div class="install-steps">
+              <div class="install-steps-title" data-zh="无需等待商店 · 15 秒拖入安装" data-en="Install Offline in 15 Seconds">无需等待商店 · 15 秒拖入安装</div>
+              <div class="step-row"><span class="step-num">1</span><span data-zh="下载上方 .zip 扩展包并解压成一个文件夹（请保留该文件夹不要删除）。" data-en="Download and unzip the extension archive into a folder.">下载上方 .zip 扩展包并解压成一个文件夹（请保留该文件夹不要删除）。</span></div>
+              <div class="step-row">
+                <span class="step-num">2</span>
+                <span>
+                  <span data-zh="地址栏打开扩展页并开启右上角「开发者模式」：" data-en="Open Extensions page &amp; toggle Developer Mode ON: ">地址栏打开扩展页并开启右上角「开发者模式」：</span>
+                  <button type="button" class="copy-pill" data-copy="chrome://extensions/">复制 chrome://extensions/</button>
+                  <button type="button" class="copy-pill" data-copy="edge://extensions/">复制 edge://extensions/</button>
+                </span>
+              </div>
+              <div class="step-row"><span class="step-num">3</span><span data-zh="把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），按 ⌃⇧G 即可投送任意视频！" data-en="Drag the unzipped folder onto the extensions page (or click Load Unpacked), then press ⌃⇧G on any video!">把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），按 ⌃⇧G 即可投送任意视频！</span></div>
             </div>
           </div>
         </div>
@@ -649,6 +695,18 @@
           </div>
         </div>
 
+        <div class="fuel-banner">
+          <div style="display:flex;flex-direction:column;gap:4px;max-width:660px">
+            <div style="font-size:15.5px;font-weight:700;color:#f8fafc" data-zh="不想直接付费？来「变色龙能量补给站」免费攒 Pro 时长" data-en="Earn Free Pro Time in the Chameleon Fuel Station">
+              不想直接付费？来「变色龙能量补给站」免费攒 Pro 时长
+            </div>
+            <div style="font-size:12.5px;color:#94a3b8" data-zh="每日用小窗真看视频满 30 分钟打卡领 +12 小时 Pro（连签 3 天额外送 +24h）；邀请同事开局约战双方各得 +3 天 Pro！" data-en="Watch 30 minutes of verified video daily to claim +12h Pro (+24h every 3-day streak), or invite a friend so both receive +3 days of Pro!">
+              每日用小窗真看视频满 30 分钟打卡领 +12 小时 Pro（连签 3 天额外送 +24h）；邀请同事开局约战双方各得 +3 天 Pro！
+            </div>
+          </div>
+          <a class="btn btn-primary" href="arena.html#fuel" data-zh="打开补给站领 Pro" data-en="Open Fuel Station">打开补给站领 Pro</a>
+        </div>
+
         <div class="checkout-toast" id="checkoutToast"></div>
       </div>
     </section>
@@ -667,11 +725,11 @@
 
     <canvas id="srcDemoCanvas" width="420" height="240" style="display:none"></canvas>
 
-    <script src="store-config.js?v=5.2"></script>
-    <script src="chameleon-stats.js?v=5.2"></script>
+    <script src="store-config.js?v=5.3"></script>
+    <script src="chameleon-stats.js?v=5.3"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.2"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.3"><\/script>');
       }
     </script>
     <script>
@@ -701,6 +759,20 @@
           });
           document.querySelectorAll("[data-zh-html]").forEach((el) => {
             el.innerHTML = isEn ? el.dataset.enHtml : el.dataset.zhHtml;
+          });
+        });
+
+        document.querySelectorAll("[data-copy]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const val = btn.dataset.copy;
+            const orig = btn.textContent;
+            try {
+              await navigator.clipboard.writeText(val);
+              btn.textContent = "已复制！去地址栏粘贴";
+              setTimeout(() => (btn.textContent = orig), 2200);
+            } catch (_) {
+              btn.textContent = val;
+            }
           });
         });
 

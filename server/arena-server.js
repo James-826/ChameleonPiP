@@ -111,6 +111,66 @@ function loadLicensesDatabase(force = false) {
   } catch (_) {}
 }
 
+function getUserFuelSummary(userId, recOverride = null) {
+  const today = todayDateKey();
+  const rec = recOverride || userMemberships.get(userId) || {};
+  const pl = players.get(userId);
+  const dailyPlaySec = Math.max(
+    Number(pl?.todaySeconds || 0),
+    rec.dailyFuelDate === today ? Number(rec.dailyFuelPlaySec || 0) : 0
+  );
+  const dailyTargetSec = 1800; // 30 minutes of verified video playback
+  const dailyClaimed = rec.dailyClaimDate === today;
+  const referrals = Array.isArray(rec.referrals) ? rec.referrals : [];
+  return {
+    dailyTargetSec,
+    dailyPlaySec,
+    dailyPct: Math.min(100, Math.round((dailyPlaySec / dailyTargetSec) * 100)),
+    dailyReady: dailyPlaySec >= dailyTargetSec && !dailyClaimed,
+    dailyClaimed,
+    streakDays: Number(rec.streakDays || 0),
+    referralsCount: referrals.length,
+    referralMax: 10,
+    fuelHoursEarned: Number(rec.fuelHoursEarned || 0),
+    referredBy: rec.referredBy || null,
+  };
+}
+
+function grantFuelProDuration(userId, hoursToAdd) {
+  const today = todayDateKey();
+  const rec = userMemberships.get(userId) || {
+    tier: "free",
+    plan: "free",
+    planName: "Free 免费版",
+    key: null,
+    expiresAt: null,
+    trialUsed: false,
+    dailyPkDate: today,
+    dailyPkCount: 0,
+  };
+
+  rec.fuelHoursEarned = Number(rec.fuelHoursEarned || 0) + Number(hoursToAdd || 0);
+  if (rec.tier !== "lifetime") {
+    const now = Date.now();
+    const base = rec.tier === "pro" && rec.expiresAt && rec.expiresAt > now ? rec.expiresAt : now;
+    rec.expiresAt = base + hoursToAdd * 3600 * 1000;
+    rec.tier = "pro";
+    if (!rec.plan || rec.plan === "free") {
+      rec.plan = "fuel";
+      rec.planName = "Pro 能量补给会员";
+    }
+  }
+
+  userMemberships.set(userId, rec);
+  const pl = players.get(userId);
+  if (pl) {
+    pl.tier = rec.tier;
+    scheduleSave();
+  }
+  scheduleLicenseSave();
+  return rec;
+}
+
 function getUserEntitlement(userId) {
   const today = todayDateKey();
   const rec = userMemberships.get(userId) || {
@@ -158,9 +218,10 @@ function getUserEntitlement(userId) {
     dailyPkLimit: isPro ? -1 : FREE_DAILY_PK_LIMIT,
     dailyPkUsed: rec.dailyPkCount || 0,
     dailyPkRemaining: remaining,
+    fuel: getUserFuelSummary(userId, rec),
     features: {
       opticalModes: isPro ? ["projector", "emboss", "cinema"] : ["projector"],
-      clickThrough: isPro,
+      clickThrough: true,
       screenShareStealth: isPro,
       roomPkCreate: isPro,
       royalePk: isPro,
@@ -797,6 +858,138 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === "GET" && parsedUrl.pathname === "/api/fuel/status") {
+    const userId = String(parsedUrl.searchParams.get("userId") || "").trim();
+    if (!userId) {
+      res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "missing_userId" }));
+      return;
+    }
+    const entitlement = getUserEntitlement(userId);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: true, fuel: entitlement.fuel, entitlement }));
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/fuel/claim") {
+    readJsonBody((err, data) => {
+      if (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_json" }));
+        return;
+      }
+      const userId = String(data.userId || "").trim();
+      const taskType = String(data.taskType || "daily_30m").trim();
+      if (!userId) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "missing_userId" }));
+        return;
+      }
+
+      const today = todayDateKey();
+      const fuel = getUserFuelSummary(userId);
+      const rec = userMemberships.get(userId) || {};
+
+      if (taskType === "daily_30m") {
+        if (fuel.dailyClaimed) {
+          res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ ok: false, error: "already_claimed", message: "今日 12 小时 Pro 能量打卡已完成，明天继续看视频即可再领！", fuel, entitlement: getUserEntitlement(userId) }));
+          return;
+        }
+        if (fuel.dailyPlaySec < fuel.dailyTargetSec) {
+          const remainMin = Math.max(1, Math.ceil((fuel.dailyTargetSec - fuel.dailyPlaySec) / 60));
+          res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ ok: false, error: "not_enough_playtime", message: `今日真实播放视频需满 30 分钟才能领取（当前还差约 ${remainMin} 分钟）。`, fuel, entitlement: getUserEntitlement(userId) }));
+          return;
+        }
+        const yday = new Date(Date.now() - 86400000);
+        const ydayKey = `${yday.getFullYear()}-${String(yday.getMonth() + 1).padStart(2, "0")}-${String(yday.getDate()).padStart(2, "0")}`;
+        const nextStreak = rec.dailyClaimDate === ydayKey ? Number(rec.streakDays || 0) + 1 : 1;
+        rec.dailyClaimDate = today;
+        rec.streakDays = nextStreak;
+        userMemberships.set(userId, rec);
+
+        // Extra +24h bonus on every 3rd consecutive day!
+        const bonusHours = nextStreak > 0 && nextStreak % 3 === 0 ? 24 : 12;
+        grantFuelProDuration(userId, bonusHours);
+        const entitlement = getUserEntitlement(userId);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            hoursGranted: bonusHours,
+            message:
+              bonusHours >= 24
+                ? `连续第 ${nextStreak} 天打卡达成！已奖励 +24 小时 Pro 会员时长！`
+                : `打卡成功！已领取 +12 小时 Pro 会员时长（当前连续 ${nextStreak} 天）。`,
+            fuel: entitlement.fuel,
+            entitlement,
+          })
+        );
+        return;
+      }
+
+      res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "unknown_task" }));
+    });
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/fuel/referral") {
+    readJsonBody((err, data) => {
+      if (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_json" }));
+        return;
+      }
+      const inviterId = String(data.inviterId || "").trim();
+      const inviteeId = String(data.inviteeId || "").trim();
+      if (!inviterId || !inviteeId || inviterId === inviteeId) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_referral", message: "邀请参数无效或不能邀请自己。" }));
+        return;
+      }
+
+      const inviteeRec = userMemberships.get(inviteeId) || {};
+      if (inviteeRec.referredBy) {
+        const entitlement = getUserEntitlement(inviteeId);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true, alreadyClaimed: true, message: "当前设备已领取过受邀好友 Pro 奖励。", entitlement, fuel: entitlement.fuel }));
+        return;
+      }
+
+      const inviterRec = userMemberships.get(inviterId) || {};
+      inviterRec.referrals = Array.isArray(inviterRec.referrals) ? inviterRec.referrals : [];
+      if (inviterRec.referrals.length >= 10) {
+        res.writeHead(429, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: false, error: "referral_cap_reached", message: "邀请人本月已达 10 人互赠上限。" }));
+        return;
+      }
+
+      inviteeRec.referredBy = inviterId;
+      userMemberships.set(inviteeId, inviteeRec);
+      if (!inviterRec.referrals.includes(inviteeId)) {
+        inviterRec.referrals.push(inviteeId);
+        userMemberships.set(inviterId, inviterRec);
+      }
+
+      grantFuelProDuration(inviteeId, 72);
+      grantFuelProDuration(inviterId, 72);
+
+      const entitlement = getUserEntitlement(inviteeId);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          message: "好友邀请绑定成功！你与邀请人已各自获赠 +3 天 Pro 会员时长！",
+          entitlement,
+          fuel: entitlement.fuel,
+        })
+      );
+    });
+    return;
+  }
+
   if (req.method === "POST" && parsedUrl.pathname === "/api/admin/license/generate") {
     const providedAdmin = String(req.headers["x-admin-key"] || "");
     if (!ADMIN_KEY || providedAdmin !== ADMIN_KEY) {
@@ -908,6 +1101,27 @@ const server = http.createServer((req, res) => {
         players.set(userId, updated);
         scheduleSave();
 
+        // Keep server-side daily Fuel playtime synced with verified player heartbeat
+        const today = todayDateKey();
+        const mRec = userMemberships.get(userId) || {
+          tier: "free",
+          plan: "free",
+          planName: "Free 免费版",
+          key: null,
+          expiresAt: null,
+          trialUsed: false,
+          dailyPkDate: today,
+          dailyPkCount: 0,
+        };
+        if (mRec.dailyFuelDate !== today) {
+          mRec.dailyFuelDate = today;
+          mRec.dailyFuelPlaySec = updated.todaySeconds || 0;
+        } else {
+          mRec.dailyFuelPlaySec = Math.max(Number(mRec.dailyFuelPlaySec || 0), Number(updated.todaySeconds || 0));
+        }
+        userMemberships.set(userId, mRec);
+        scheduleLicenseSave();
+
         const lb = buildLeaderboardResponse({
           scope: "city",
           city: updated.city,
@@ -950,7 +1164,7 @@ const server = http.createServer((req, res) => {
         ".svg": "image/svg+xml",
         ".json": "application/json; charset=utf-8",
       }[ext] || "application/octet-stream";
-      res.writeHead(200, { "Content-Type": mime, "Cache-Control": "no-cache" });
+      res.writeHead(200, { "Content-Type": mime, "Cache-Control": "no-store, must-revalidate" });
       res.end(fs.readFileSync(fullPath));
       return;
     }
