@@ -25,6 +25,7 @@
     valFeather: document.getElementById("valFeather"),
     chkHoverReveal: document.getElementById("chkHoverReveal"),
     chkSubtitles: document.getElementById("chkSubtitles"),
+    chkStealthSubtitle: document.getElementById("chkStealthSubtitle"),
   };
 
   function checkGhostAlive(timeoutMs = 350) {
@@ -92,15 +93,25 @@
 
     if (strip) strip.classList.toggle("is-pro", isPro);
     if (pill) {
-      pill.textContent = membership.tier === "lifetime" ? "MAX" : isPro ? "PRO" : "FREE";
+      const lbl =
+        membership.plan === "patron" || (membership.tier === "lifetime" && membership.plan !== "coffee" && membership.plan !== "latte")
+          ? "MAX"
+          : membership.plan === "latte"
+          ? "VIP"
+          : membership.plan === "coffee"
+          ? "SUP"
+          : isPro
+          ? "PRO"
+          : "FREE";
+      pill.textContent = lbl;
       pill.classList.toggle("pro", isPro);
     }
     if (desc) {
       desc.textContent = isPro
-        ? `${membership.planName || "Pro 会员"} · 有效期至 ${Stats.formatExpiryDate(membership.expiresAt)}`
-        : "免费版 · 升级解锁浮雕/彩透/会议隐身";
+        ? `${membership.planName || "永久支持者"} · ${Stats.formatExpiryDate(membership.expiresAt)}`
+        : "全模式永久免费 · 每日 30m 免费 AI 防窥";
     }
-    if (btn) btn.textContent = isPro ? "会员中心" : "升级 / 激活";
+    if (btn) btn.textContent = isPro ? "支持者中心" : "支持 / 激活";
     if (btnTrial) {
       btnTrial.style.display = isPro ? "none" : "inline-block";
       if (membership.trialUsed) {
@@ -214,6 +225,7 @@
 
     if (els.chkHoverReveal) els.chkHoverReveal.checked = Boolean(state.hoverReveal);
     els.chkSubtitles.checked = Boolean(state.mirrorSubtitles);
+    if (els.chkStealthSubtitle) els.chkStealthSubtitle.checked = Boolean(state.stealthSubtitle);
     renderMembershipBar();
   }
 
@@ -288,15 +300,10 @@
     updateState({ autoSense: els.chkAutoSense.checked });
   });
 
-  // Style tabs: Emboss & Cinema require Pro membership
+  // All 3 Chameleon visual modes (变色融合 / 浮雕隐身 / 彩透变色) are 100% FREE forever!
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      const targetMode = tab.dataset.mode;
-      if (targetMode !== "projector" && Stats && !Stats.isProMember(membership)) {
-        openPopupProDrawer("「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙模式，可一键开启 3 天免费体验或输入激活码解锁！");
-        return;
-      }
-      updateState({ mode: targetMode });
+      updateState({ mode: tab.dataset.mode });
     });
   });
 
@@ -372,6 +379,11 @@
 
   els.chkSubtitles.addEventListener("change", () => {
     updateState({ mirrorSubtitles: els.chkSubtitles.checked });
+  });
+
+  els.chkStealthSubtitle?.addEventListener("change", () => {
+    const on = els.chkStealthSubtitle.checked;
+    updateState({ stealthSubtitle: on, mirrorSubtitles: on ? true : state.mirrorSubtitles });
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {

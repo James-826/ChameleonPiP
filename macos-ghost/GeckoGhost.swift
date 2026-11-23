@@ -5,6 +5,10 @@ import Network
 import ScreenCaptureKit
 import Carbon
 import CoreGraphics
+import AVFoundation
+import Vision
+import CoreMedia
+import CoreVideo
 
 final class GhostPanel: NSPanel {
     var allowKeyWindow: Bool = true
@@ -29,6 +33,7 @@ final class FlippedControlsView: NSView {
 final class IslandPillButton: NSControl {
     var title: String { didSet { needsDisplay = true } }
     var isActiveTint: Bool = false { didSet { needsDisplay = true } }
+    var isAlertTint: Bool = false { didSet { needsDisplay = true } }
     var isPrimary: Bool = false { didSet { needsDisplay = true } }
     var onClick: (() -> Void)?
     private var isHovered = false
@@ -61,7 +66,13 @@ final class IslandPillButton: NSControl {
 
     override func draw(_ dirtyRect: NSRect) {
         let bg: NSColor
-        if isPrimary || isActiveTint {
+        if isAlertTint {
+            bg = isPressed
+                ? NSColor(calibratedRed: 0.78, green: 0.16, blue: 0.18, alpha: 1.0)
+                : (isHovered
+                    ? NSColor(calibratedRed: 0.96, green: 0.28, blue: 0.30, alpha: 1.0)
+                    : NSColor(calibratedRed: 0.88, green: 0.22, blue: 0.24, alpha: 0.95))
+        } else if isPrimary || isActiveTint {
             bg = isPressed
                 ? NSColor(calibratedRed: 0.03, green: 0.42, blue: 0.88, alpha: 1.0)
                 : (isHovered
@@ -78,11 +89,11 @@ final class IslandPillButton: NSControl {
         bg.setFill()
         path.fill()
 
-        NSColor(calibratedWhite: 1.0, alpha: (isPrimary || isActiveTint) ? 0.25 : 0.12).setStroke()
+        NSColor(calibratedWhite: 1.0, alpha: (isPrimary || isActiveTint || isAlertTint) ? 0.28 : 0.12).setStroke()
         path.lineWidth = 0.5
         path.stroke()
 
-        let font = NSFont.systemFont(ofSize: 11.0, weight: (isPrimary || isActiveTint) ? .semibold : .medium)
+        let font = NSFont.systemFont(ofSize: 11.0, weight: (isPrimary || isActiveTint || isAlertTint) ? .semibold : .medium)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.white
@@ -97,6 +108,8 @@ final class IslandPillButton: NSControl {
 final class DynamicIslandShellView: NSView {
     var isExpanded: Bool = false { didSet { needsDisplay = true } }
     var isPlayerPaused: Bool = true { didSet { needsDisplay = true } }
+    var isRadarActive: Bool = false { didSet { needsDisplay = true } }
+    var isRadarAlert: Bool = false { didSet { needsDisplay = true } }
     var earWidth: CGFloat = 46
     var onTogglePlay: (() -> Void)?
     var onToggleExpand: (() -> Void)?
@@ -200,9 +213,16 @@ final class DynamicIslandShellView: NSView {
             NSBezierPath(roundedRect: NSRect(x: topFlare + 3, y: cy - 10, width: earWidth - topFlare - 4, height: 20), xRadius: 6, yRadius: 6).fill()
         }
 
-        let dotColor = isPlayerPaused
-            ? NSColor(calibratedRed: 0.20, green: 0.82, blue: 0.48, alpha: 0.85)
-            : NSColor(calibratedRed: 0.19, green: 0.88, blue: 0.40, alpha: 1.0)
+        let dotColor: NSColor
+        if isRadarAlert {
+            dotColor = NSColor(calibratedRed: 0.98, green: 0.26, blue: 0.28, alpha: 1.0)
+        } else if isRadarActive {
+            dotColor = NSColor(calibratedRed: 0.22, green: 0.78, blue: 0.98, alpha: 1.0)
+        } else if isPlayerPaused {
+            dotColor = NSColor(calibratedRed: 0.20, green: 0.82, blue: 0.48, alpha: 0.85)
+        } else {
+            dotColor = NSColor(calibratedRed: 0.19, green: 0.88, blue: 0.40, alpha: 1.0)
+        }
         dotColor.setFill()
         NSBezierPath(ovalIn: NSRect(x: leftCenter - 11.5, y: cy - 2.5, width: 5.0, height: 5.0)).fill()
 
@@ -269,6 +289,116 @@ final class DynamicIslandShellView: NSView {
         chev.lineJoinStyle = .round
         chev.stroke()
     }
+}
+
+/// Black Tech #1: 100% On-Device Apple Vision Anti-Peek Radar (zero upload, zero storage!)
+final class VisionAntiPeekRadar: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "com.chameleon.vision.radar", qos: .utility)
+    private var isConfigured = false
+    private var isActive = false
+    private var lastAnalyzeTime: CFTimeInterval = 0
+
+    var onFaceCount: ((Int) -> Void)?
+    var onStarted: (() -> Void)?
+    var onError: ((String) -> Void)?
+
+    func start() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            queue.async { [weak self] in self?.configureAndStartLocked() }
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                guard let self = self else { return }
+                if granted {
+                    self.queue.async { self.configureAndStartLocked() }
+                } else {
+                    DispatchQueue.main.async { self.onError?("camera_denied") }
+                }
+            }
+        default:
+            DispatchQueue.main.async { self.onError?("camera_denied") }
+        }
+    }
+
+    func stop() {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            self.isActive = false
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+        }
+    }
+
+    private func configureAndStartLocked() {
+        if !isConfigured {
+            session.beginConfiguration()
+            if session.canSetSessionPreset(.cif352x288) {
+                session.sessionPreset = .cif352x288
+            } else if session.canSetSessionPreset(.low) {
+                session.sessionPreset = .low
+            }
+
+            guard let device = AVCaptureDevice.default(for: .video),
+                  let input = try? AVCaptureDeviceInput(device: device),
+                  session.canAddInput(input) else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { self.onError?("no_camera") }
+                return
+            }
+            session.addInput(input)
+
+            let output = AVCaptureVideoDataOutput()
+            output.alwaysDiscardsLateVideoFrames = true
+            output.setSampleBufferDelegate(self, queue: queue)
+            guard session.canAddOutput(output) else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { self.onError?("no_camera") }
+                return
+            }
+            session.addOutput(output)
+            session.commitConfiguration()
+            isConfigured = true
+        }
+
+        isActive = true
+        if !session.isRunning {
+            session.startRunning()
+        }
+        DispatchQueue.main.async { [weak self] in self?.onStarted?() }
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard isActive else { return }
+        let now = CACurrentMediaTime()
+        guard now - lastAnalyzeTime >= 0.40 else { return }
+        lastAnalyzeTime = now
+
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let req = VNDetectFaceRectanglesRequest()
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
+        do {
+            try handler.perform([req])
+            let faces = (req.results ?? []).filter { $0.boundingBox.width >= 0.045 && $0.boundingBox.height >= 0.045 }
+            let count = faces.count
+            DispatchQueue.main.async { [weak self] in
+                self?.onFaceCount?(count)
+            }
+        } catch {
+            // Silently ignore single frame Vision error
+        }
+    }
+}
+
+/// Helper target for quick-fill site preset buttons inside the native Web URL prompt dialog
+final class UrlPresetTarget: NSObject {
+    weak var textField: NSTextField?
+    init(textField: NSTextField) { self.textField = textField }
+    @objc func pickBilibili() { textField?.stringValue = "https://www.bilibili.com" }
+    @objc func pickYouTube() { textField?.stringValue = "https://www.youtube.com" }
+    @objc func pickDouyin() { textField?.stringValue = "https://www.douyin.com" }
 }
 
 final class LocalWebSocketHub {
@@ -426,11 +556,16 @@ final class LocalWebSocketHub {
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
     private var panel: GhostPanel!
     private var webView: WKWebView!
+    private var builtInWebView: FirstMouseWebView?
+    private var isBuiltInWebActive: Bool = false
+    private var builtInVideoIsolated: Bool = false
+    private var currentBuiltInUrl: String = ""
 
-    // Pure-AppKit Compact Dynamic Island (316 x 178pt — fast, compact, 100% native, never blank!)
+    // Pure-AppKit Compact Dynamic Island (316 x 240pt — fast, compact, 100% native, never blank!)
     private var islandPanel: GhostPanel!
     private var islandShell: DynamicIslandShellView!
     private var controlsContainer: FlippedControlsView!
+    private var lblBrand: NSTextField!
     private var lblCurTime: NSTextField!
     private var lblDurTime: NSTextField!
     private var progressSlider: NSSlider!
@@ -442,12 +577,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var btnHoverReveal: IslandPillButton!
     private var btnThrough: IslandPillButton!
     private var btnVis: IslandPillButton!
+    private var btnRadar: IslandPillButton!
+    private var btnWebUrl: IslandPillButton!
+    private var btnStealthSub: IslandPillButton!
     private var lblStreakBadge: NSTextField!
     private var arenaWindow: NSWindow?
     private var arenaWebView: WKWebView?
     private var currentStreakSec: Int = 0
     private var totalSlackingSec: Int = UserDefaults.standard.integer(forKey: "chameleonTotalSec")
     private var pausedSecondsCount: Int = 0
+
+    // Black Tech #1: Local Apple Vision Anti-Peek Radar + Z-Library Daily Free 30-Min Shield Quota
+    private let antiPeekRadar = VisionAntiPeekRadar()
+    private var radarEnabled: Bool = false
+    private var radarAlertActive: Bool = false
+    private var bossTriggeredByRadar: Bool = false
+    private var radarSafeStreakCount: Int = 0
+    private var radarLastFaceCount: Int = 0
+    private let freeDailyShieldLimitSec: Int = 1800 // 30 minutes FREE every single day!
+    private var dailyShieldDate: String = ""
+    private var dailyShieldUsedSec: Int = 0
+
+    // Black Tech #3: Disguised Code/Terminal Log Subtitle Bar
+    private var stealthSubtitleEnabled: Bool = UserDefaults.standard.bool(forKey: "chameleonStealthSubtitle")
 
     private var isIslandExpanded: Bool = false
     private let wsHub = LocalWebSocketHub()
@@ -488,6 +640,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        loadDailyShieldQuota()
+        configureAntiPeekRadarCallbacks()
         wsHub.onArenaConnected = { [weak self] in
             DispatchQueue.main.async {
                 self?.broadcastPlaybackStateToArena()
@@ -507,6 +661,137 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         ) { [weak self] _ in
             self?.layoutDynamicIsland(animated: false)
         }
+    }
+
+    private static func todayDateString() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: Date())
+    }
+
+    private func loadDailyShieldQuota() {
+        let today = Self.todayDateString()
+        let savedDate = UserDefaults.standard.string(forKey: "chameleonShieldDate") ?? ""
+        if savedDate == today {
+            dailyShieldDate = today
+            dailyShieldUsedSec = UserDefaults.standard.integer(forKey: "chameleonShieldUsedSec")
+        } else {
+            dailyShieldDate = today
+            dailyShieldUsedSec = 0
+            UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
+            UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
+        }
+    }
+
+    private func hasActiveShieldEntitlement() -> Bool {
+        if isProMember { return true }
+        let today = Self.todayDateString()
+        if dailyShieldDate != today {
+            dailyShieldDate = today
+            dailyShieldUsedSec = 0
+            UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
+            UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
+        }
+        return dailyShieldUsedSec < freeDailyShieldLimitSec
+    }
+
+    private func updatePanelSharingType() {
+        panel?.sharingType = (hideFromCapture && hasActiveShieldEntitlement()) ? .none : .readOnly
+    }
+
+    private func configureAntiPeekRadarCallbacks() {
+        antiPeekRadar.onStarted = { [weak self] in
+            guard let self = self else { return }
+            self.radarEnabled = true
+            self.radarAlertActive = false
+            self.radarSafeStreakCount = 0
+            self.islandShell?.isRadarActive = true
+            self.islandShell?.isRadarAlert = false
+            self.syncNativeIslandControls()
+        }
+        antiPeekRadar.onError = { [weak self] code in
+            guard let self = self else { return }
+            self.radarEnabled = false
+            self.radarAlertActive = false
+            self.islandShell?.isRadarActive = false
+            self.islandShell?.isRadarAlert = false
+            self.syncNativeIslandControls()
+            self.showCameraPermissionHelp(code: code)
+        }
+        antiPeekRadar.onFaceCount = { [weak self] count in
+            guard let self = self, self.radarEnabled else { return }
+            self.radarLastFaceCount = count
+            if count >= 2 {
+                self.radarSafeStreakCount = 0
+                if !self.bossMode {
+                    self.bossTriggeredByRadar = true
+                    self.radarAlertActive = true
+                    self.islandShell?.isRadarAlert = true
+                    self.setBoss(true)
+                } else if self.bossTriggeredByRadar && !self.radarAlertActive {
+                    self.radarAlertActive = true
+                    self.islandShell?.isRadarAlert = true
+                    self.syncNativeIslandControls()
+                }
+            } else {
+                if self.bossTriggeredByRadar && self.bossMode {
+                    self.radarSafeStreakCount += 1
+                    // ~2.8 seconds continuously clear (7 checks * 0.4s) -> auto-recover!
+                    if self.radarSafeStreakCount >= 7 {
+                        self.bossTriggeredByRadar = false
+                        self.radarAlertActive = false
+                        self.radarSafeStreakCount = 0
+                        self.islandShell?.isRadarAlert = false
+                        self.setBoss(false)
+                    }
+                } else if self.radarAlertActive {
+                    self.radarAlertActive = false
+                    self.islandShell?.isRadarAlert = false
+                    self.syncNativeIslandControls()
+                }
+            }
+        }
+    }
+
+    private func showCameraPermissionHelp(code: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        if code == "no_camera" {
+            alert.messageText = "未检测到可用摄像头"
+            alert.informativeText = "AI 背后防偷窥雷达需要使用本机前置摄像头进行 100% 本地人脸数量检测。"
+            alert.addButton(withTitle: "知道了")
+            alert.runModal()
+        } else {
+            alert.messageText = "需要允许本机摄像头权限"
+            alert.informativeText = "ChameleonPiP 的「AI 背后防偷窥雷达」100% 运行在本地内存中（调用 Apple Vision 仅统计画面人数，画面实时丢弃，绝不录制或上传）。请在系统设置 → 隐私与安全性 → 摄像头中开启允许。"
+            alert.addButton(withTitle: "打开系统设置")
+            alert.addButton(withTitle: "暂不开启")
+            if alert.runModal() == .alertFirstButtonReturn {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        }
+    }
+
+    private func toggleAntiPeekRadar() {
+        if radarEnabled {
+            radarEnabled = false
+            radarAlertActive = false
+            bossTriggeredByRadar = false
+            radarSafeStreakCount = 0
+            antiPeekRadar.stop()
+            islandShell?.isRadarActive = false
+            islandShell?.isRadarAlert = false
+            syncNativeIslandControls()
+            return
+        }
+        guard hasActiveShieldEntitlement() else {
+            openArenaWindow(upgradeReason: "今日 30 分钟免费「AI 背后防偷窥雷达 & 会议共享隐身」体验额度已用完（明天凌晨自动刷新）。请开发者喝杯美式（¥9.9 永久）即可不限时畅用，或去能量补给站免费打卡领时长！")
+            return
+        }
+        antiPeekRadar.start()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -533,7 +818,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.sharingType = (hideFromCapture && isProMember) ? .none : .readOnly
+        panel.sharingType = (hideFromCapture && hasActiveShieldEntitlement()) ? .none : .readOnly
         panel.ignoresMouseEvents = clickThrough
         panel.minSize = NSSize(width: 190, height: 110)
 
@@ -559,19 +844,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let shouldReveal = inside && (self.hoverRevealEnabled || optionHeld)
             if shouldReveal != self.isWindowHovered {
                 self.isWindowHovered = shouldReveal
-                self.webView.evaluateJavaScript(
-                    "window.GeckoNativeBridge?.setHovered(\(shouldReveal ? "true" : "false"), \(optionHeld ? "true" : "false"));",
-                    completionHandler: nil
-                )
+                let js = "window.GeckoNativeBridge?.setHovered(\(shouldReveal ? "true" : "false"), \(optionHeld ? "true" : "false"));"
+                self.webView.evaluateJavaScript(js, completionHandler: nil)
+                if self.isBuiltInWebActive {
+                    self.builtInWebView?.evaluateJavaScript(
+                        "window.ChameleonBuiltInBridge?.setHovered(\(shouldReveal ? "true" : "false"));",
+                        completionHandler: nil
+                    )
+                }
             }
         }
         RunLoop.main.add(hoverTimer, forMode: .common)
 
-        // Push saved hoverReveal preference into WebView right after boot
+        // Push saved hoverReveal & stealthSubtitle preferences into WebView right after boot
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             guard let self = self else { return }
             self.webView.evaluateJavaScript(
-                "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false")});",
+                "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false"),\"stealthSubtitle\":\(self.stealthSubtitleEnabled ? "true" : "false")});",
                 completionHandler: nil
             )
         }
@@ -596,7 +885,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 let b = self.panel.frame.size
                 let hudVisible = self.hoverRevealEnabled || event.modifierFlags.contains(.option)
 
-                // Let HUD buttons (top bar: 穿透/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
+                // In Built-in Web Browse Mode (before video is isolated), allow normal webpage clicking inside the interior!
+                if self.isBuiltInWebActive && !self.builtInVideoIsolated {
+                    let browsePad: CGFloat = 10
+                    let nearL = loc.x <= browsePad
+                    let nearR = loc.x >= b.width - browsePad
+                    let nearB = loc.y <= browsePad
+                    let nearT = loc.y >= b.height - browsePad
+                    var dir = ""
+                    if nearT { dir += "n" } else if nearB { dir += "s" }
+                    if nearL { dir += "w" } else if nearR { dir += "e" }
+                    if !dir.isEmpty {
+                        self.startNativeResize(dir: dir)
+                        return nil
+                    }
+                    // Allow drag from the thin top strip (excluding right-side toolbar buttons)
+                    if loc.y >= b.height - 34 && loc.x < b.width - 150 {
+                        self.startNativeDrag(offset: loc)
+                        return nil
+                    }
+                    return event
+                }
+
+                // Let HUD buttons (top bar: 穿透/日志/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
                 let inTopHudButtons = hudVisible && loc.y >= b.height - 46 && loc.y <= b.height - 8 && loc.x >= 10 && loc.x <= b.width - 10
                 let inBottomHudButtons = hudVisible && loc.y >= 8 && loc.y <= 66 && loc.x >= 10 && loc.x <= b.width - 10
                 if inTopHudButtons || inBottomHudButtons {
@@ -739,7 +1050,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     private func setupDynamicNotchIsland() {
         let expW: CGFloat = 316
-        let expH: CGFloat = 208
+        let expH: CGFloat = 240
 
         islandPanel = GhostPanel(
             contentRect: NSRect(x: 600, y: 1000, width: 296, height: 38),
@@ -771,7 +1082,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.isHidden = true
 
         // Top Ear Header (flanking the 38pt center Camera Notch!)
-        let lblBrand = Self.makeLabel("变色龙投影", frame: NSRect(x: 14, y: 11, width: 64, height: 16), alpha: 0.78)
+        lblBrand = Self.makeLabel("变色龙投影", frame: NSRect(x: 14, y: 11, width: 92, height: 16), alpha: 0.82)
         let btnCollapse = IslandPillButton(frame: NSRect(x: 252, y: 8, width: 50, height: 22), title: "收起 ▲")
         btnCollapse.onClick = { [weak self] in self?.setIslandExpanded(false) }
         controlsContainer.addSubview(lblBrand)
@@ -823,7 +1134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnRate)
         controlsContainer.addSubview(btnMute)
 
-        // Row 3 (y = 104): 3 Chameleon Camouflage Modes
+        // Row 3 (y = 104): All 3 Chameleon Camouflage Modes (100% FREE!)
         segMode = NSSegmentedControl(labels: ["变色融合", "浮雕隐身", "彩透变色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
         segMode.frame = NSRect(x: 14, y: 104, width: 288, height: 24)
         segMode.selectedSegment = 0
@@ -874,22 +1185,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         controlsContainer.addSubview(btnLocal)
         controlsContainer.addSubview(btnQuit)
 
-        // Row 5 (y = 168): Live Uninterrupted Streak + Quick Zoom [- / +] + [排行 / 对战]
-        lblStreakBadge = Self.makeLabel("待机 · 播放视频开始计时", frame: NSRect(x: 14, y: 173, width: 128, height: 16), alpha: 0.88)
-        let btnZoomOut = IslandPillButton(frame: NSRect(x: 144, y: 168, width: 34, height: 25), title: "小 -")
+        // Row 5 (y = 168): 3 Hardcore Black Techs + Quick Zoom [AI防窥] [网页直连] [日志字幕] [小 -] [大 +]
+        btnRadar = IslandPillButton(frame: NSRect(x: 14, y: 168, width: 72, height: 25), title: "AI防窥")
+        btnRadar.onClick = { [weak self] in self?.toggleAntiPeekRadar() }
+
+        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "网页直连")
+        btnWebUrl.onClick = { [weak self] in
+            guard let self = self else { return }
+            self.openWebVideoUrlPrompt()
+        }
+
+        btnStealthSub = IslandPillButton(frame: NSRect(x: 160, y: 168, width: 64, height: 25), title: "日志字幕")
+        btnStealthSub.isActiveTint = stealthSubtitleEnabled
+        btnStealthSub.onClick = { [weak self] in
+            guard let self = self else { return }
+            self.setStealthSubtitle(!self.stealthSubtitleEnabled)
+        }
+
+        let btnZoomOut = IslandPillButton(frame: NSRect(x: 228, y: 168, width: 35, height: 25), title: "小 -")
         btnZoomOut.onClick = { [weak self] in self?.scalePanelByFactor(0.84) }
-        let btnZoomIn = IslandPillButton(frame: NSRect(x: 182, y: 168, width: 34, height: 25), title: "大 +")
+
+        let btnZoomIn = IslandPillButton(frame: NSRect(x: 267, y: 168, width: 35, height: 25), title: "大 +")
         btnZoomIn.onClick = { [weak self] in self?.scalePanelByFactor(1.19) }
-        let btnArena = IslandPillButton(frame: NSRect(x: 220, y: 168, width: 82, height: 25), title: "排行 / 对战", primary: true)
+
+        controlsContainer.addSubview(btnRadar)
+        controlsContainer.addSubview(btnWebUrl)
+        controlsContainer.addSubview(btnStealthSub)
+        controlsContainer.addSubview(btnZoomOut)
+        controlsContainer.addSubview(btnZoomIn)
+
+        // Row 6 (y = 200): Live Uninterrupted Streak / Radar Status + [排行 / 支持]
+        lblStreakBadge = Self.makeLabel("待机 · 播放视频开始计时", frame: NSRect(x: 14, y: 205, width: 196, height: 16), alpha: 0.88)
+        let btnArena = IslandPillButton(frame: NSRect(x: 214, y: 200, width: 88, height: 25), title: "排行 / 支持", primary: true)
         btnArena.onClick = { [weak self] in
             self?.openArenaWindow()
         }
         controlsContainer.addSubview(lblStreakBadge)
-        controlsContainer.addSubview(btnZoomOut)
-        controlsContainer.addSubview(btnZoomIn)
         controlsContainer.addSubview(btnArena)
 
-        // 1Hz Slacking Streak & Rank Progression Ticker (ONLY counts when real video is actively playing!)
+        // 1Hz Slacking Streak & Daily Shield Quota Ticker (ONLY counts when real video is actively playing!)
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tickSlackingTelemetry()
         }
@@ -923,11 +1257,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if !enabled {
             isWindowHovered = false
             webView.evaluateJavaScript("window.GeckoNativeBridge?.setHovered(false, false);", completionHandler: nil)
+            builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.setHovered(false);", completionHandler: nil)
         }
-        webView.evaluateJavaScript(
-            "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(enabled ? "true" : "false")});",
-            completionHandler: nil
-        )
+        let patchJs = "{\"hoverReveal\":\(enabled ? "true" : "false")}"
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        syncNativeIslandControls()
+    }
+
+    private func setStealthSubtitle(_ enabled: Bool) {
+        stealthSubtitleEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "chameleonStealthSubtitle")
+        let patchJs = "{\"stealthSubtitle\":\(enabled ? "true" : "false"),\"mirrorSubtitles\":true}"
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
         syncNativeIslandControls()
     }
 
@@ -941,20 +1284,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc private func onModeChanged(_ sender: NSSegmentedControl) {
         let modes = ["projector", "emboss", "cinema"]
         let idx = max(0, min(2, sender.selectedSegment))
-        if idx > 0 && !isProMember {
-            sender.selectedSegment = 0
-            openArenaWindow(upgradeReason: "「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙进阶模式，点击下方可免费体验 3 天 Pro！")
-            return
-        }
         currentMode = modes[idx]
-        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch({\"mode\":\"\(currentMode)\"});", completionHandler: nil)
+        let patchJs = "{\"mode\":\"\(currentMode)\"}"
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
     }
 
     @objc private func onStealthSlide(_ sender: NSSlider) {
         let nextVal = sender.integerValue
         guard nextVal != currentStealth else { return }
         currentStealth = nextVal
-        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch({\"stealth\":\(currentStealth)});", completionHandler: nil)
+        let patchJs = "{\"stealth\":\(currentStealth)}"
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
     }
 
     private static func fmtTime(_ sec: Double) -> String {
@@ -992,9 +1334,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnThrough.isActiveTint = clickThrough
         btnVis.isActiveTint = isVisible
         btnVis.title = isVisible ? "显示" : "已隐"
+
+        // Black Tech #1, #2, #3 button states
+        if radarAlertActive {
+            btnRadar?.title = "⚠有人!"
+            btnRadar?.isAlertTint = true
+            btnRadar?.isActiveTint = false
+            lblBrand?.stringValue = "⚠ 背后有人!"
+            lblBrand?.textColor = NSColor(calibratedRed: 0.99, green: 0.45, blue: 0.42, alpha: 1.0)
+        } else if radarEnabled {
+            let remMin = max(1, (freeDailyShieldLimitSec - dailyShieldUsedSec + 59) / 60)
+            btnRadar?.title = isProMember ? "防窥 ON" : "防窥 \(remMin)m"
+            btnRadar?.isAlertTint = false
+            btnRadar?.isActiveTint = true
+            lblBrand?.stringValue = "AI防窥守护中"
+            lblBrand?.textColor = NSColor(calibratedRed: 0.43, green: 0.90, blue: 0.72, alpha: 0.95)
+        } else {
+            btnRadar?.title = "AI防窥"
+            btnRadar?.isAlertTint = false
+            btnRadar?.isActiveTint = false
+            lblBrand?.stringValue = isBuiltInWebActive ? "网页直连中" : "变色龙投影"
+            lblBrand?.textColor = NSColor(calibratedWhite: 1.0, alpha: 0.82)
+        }
+
+        btnWebUrl?.isActiveTint = isBuiltInWebActive
+        btnWebUrl?.title = isBuiltInWebActive ? "切换网页" : "网页直连"
+        btnStealthSub?.isActiveTint = stealthSubtitleEnabled
+        btnStealthSub?.title = stealthSubtitleEnabled ? "日志 ON" : "日志字幕"
+
         let activeVideoNow = isVisible && !bossMode && hasActiveVideoPlaying
-        if activeVideoNow || currentStreakSec > 0 {
+        if radarAlertActive {
+            lblStreakBadge?.stringValue = "检测到背后 \(radarLastFaceCount) 人 · 已秒隐静音"
+        } else if activeVideoNow || currentStreakSec > 0 {
             lblStreakBadge?.stringValue = "连续 \(Self.fmtTime(Double(currentStreakSec))) · \(Self.chameleonRankTitle(for: totalSlackingSec))"
+        } else if isBuiltInWebActive && !builtInVideoIsolated {
+            lblStreakBadge?.stringValue = "网页直连 · 点播视频自动变色融合"
         } else {
             lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
         }
@@ -1029,7 +1403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if totalSlackingSec % 10 == 0 {
                 UserDefaults.standard.set(totalSlackingSec, forKey: "chameleonTotalSec")
             }
-            if isIslandExpanded {
+            if isIslandExpanded && !radarAlertActive {
                 lblStreakBadge?.stringValue = "连续 \(Self.fmtTime(Double(currentStreakSec))) · \(Self.chameleonRankTitle(for: totalSlackingSec))"
             }
         } else if currentStreakSec > 0 {
@@ -1037,12 +1411,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if bossMode || !isVisible || pausedSecondsCount > 10 {
                 currentStreakSec = 0
                 pausedSecondsCount = 0
-                if isIslandExpanded {
+                if isIslandExpanded && !radarAlertActive {
                     lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
                 }
             }
-        } else if isIslandExpanded {
-            lblStreakBadge?.stringValue = "待机 · 播放视频开始计时"
+        } else if isIslandExpanded && !radarAlertActive {
+            lblStreakBadge?.stringValue = isBuiltInWebActive && !builtInVideoIsolated ? "网页直连 · 点播视频自动变色融合" : "待机 · 播放视频开始计时"
+        }
+
+        // Z-Library Daily Free 30-Minute Shield Allowance (AI Radar + Screen-Share Stealth)
+        if !isProMember {
+            let today = Self.todayDateString()
+            if dailyShieldDate != today {
+                dailyShieldDate = today
+                dailyShieldUsedSec = 0
+                UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
+                UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
+                updatePanelSharingType()
+            }
+            if radarEnabled || (activeVideoNow && hideFromCapture) {
+                if dailyShieldUsedSec < freeDailyShieldLimitSec {
+                    dailyShieldUsedSec += 1
+                    if dailyShieldUsedSec % 10 == 0 || dailyShieldUsedSec >= freeDailyShieldLimitSec {
+                        UserDefaults.standard.set(dailyShieldUsedSec, forKey: "chameleonShieldUsedSec")
+                    }
+                    if radarEnabled && dailyShieldUsedSec % 30 == 0 && isIslandExpanded {
+                        syncNativeIslandControls()
+                    }
+                    if dailyShieldUsedSec >= freeDailyShieldLimitSec {
+                        updatePanelSharingType()
+                        if radarEnabled {
+                            radarEnabled = false
+                            radarAlertActive = false
+                            bossTriggeredByRadar = false
+                            antiPeekRadar.stop()
+                            islandShell?.isRadarActive = false
+                            islandShell?.isRadarAlert = false
+                            syncNativeIslandControls()
+                            openArenaWindow(upgradeReason: "今日 30 分钟免费「AI 防偷窥雷达 & 会议共享隐身」额度已用完（明天凌晨自动恢复）。请开发者喝杯美式（¥9.9 永久）即可不限时使用！")
+                        }
+                    }
+                }
+            }
         }
 
         if telemetryTickCount % 2 == 0 {
@@ -1053,12 +1463,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private func applyMembershipEntitlement(_ isPro: Bool) {
         isProMember = isPro
         UserDefaults.standard.set(isPro, forKey: "chameleonIsPro")
-        // Screen-sharing / screen-recording stealth (.none) is a Pro exclusive capability
-        panel?.sharingType = (hideFromCapture && isProMember) ? .none : .readOnly
-        if !isProMember && currentMode != "projector" {
-            currentMode = "projector"
-            webView?.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch({\"mode\":\"projector\"});", completionHandler: nil)
-        }
+        // Z-Library Model: All 3 Chameleon visual modes stay 100% FREE; supporters unlock unlimited daily Radar & Screen-Share Stealth!
+        updatePanelSharingType()
         syncNativeIslandControls()
     }
 
@@ -1111,7 +1517,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         if expanded {
             syncNativeIslandControls()
-            controlsContainer.frame = NSRect(x: 0, y: 0, width: 316, height: 208)
+            controlsContainer.frame = NSRect(x: 0, y: 0, width: 316, height: 240)
             controlsContainer.isHidden = false
             layoutDynamicIsland(animated: true)
         } else {
@@ -1127,7 +1533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         islandShell.earWidth = earW
 
         let targetW: CGFloat = isIslandExpanded ? 316 : (geo.notchWidth + earW * 2)
-        let targetH: CGFloat = isIslandExpanded ? 208 : geo.barHeight
+        let targetH: CGFloat = isIslandExpanded ? 240 : geo.barHeight
         let targetX = round(geo.midX - targetW * 0.5)
         let targetY = geo.screen.frame.maxY - targetH
         let rect = NSRect(x: targetX, y: targetY, width: targetW, height: targetH)
@@ -1149,7 +1555,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             panel.orderFrontRegardless()
         }
         if bossMode { setBoss(false) }
-        webView.evaluateJavaScript("window.GeckoNativeBridge?.execPlayerCmd(\(jsonCmd));", completionHandler: nil)
+        if isBuiltInWebActive {
+            builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.execPlayerCmd(\(jsonCmd));", completionHandler: nil)
+        } else {
+            webView.evaluateJavaScript("window.GeckoNativeBridge?.execPlayerCmd(\(jsonCmd));", completionHandler: nil)
+        }
     }
 
     private func setBoss(_ active: Bool) {
@@ -1160,8 +1570,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             islandShell?.isPlayerPaused = true
             wsHub.sendTextToArena("{\"type\":\"bossTriggered\"}")
             broadcastPlaybackStateToArena()
+        } else {
+            bossTriggeredByRadar = false
+            radarAlertActive = false
+            islandShell?.isRadarAlert = false
         }
         webView.evaluateJavaScript("window.GeckoNativeBridge?.setBossMode(\(bossMode));", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.setBossMode(\(bossMode));", completionHandler: nil)
         syncNativeIslandControls()
     }
 
@@ -1180,9 +1595,405 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         openPanel.allowsMultipleSelection = false
         NSApp.activate(ignoringOtherApps: true)
         if openPanel.runModal() == .OK, let url = openPanel.url {
+            exitBuiltInWebMode()
             let escaped = url.absoluteString.replacingOccurrences(of: "'", with: "%27")
             webView.evaluateJavaScript("window.GeckoNativeBridge?.loadLocalVideo('\(escaped)');", completionHandler: nil)
         }
+    }
+
+    // MARK: - Black Tech #2: Standalone Built-in Web Video Player (Zero Chrome Extension Required!)
+    private func openWebVideoUrlPrompt() {
+        setIslandExpanded(false)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "免插件网页直连播放"
+        alert.informativeText = "直接粘贴 B站 / YouTube / 抖音 / 直播网页链接，或直链 .mp4 / .m3u8 地址，在桌面小窗内原生变色播放（无需浏览器插件）："
+
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 390, height: 64))
+        let input = NSTextField(frame: NSRect(x: 0, y: 34, width: 390, height: 26))
+        input.placeholderString = "https://www.bilibili.com/video/BV..."
+        if let clip = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           clip.hasPrefix("http://") || clip.hasPrefix("https://") {
+            input.stringValue = clip
+        } else if !currentBuiltInUrl.isEmpty {
+            input.stringValue = currentBuiltInUrl
+        }
+        box.addSubview(input)
+
+        let presetTarget = UrlPresetTarget(textField: input)
+        let btnBili = NSButton(title: "B站", target: presetTarget, action: #selector(UrlPresetTarget.pickBilibili))
+        btnBili.bezelStyle = .rounded
+        btnBili.frame = NSRect(x: 0, y: 2, width: 68, height: 24)
+        let btnYt = NSButton(title: "YouTube", target: presetTarget, action: #selector(UrlPresetTarget.pickYouTube))
+        btnYt.bezelStyle = .rounded
+        btnYt.frame = NSRect(x: 74, y: 2, width: 84, height: 24)
+        let btnDy = NSButton(title: "抖音", target: presetTarget, action: #selector(UrlPresetTarget.pickDouyin))
+        btnDy.bezelStyle = .rounded
+        btnDy.frame = NSRect(x: 164, y: 2, width: 68, height: 24)
+
+        let hintLbl = NSTextField(labelWithString: "点击可快速填入网站首页")
+        hintLbl.frame = NSRect(x: 240, y: 6, width: 150, height: 16)
+        hintLbl.font = NSFont.systemFont(ofSize: 10.5)
+        hintLbl.textColor = .secondaryLabelColor
+
+        box.addSubview(btnBili)
+        box.addSubview(btnYt)
+        box.addSubview(btnDy)
+        box.addSubview(hintLbl)
+
+        alert.accessoryView = box
+        alert.addButton(withTitle: "开始变色播放")
+        if isBuiltInWebActive {
+            alert.addButton(withTitle: "退出网页源")
+        }
+        alert.addButton(withTitle: "取消")
+        alert.window.initialFirstResponder = input
+
+        let resp = alert.runModal()
+        withExtendedLifetime(presetTarget) {
+            if resp == .alertFirstButtonReturn {
+                let raw = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !raw.isEmpty {
+                    loadBuiltInWebUrl(raw)
+                }
+            } else if isBuiltInWebActive && resp == .alertSecondButtonReturn {
+                exitBuiltInWebMode()
+            }
+        }
+    }
+
+    private func loadBuiltInWebUrl(_ raw: String) {
+        var norm = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !norm.lowercased().hasPrefix("http://") && !norm.lowercased().hasPrefix("https://") {
+            norm = "https://" + norm
+        }
+        guard let url = URL(string: norm) else { return }
+
+        let lowerPath = url.path.lowercased()
+        let isDirectMedia = lowerPath.hasSuffix(".mp4") || lowerPath.hasSuffix(".webm") || lowerPath.hasSuffix(".mov") || lowerPath.hasSuffix(".m4v") || lowerPath.hasSuffix(".m3u8")
+        if isDirectMedia {
+            exitBuiltInWebMode()
+            isVisible = true
+            if bossMode { setBoss(false) }
+            panel.orderFrontRegardless()
+            let escaped = norm.replacingOccurrences(of: "'", with: "%27")
+            webView.evaluateJavaScript("window.GeckoNativeBridge?.loadLocalVideo('\(escaped)');", completionHandler: nil)
+            return
+        }
+
+        currentBuiltInUrl = norm
+        if builtInWebView == nil {
+            let cfg = WKWebViewConfiguration()
+            cfg.userContentController.add(self, name: "ghostAction")
+            cfg.mediaTypesRequiringUserActionForPlayback = []
+            cfg.allowsAirPlayForMediaPlayback = false
+
+            if let coreURL = Bundle.main.url(forResource: "gecko-core", withExtension: "js"),
+               let coreSrc = try? String(contentsOf: coreURL, encoding: .utf8) {
+                cfg.userContentController.addUserScript(
+                    WKUserScript(source: coreSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+                )
+            }
+            cfg.userContentController.addUserScript(
+                WKUserScript(source: Self.builtInIsolatorScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            )
+
+            let bw = FirstMouseWebView(frame: panel.contentView!.bounds, configuration: cfg)
+            bw.autoresizingMask = [.width, .height]
+            bw.setValue(false, forKey: "drawsBackground")
+            bw.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
+            panel.contentView?.addSubview(bw)
+            builtInWebView = bw
+        }
+
+        isBuiltInWebActive = true
+        builtInVideoIsolated = false
+        webView.isHidden = true
+        builtInWebView?.isHidden = false
+        isVisible = true
+        if bossMode { setBoss(false) }
+        // Give user comfortable browsing size if panel is tiny
+        if panel.frame.width < 420 {
+            var f = panel.frame
+            let nw: CGFloat = 480
+            let nh: CGFloat = 300
+            f.origin.x -= (nw - f.width) * 0.5
+            f.origin.y -= (nh - f.height) * 0.5
+            f.size = NSSize(width: nw, height: nh)
+            panel.setFrame(f, display: true, animate: true)
+        }
+        panel.orderFrontRegardless()
+        builtInWebView?.load(URLRequest(url: url))
+        syncNativeIslandControls()
+
+        // Push current state right after page begins loading
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self, self.isBuiltInWebActive else { return }
+            let patch = "{\"mode\":\"\(self.currentMode)\",\"stealth\":\(self.currentStealth),\"stealthSubtitle\":\(self.stealthSubtitleEnabled ? "true" : "false"),\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false")}"
+            self.builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patch));", completionHandler: nil)
+        }
+    }
+
+    private func exitBuiltInWebMode() {
+        guard isBuiltInWebActive else { return }
+        isBuiltInWebActive = false
+        builtInVideoIsolated = false
+        builtInWebView?.evaluateJavaScript("document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
+        builtInWebView?.loadHTMLString("<html><body style='background:transparent'></body></html>", baseURL: nil)
+        builtInWebView?.isHidden = true
+        webView.isHidden = false
+        hasActiveVideoPlaying = false
+        broadcastPlaybackStateToArena()
+        syncNativeIslandControls()
+    }
+
+    private static func builtInIsolatorScript() -> String {
+        return """
+        (function() {
+          if (window.__CHAMELEON_BUILTIN_LOADED__) return;
+          window.__CHAMELEON_BUILTIN_LOADED__ = true;
+          const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
+          const state = { mode: 'projector', stealth: 58, feather: 28, autoSense: true, bgColor: '#505050', mirrorSubtitles: true, stealthSubtitle: false, bossMode: false, hoverReveal: false };
+          let isolated = false;
+          let autoIsolateWanted = true;
+          let targetVideo = null;
+          let wasPlayingBeforeBoss = false;
+          let isHovered = false;
+
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.style.cssText = 'position:fixed;width:0;height:0;pointer-events:none;z-index:-1;';
+          const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+          svg.appendChild(defs);
+          document.documentElement.appendChild(svg);
+
+          const styleEl = document.createElement('style');
+          styleEl.id = 'chm-builtin-style';
+          styleEl.textContent = `
+            html.chm-iso, html.chm-iso body { background: transparent !important; overflow: hidden !important; }
+            html.chm-iso body > *:not(#chm-builtin-hud):not(#chm-builtin-sub):not(svg):not(.chm-iso-ancestor) { opacity: 0 !important; pointer-events: none !important; }
+            video.chm-iso-vid {
+              position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+              max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important;
+              object-fit: cover !important; z-index: 2147483640 !important; background: transparent !important;
+              opacity: 1 !important; visibility: visible !important; pointer-events: none !important;
+            }
+            html.chm-boss video.chm-iso-vid, html.chm-boss #chm-builtin-sub { opacity: 0 !important; }
+            #chm-builtin-hud {
+              position: fixed; top: 6px; right: 8px; z-index: 2147483647;
+              display: flex; align-items: center; gap: 4px;
+              font: 600 10.5px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+              transition: opacity 0.16s ease;
+            }
+            html.chm-iso:not(.chm-hov) #chm-builtin-hud { opacity: 0; pointer-events: none; }
+            #chm-builtin-hud button {
+              appearance: none; border: 1px solid rgba(255,255,255,0.18);
+              background: rgba(12,18,26,0.82); color: #e2e8f0; border-radius: 6px;
+              padding: 4px 8px; cursor: pointer; font: inherit; backdrop-filter: blur(10px);
+            }
+            #chm-builtin-hud button:hover { background: rgba(16,185,129,0.35); color: #fff; }
+            #chm-builtin-sub {
+              position: fixed; bottom: 10px; left: 8%; right: 8%; z-index: 2147483645;
+              text-align: center; font: 600 12px/1.35 -apple-system, 'PingFang SC', sans-serif;
+              pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,0.35); display: none;
+            }
+            #chm-builtin-sub.stealth-log {
+              bottom: 8px; left: 8px; right: 8px; text-align: left;
+              font: 500 10.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+              padding: 5px 9px; border-radius: 6px; background: rgba(13,17,23,0.86);
+              border: 1px solid rgba(52,211,153,0.24); color: #c9d1d9; text-shadow: none;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            #chm-builtin-sub.stealth-log.light-bg {
+              background: rgba(248,250,252,0.9); border-color: rgba(15,23,42,0.16); color: #1e293b;
+            }
+          `;
+          document.head.appendChild(styleEl);
+
+          const featherStyle = document.createElement('style');
+          document.head.appendChild(featherStyle);
+
+          const hud = document.createElement('div');
+          hud.id = 'chm-builtin-hud';
+          hud.innerHTML = `<button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭网页</button>`;
+          document.body.appendChild(hud);
+
+          const subEl = document.createElement('div');
+          subEl.id = 'chm-builtin-sub';
+          document.body.appendChild(subEl);
+
+          const btnIso = hud.querySelector('#chmBtnIso');
+          const btnExit = hud.querySelector('#chmBtnExit');
+
+          function markAncestors(v, add) {
+            document.querySelectorAll('.chm-iso-ancestor').forEach(el => el.classList.remove('chm-iso-ancestor'));
+            if (!add || !v) return;
+            let p = v.parentElement;
+            while (p && p !== document.body && p !== document.documentElement) {
+              p.classList.add('chm-iso-ancestor');
+              p = p.parentElement;
+            }
+          }
+
+          function findBestVideo() {
+            const vids = Array.from(document.querySelectorAll('video'));
+            let best = null, bestScore = -1;
+            for (const v of vids) {
+              const r = v.getBoundingClientRect();
+              const area = Math.max(0, r.width) * Math.max(0, r.height);
+              if (area < 4000 && v.readyState < 2) continue;
+              let s = area / 1000;
+              if (!v.paused && !v.ended) s += 8000;
+              if (v.readyState >= 2) s += 2000;
+              if (v.currentTime > 0) s += 500;
+              if (s > bestScore) { bestScore = s; best = v; }
+            }
+            return best;
+          }
+
+          function applyFilter() {
+            const Core = window.GeckoCore;
+            if (!Core || !targetVideo) return;
+            if (isolated) {
+              Core.applySvgFilterToMedia(defs, targetVideo, state, { isPeeking: false });
+              featherStyle.textContent = Core.buildFeatherRuleCss('video.chm-iso-vid', state.feather);
+            } else {
+              targetVideo.style.removeProperty('filter');
+              featherStyle.textContent = '';
+            }
+          }
+
+          function setIsolated(val) {
+            const v = targetVideo || findBestVideo();
+            if (val && !v) return;
+            isolated = Boolean(val);
+            if (isolated && v) {
+              targetVideo = v;
+              document.querySelectorAll('video.chm-iso-vid').forEach(el => { if (el !== v) el.classList.remove('chm-iso-vid'); });
+              v.classList.add('chm-iso-vid');
+              markAncestors(v, true);
+              document.documentElement.classList.add('chm-iso');
+              btnIso.textContent = '浏览网页';
+              applyFilter();
+            } else {
+              document.documentElement.classList.remove('chm-iso');
+              document.querySelectorAll('video.chm-iso-vid').forEach(el => { el.classList.remove('chm-iso-vid'); el.style.removeProperty('filter'); });
+              markAncestors(null, false);
+              featherStyle.textContent = '';
+              btnIso.textContent = '变色融合';
+            }
+            post({ action: 'builtInVideoStatus', isolated });
+          }
+
+          btnIso.addEventListener('click', (e) => {
+            e.stopPropagation();
+            autoIsolateWanted = !isolated;
+            setIsolated(!isolated);
+          });
+          btnExit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            post({ action: 'exitBuiltInWeb' });
+          });
+
+          function readSub() {
+            const sels = ['.bpx-player-subtitle-panel-text', '.bilibili-player-video-subtitle .subtitle-item-text', '.ytp-caption-segment'];
+            for (const sel of sels) {
+              const ns = document.querySelectorAll(sel);
+              if (ns.length) {
+                const txt = Array.from(ns).map(n => n.textContent.trim()).filter(Boolean).join(' ');
+                if (txt) return txt;
+              }
+            }
+            if (targetVideo?.textTracks) {
+              for (const tr of targetVideo.textTracks) {
+                if (tr.mode === 'showing' && tr.activeCues?.length) {
+                  return Array.from(tr.activeCues).map(c => c.text || '').join(' ').replace(/<[^>]+>/g, '').trim();
+                }
+              }
+            }
+            return '';
+          }
+
+          function escapeHtml(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          }
+
+          function updateSub() {
+            const Core = window.GeckoCore;
+            const txt = isolated && state.mirrorSubtitles ? readSub() : '';
+            if (!txt) { subEl.style.display = 'none'; return; }
+            subEl.style.display = 'block';
+            if (state.stealthSubtitle && Core?.formatStealthLogParts) {
+              const p = Core.formatStealthLogParts(txt);
+              const isLight = Core.getLuminance(state.bgColor || '#505050') > 0.62;
+              subEl.classList.add('stealth-log');
+              subEl.classList.toggle('light-bg', isLight);
+              subEl.innerHTML = `<span style="color:#64748b">[${p.ts}]</span> <span style="color:${isLight ? '#059669' : '#34d399'};font-weight:700">[${p.level}]</span> <span style="color:${isLight ? '#0284c7' : '#79c0ff'}">${p.mod}</span> — ${escapeHtml(p.text)}`;
+            } else {
+              subEl.classList.remove('stealth-log', 'light-bg');
+              subEl.style.color = Core ? Core.deriveAutoInkColor(state.bgColor) : 'rgba(255,255,255,0.85)';
+              subEl.textContent = txt;
+            }
+          }
+
+          setInterval(() => {
+            const v = findBestVideo();
+            if (v && v !== targetVideo) targetVideo = v;
+            if (v && autoIsolateWanted && !isolated && !v.paused && v.readyState >= 2) {
+              setIsolated(true);
+            }
+            if (isolated && targetVideo) applyFilter();
+            updateSub();
+            const playing = Boolean(targetVideo && !targetVideo.paused && !targetVideo.ended && targetVideo.readyState >= 2 && !state.bossMode);
+            post({
+              action: 'playerChanged',
+              source: 'builtin',
+              player: {
+                paused: targetVideo ? targetVideo.paused : true,
+                hasActiveVideo: playing,
+                currentTime: targetVideo ? (targetVideo.currentTime || 0) : 0,
+                duration: targetVideo && Number.isFinite(targetVideo.duration) ? targetVideo.duration : 180,
+                muted: targetVideo ? (targetVideo.muted || targetVideo.volume === 0) : false,
+                playbackRate: targetVideo ? (targetVideo.playbackRate || 1) : 1
+              }
+            });
+          }, 350);
+
+          window.ChameleonBuiltInBridge = {
+            setHovered(val) {
+              isHovered = Boolean(val);
+              document.documentElement.classList.toggle('chm-hov', isHovered);
+            },
+            applyPatch(p) {
+              Object.assign(state, p || {});
+              applyFilter();
+              updateSub();
+            },
+            onMacSensor(sensor) {
+              if (sensor?.bgColor) { state.bgColor = sensor.bgColor; applyFilter(); updateSub(); }
+            },
+            setBossMode(val) {
+              state.bossMode = Boolean(val);
+              document.documentElement.classList.toggle('chm-boss', state.bossMode);
+              const v = targetVideo || findBestVideo();
+              if (!v) return;
+              if (state.bossMode) { wasPlayingBeforeBoss = !v.paused; v.pause(); }
+              else if (wasPlayingBeforeBoss) { v.play().catch(() => {}); }
+            },
+            execPlayerCmd(cmd) {
+              const v = targetVideo || findBestVideo();
+              if (!v || !cmd) return;
+              if (cmd.action === 'setPaused') { cmd.value ? v.pause() : v.play().catch(() => {}); }
+              else if (cmd.action === 'togglePlay') { v.paused ? v.play().catch(() => {}) : v.pause(); }
+              else if (cmd.action === 'seek') { v.currentTime = Math.max(0, (v.currentTime || 0) + Number(cmd.delta || 0)); }
+              else if (cmd.action === 'seekTo' && Number.isFinite(cmd.value)) { v.currentTime = Math.max(0, cmd.value); }
+              else if (cmd.action === 'setMuted') { v.muted = Boolean(cmd.value); if (!v.muted && v.volume < 0.05) v.volume = 0.85; }
+              else if (cmd.action === 'setRate' && Number.isFinite(cmd.value)) { v.playbackRate = cmd.value; }
+            }
+          };
+        })();
+        """
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -1197,14 +2008,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 applyMembershipEntitlement(pro)
             }
         case "requestUpgrade":
-            let reason = (dict["reason"] as? String) ?? "升级 Pro 解锁全部变色龙隐身模式、会议共享隐身与无限联机对战！"
+            let reason = (dict["reason"] as? String) ?? "请开发者喝杯美式（¥9.9 永久）即可永久解除每日 30 分钟限制并解锁全部支持者权益！"
             openArenaWindow(upgradeReason: reason)
         case "setBoss":
             if let v = dict["value"] as? Bool { setBoss(v) }
+        case "openWebVideoUrl":
+            openWebVideoUrlPrompt()
+        case "exitBuiltInWeb":
+            exitBuiltInWebMode()
+        case "builtInVideoStatus":
+            if let iso = dict["isolated"] as? Bool {
+                builtInVideoIsolated = iso
+                syncNativeIslandControls()
+            }
+        case "chromeStreamStarted":
+            if isBuiltInWebActive {
+                exitBuiltInWebMode()
+            }
         case "stateChanged":
             if let st = dict["state"] as? [String: Any] {
                 if let m = st["mode"] as? String { currentMode = m }
                 if let s = st["stealth"] as? Int { currentStealth = s }
+                if let ss = st["stealthSubtitle"] as? Bool, ss != stealthSubtitleEnabled {
+                    stealthSubtitleEnabled = ss
+                    UserDefaults.standard.set(ss, forKey: "chameleonStealthSubtitle")
+                    builtInWebView?.evaluateJavaScript(
+                        "window.ChameleonBuiltInBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false")});",
+                        completionHandler: nil
+                    )
+                }
                 if let hr = st["hoverReveal"] as? Bool, hr != hoverRevealEnabled {
                     hoverRevealEnabled = hr
                     UserDefaults.standard.set(hr, forKey: "chameleonHoverReveal")
@@ -1216,6 +2048,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 syncNativeIslandControls()
             }
         case "playerChanged":
+            let src = (dict["source"] as? String) ?? "ghost"
+            if (src == "builtin" && !isBuiltInWebActive) || (src != "builtin" && isBuiltInWebActive) {
+                return
+            }
             if let pl = dict["player"] as? [String: Any] {
                 let paused = (pl["paused"] as? Bool) ?? true
                 let activeVideo = (pl["hasActiveVideo"] as? Bool) ?? false
@@ -1418,6 +2254,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let safeApp = appName.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\\", with: "")
         let js = "window.GeckoNativeBridge?.onMacSensor({bgColor:'\(bgColor)',archetype:'\(archetype)',appName:'\(safeApp)',isTyping:\(isTyping ? "true" : "false")});"
         webView.evaluateJavaScript(js, completionHandler: nil)
+        if isBuiltInWebActive {
+            builtInWebView?.evaluateJavaScript(
+                "window.ChameleonBuiltInBridge?.onMacSensor({bgColor:'\(bgColor)',archetype:'\(archetype)'});",
+                completionHandler: nil
+            )
+        }
     }
 }
 

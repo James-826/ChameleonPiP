@@ -27,13 +27,15 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>5.0.0</string>
+  <string>5.4.0</string>
   <key>CFBundleVersion</key>
-  <string>5</string>
+  <string>7</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSCameraUsageDescription</key>
+  <string>ChameleonPiP 仅在您手动开启「AI 背后防偷窥雷达」时于本地内存中运行 Apple Vision 人脸计数检测（检测到背后 ≥2 人时自动触发老板键隐藏）。摄像头画面实时丢弃，绝不录制、存储或上传。</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
@@ -85,7 +87,7 @@ cp "$ROOT_DIR/extension/icons/"*.png "$ROOT_DIR/desktop/icons/"
 echo "Stopping any old running GeckoGhost process..."
 pkill -x GeckoGhost >/dev/null 2>&1 || true
 
-echo "Compiling ChameleonPiP v5.0 native macOS arm64 binary..."
+echo "Compiling ChameleonPiP v5.4 native macOS binary (Metal + Vision Anti-Peek + Built-in Web Player)..."
 swiftc -O -swift-version 5 \
   -framework Cocoa \
   -framework QuartzCore \
@@ -94,6 +96,10 @@ swiftc -O -swift-version 5 \
   -framework ScreenCaptureKit \
   -framework Carbon \
   -framework CoreGraphics \
+  -framework AVFoundation \
+  -framework Vision \
+  -framework CoreMedia \
+  -framework CoreVideo \
   "$ROOT_DIR/macos-ghost/GeckoGhost.swift" \
   -o "$MACOS_DIR/GeckoGhost"
 

@@ -451,6 +451,30 @@
           transition: bottom 0.18s ease;
           text-shadow: 0 1px 3px rgba(0,0,0,0.28);
         }
+        .p-subtitle.stealth-log {
+          bottom: 8px;
+          left: 8px;
+          right: 8px;
+          text-align: left;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+          font-size: 10.5px;
+          font-weight: 500;
+          line-height: 1.4;
+          padding: 4px 8px;
+          border-radius: 6px;
+          background: rgba(13, 17, 23, 0.86);
+          border: 1px solid rgba(52, 211, 153, 0.24);
+          color: #c9d1d9;
+          text-shadow: none;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .p-subtitle.stealth-log.light-bg {
+          background: rgba(248, 250, 252, 0.9);
+          border-color: rgba(15, 23, 42, 0.16);
+          color: #1e293b;
+        }
         .p-root.hovered:not(.click-through) .p-subtitle { bottom: 60px; }
 
         .hud-top {
@@ -656,8 +680,7 @@
       parasiteStreamPort.onMessage.addListener((msg) => {
         if (msg.type === "GECKO_FRAME" && msg.dataUrl) {
           streamImg.src = msg.dataUrl;
-          const subEl = shadow.getElementById("pSub");
-          if (subEl && state.mirrorSubtitles) subEl.textContent = msg.subtitle || "";
+          renderParasiteSubtitle(shadow.getElementById("pSub"), state.mirrorSubtitles ? msg.subtitle || "" : "");
         } else if (msg.type === "GECKO_STREAM_ENDED") {
           closeParasiteOverlay();
         }
@@ -984,6 +1007,31 @@
     }
   }
 
+  function renderParasiteSubtitle(subEl, rawText) {
+    if (!subEl) return;
+    const clean = String(rawText || "").trim();
+    if (!clean) {
+      subEl.style.display = "none";
+      subEl.textContent = "";
+      subEl.classList.remove("stealth-log", "light-bg");
+      return;
+    }
+    subEl.style.display = "block";
+    if (state.stealthSubtitle && Core.formatStealthLogParts) {
+      const p = Core.formatStealthLogParts(clean);
+      const isLight = Core.getLuminance(state.bgColor || "#505050") > 0.62;
+      subEl.classList.add("stealth-log");
+      subEl.classList.toggle("light-bg", isLight);
+      subEl.style.color = "";
+      const safe = p.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      subEl.innerHTML = `<span style="color:#64748b">[${p.ts}]</span> <span style="color:${isLight ? "#059669" : "#34d399"};font-weight:700">[${p.level}]</span> <span style="color:${isLight ? "#0284c7" : "#79c0ff"}">${p.mod}</span> — ${safe}`;
+    } else {
+      subEl.classList.remove("stealth-log", "light-bg");
+      subEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : state.inkColor;
+      subEl.textContent = clean;
+    }
+  }
+
   function syncPlayerUi() {
     if (!parasiteOpen || !parasiteHost?.shadowRoot || !activeVideo) return;
     const s = parasiteHost.shadowRoot;
@@ -996,7 +1044,7 @@
     s.getElementById("pFill").style.width = `${pct.toFixed(2)}%`;
     s.getElementById("pTime").textContent = `${Core.formatTime(cur)} / ${Core.formatTime(dur)}`;
     if (!parasiteUsingCrossTab) {
-      s.getElementById("pSub").textContent = state.mirrorSubtitles ? readHostSubtitles() : "";
+      renderParasiteSubtitle(s.getElementById("pSub"), state.mirrorSubtitles ? readHostSubtitles() : "");
     }
   }
 

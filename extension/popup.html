@@ -22,20 +22,20 @@
     <div class="member-strip" id="memberStrip">
       <div class="member-left">
         <span class="member-pill" id="popMemberBadge">FREE</span>
-        <span class="member-desc" id="popMemberDesc">基础变色融合免费 · 升级解锁进阶隐身</span>
+        <span class="member-desc" id="popMemberDesc">3 种变色模式永久免费 · 请喝杯咖啡永久支持</span>
       </div>
-      <button type="button" class="member-btn" id="btnPopUpgrade">升级 / 激活</button>
+      <button type="button" class="member-btn" id="btnPopUpgrade">支持 / 激活</button>
     </div>
 
     <div class="pro-drawer" id="popProDrawer" style="display:none">
-      <div class="pro-drawer-msg" id="popProMsg">解锁浮雕隐身、彩透变色、会议共享隐身与无限 PK</div>
+      <div class="pro-drawer-msg" id="popProMsg">每日免费 30 分钟 AI 防偷窥雷达 & 会议隐身；一次请喝美式（¥9.9）永久不限时</div>
       <div class="pro-drawer-row">
-        <input type="text" id="popKeyInput" class="pro-input" placeholder="输入激活码 CHM-PRO-..." />
+        <input type="text" id="popKeyInput" class="pro-input" placeholder="输入支持者激活码 CHM-SUP / VIP..." />
         <button type="button" id="btnPopActivate" class="pro-act-btn">激活</button>
       </div>
       <div class="pro-drawer-actions">
-        <button type="button" id="btnPopTrial" class="pro-trial-btn">一键免费试用 3 天 Pro</button>
-        <button type="button" id="btnPopPlans" class="pro-link-btn">查看权益与价格</button>
+        <button type="button" id="btnPopTrial" class="pro-trial-btn">一键免费体验 3 天无限版</button>
+        <button type="button" id="btnPopPlans" class="pro-link-btn">请喝咖啡 / 免费补给站</button>
       </div>
     </div>
 
@@ -88,14 +88,14 @@
         <span class="section-title" style="margin:0">变色龙隐身模式</span>
       </div>
       <div class="seg-group" style="grid-template-columns:repeat(3,1fr)" id="modeTabs">
-        <button class="seg-item mode-tab" data-mode="projector" title="像变色龙一样融入屏幕底色，红绿/代码原样透出">
+        <button class="seg-item mode-tab" data-mode="projector" title="像变色龙一样融入屏幕底色，红绿/代码原样透出（免费）">
           变色融合
         </button>
-        <button class="seg-item mode-tab" data-mode="emboss" title="将视频立体轮廓雕刻在底层桌面上（Pro 会员专属）">
-          浮雕隐身 <span class="mini-pro-tag">PRO</span>
+        <button class="seg-item mode-tab" data-mode="emboss" title="将视频立体轮廓雕刻在底层桌面上（永久免费）">
+          浮雕隐身
         </button>
-        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面融合（Pro 会员专属）">
-          彩透变色 <span class="mini-pro-tag">PRO</span>
+        <button class="seg-item mode-tab" data-mode="cinema" title="保留轻度原片色彩并与桌面融合（永久免费）">
+          彩透变色
         </button>
       </div>
 
@@ -117,14 +117,18 @@
         <span>同步 B站 / YouTube 网页字幕</span>
         <input type="checkbox" id="chkSubtitles" />
       </label>
+      <label class="toggle-item">
+        <span>字幕伪装成代码 / 终端日志条（静音神器）</span>
+        <input type="checkbox" id="chkStealthSubtitle" />
+      </label>
     </section>
 
     <footer class="footer">
       <span>可在屏幕顶部系统菜单栏图标或小窗四角直接调整</span>
     </footer>
 
-    <script src="gecko-core.js?v=5.2"></script>
-    <script src="chameleon-stats.js?v=5.2"></script>
-    <script src="popup.js?v=5.2"></script>
+    <script src="gecko-core.js?v=5.4"></script>
+    <script src="chameleon-stats.js?v=5.4"></script>
+    <script src="popup.js?v=5.4"></script>
   </body>
 </html>

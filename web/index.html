@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ChameleonPiP 变色龙画中画 — 像变色龙一样融进屏幕 · 灵动刘海 · 全球摸鱼榜</title>
+    <title>ChameleonPiP 变色龙画中画 — AI 防偷窥雷达 · 免插件网页直连 · 60fps 屏幕拟态融合</title>
     <meta
       name="description"
-      content="ChameleonPiP 变色龙画中画：Apple Metal 60fps 变色龙拟态融合引擎，底层代码、表格与色彩原样透出；原生 MacBook 灵动刘海控制、鼠标穿透、会议共享隐身与全球实时摸鱼耐力 PK。"
+      content="ChameleonPiP 变色龙画中画：Apple Metal 60fps 屏幕拟态融合，3 种变色模式永久免费；内置 Apple Vision 本地 AI 背后防偷窥雷达、免插件网页链接直连播放、代码终端日志伪装字幕条与 MacBook 原生灵动刘海。"
     />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -176,6 +176,19 @@
       }
       .demo-pip:active { cursor: grabbing; }
       .demo-pip canvas { width: 100%; height: 100%; display: block; pointer-events: none; }
+      .demo-log-sub {
+        position: absolute; left: 8px; right: 8px; bottom: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px; line-height: 1.4; padding: 4px 8px; border-radius: 6px;
+        background: rgba(13, 17, 23, 0.88); border: 1px solid rgba(52, 211, 153, 0.28);
+        color: #c9d1d9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        pointer-events: none; display: none;
+      }
+      .demo-log-sub.show { display: block; }
+      .new-chip {
+        font-size: 9.5px; font-weight: 800; padding: 1.5px 5.5px; border-radius: 4px;
+        background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(52, 211, 153, 0.45); color: #6ee7b7;
+      }
       .drag-hint {
         position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 20;
         padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600;
@@ -319,14 +332,14 @@
         <a class="brand" href="#top">
           <img src="icons/icon128.png" onerror="this.onerror=null;this.src='../extension/icons/icon128.png'" alt="ChameleonPiP" />
           <span>ChameleonPiP</span>
-          <span class="ver-pill">v5.2</span>
+          <span class="ver-pill">v5.4</span>
         </a>
         <div class="nav-links">
           <a href="#playground" data-zh="变色体验" data-en="Live Demo">变色体验</a>
-          <a href="#features" data-zh="核心能力" data-en="Features">核心能力</a>
+          <a href="#features" data-zh="三大黑科技" data-en="Tech">三大黑科技</a>
           <a href="#arena" data-zh="全球排行" data-en="Arena">全球排行</a>
           <a href="#download" data-zh="下载安装" data-en="Download">下载安装</a>
-          <a href="#pricing" data-zh="会员价格" data-en="Pricing">会员价格</a>
+          <a href="#pricing" data-zh="请喝咖啡" data-en="Support">请喝咖啡</a>
         </div>
         <div class="nav-cta">
           <button type="button" class="btn btn-sm" id="btnToggleLang">EN</button>
@@ -343,47 +356,48 @@
           <span class="live-dot"></span>
           <span id="heroOnlineLabel">变色龙 60fps 拟态融合 · 全球实时联机服运行中</span>
         </div>
-        <h1 data-zh-html='像<span class="accent">变色龙</span>一样融进你的屏幕，<br />摸鱼看视频零违和、零边框'
-            data-en-html='Blend Video Like a <span class="accent">Chameleon</span>,<br />Zero Borders, Pure Screen Camouflage'>
-          像<span class="accent">变色龙</span>一样融进你的屏幕，<br />摸鱼看视频零违和、零边框
+        <h1 data-zh-html='像<span class="accent">变色龙</span>一样融进屏幕，<br />背后有人自动秒隐的硬核画中画'
+            data-en-html='Blend Video Like a <span class="accent">Chameleon</span>,<br />With On-Device AI Anti-Peek Radar'>
+          像<span class="accent">变色龙</span>一样融进屏幕，<br />背后有人自动秒隐的硬核画中画
         </h1>
-        <p class="hero-sub" data-zh="ChameleonPiP 变色龙画中画：60fps 变色龙拟态融合引擎，底层代码、Excel 表格与红绿色块原样透出；搭配 MacBook 原生刘海灵动岛、鼠标穿透、会议共享隐身与全球实时摸鱼耐力 PK。"
-           data-en="ChameleonPiP blends 60fps video seamlessly into your desktop colors, code, and spreadsheets—paired with MacBook Notch Dynamic Island controls, click-through, screen-share stealth, and live global endurance PK.">
-          ChameleonPiP 变色龙画中画：60fps 变色龙拟态融合引擎，底层代码、Excel 表格与红绿色块原样透出；搭配 MacBook 原生刘海灵动岛、鼠标穿透、会议共享隐身与全球实时摸鱼耐力 PK。
+        <p class="hero-sub" data-zh="Apple Metal 60fps 屏幕拟态融合（3 种模式永久免费）· 新增 Apple Vision 100% 本地 AI 背后防偷窥雷达、免插件粘贴 B站/YouTube 链接直连播放、代码终端日志伪装字幕条。每天免费可用，拒绝订阅制。"
+           data-en="60fps Apple Metal chameleon camouflage (all 3 modes free forever), on-device Apple Vision AI anti-peek radar, built-in Bilibili/YouTube URL player without extensions, and terminal-log disguised subtitles. Free daily usage, zero subscriptions.">
+          Apple Metal 60fps 屏幕拟态融合（3 种模式永久免费）· 新增 Apple Vision 100% 本地 AI 背后防偷窥雷达、免插件粘贴 B站/YouTube 链接直连播放、代码终端日志伪装字幕条。每天免费可用，拒绝订阅制。
         </p>
 
         <div class="hero-actions">
           <a class="btn btn-primary" href="#download" id="heroBtnMac">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span data-zh="下载 macOS 桌面端 + Chrome 扩展" data-en="Download macOS App + Chrome Extension">下载 macOS 桌面端 + Chrome 扩展</span>
+            <span data-zh="免费下载 macOS 原生端（免插件直连）" data-en="Download Free macOS App (No Extension Needed)">免费下载 macOS 原生端（免插件直连）</span>
           </a>
-          <a class="btn btn-gold" href="arena.html#upgrade">
-            <span data-zh="免费体验 3 天 Pro 会员" data-en="Start 3-Day Pro Trial">免费体验 3 天 Pro 会员</span>
+          <a class="btn btn-gold" href="#pricing">
+            <span data-zh="请开发者喝杯咖啡 · ¥9.9 永久" data-en="Buy Me a Coffee · Lifetime">请开发者喝杯咖啡 · ¥9.9 永久</span>
           </a>
           <a class="btn" href="arena.html">
             <span data-zh="查看全球实时排行榜" data-en="Live Global Leaderboard">查看全球实时排行榜</span>
           </a>
         </div>
-        <div class="hero-meta" data-zh="支持 macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge 浏览器 · 100% 本地视频渲染，零画面上传"
-             data-en="macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge · 100% local video rendering, zero media uploads">
-          支持 macOS 13+ (Apple Silicon &amp; Intel) · Chrome &amp; Edge 浏览器 · 100% 本地视频渲染，零画面上传
+        <div class="hero-meta" data-zh="支持 macOS 13+ (Apple Silicon &amp; Intel) · 免浏览器插件直连 + Chrome/Edge 可选伴侣 · 100% 本地处理零上传"
+             data-en="macOS 13+ (Apple Silicon &amp; Intel) · Standalone URL Player + Optional Chrome/Edge Companion · 100% Local Privacy">
+          支持 macOS 13+ (Apple Silicon &amp; Intel) · 免浏览器插件直连 + Chrome/Edge 可选伴侣 · 100% 本地处理零上传
         </div>
 
-        <!-- Live Interactive Optical Projection Playground -->
+        <!-- Live Interactive Camouflage Playground -->
         <div class="sandbox-wrap" id="playground">
           <div class="sandbox-toolbar">
             <div class="mac-dots">
               <span></span><span></span><span></span>
-              <span style="width:auto;height:auto;background:none;margin-left:8px;font-size:11.5px;color:#94a3b8;font-weight:600" data-zh="实时交互体验台 — 拖动悬浮视频窗到红绿/代码/表格上看看透射效果" data-en="Interactive Optical Sandbox — Drag the floating projector across code, spreadsheet &amp; red/green blocks">
-                实时交互体验台 — 拖动悬浮视频窗到红绿/代码/表格上看看透射效果
+              <span style="width:auto;height:auto;background:none;margin-left:8px;font-size:11.5px;color:#94a3b8;font-weight:600" data-zh="实时交互体验台 — 拖动悬浮窗对比红绿/代码/表格，并试玩「日志字幕」" data-en="Interactive Sandbox — Drag across code, sheet &amp; color blocks, or preview Log Subtitles">
+                实时交互体验台 — 拖动悬浮窗对比红绿/代码/表格，并试玩「日志字幕」
               </span>
             </div>
             <div class="sandbox-ctrl">
               <div class="seg" id="sandboxModes">
                 <button type="button" class="active" data-mode="projector" data-zh="变色融合" data-en="Chameleon">变色融合</button>
-                <button type="button" data-mode="emboss" data-zh="浮雕隐身 PRO" data-en="Emboss PRO">浮雕隐身 PRO</button>
-                <button type="button" data-mode="cinema" data-zh="彩透变色 PRO" data-en="Cinema PRO">彩透变色 PRO</button>
+                <button type="button" data-mode="emboss" data-zh="浮雕隐身" data-en="Emboss">浮雕隐身</button>
+                <button type="button" data-mode="cinema" data-zh="彩透变色" data-en="Cinema">彩透变色</button>
               </div>
+              <button type="button" class="btn btn-sm" id="btnDemoLogSub" style="padding:4px 10px;font-size:11.5px" data-zh="日志字幕预览" data-en="Log Subtitles">日志字幕预览</button>
               <label class="slider-pill">
                 <span data-zh="浓度" data-en="Intensity">浓度</span>
                 <input type="range" id="sandboxIntensity" min="15" max="92" value="58" />
@@ -440,6 +454,9 @@
 
             <div class="demo-pip" id="demoPip">
               <canvas id="heroGlCanvas" width="440" height="256"></canvas>
+              <div class="demo-log-sub" id="demoLogSub">
+                <span style="color:#64748b">[14:22:08]</span> <span style="color:#34d399;font-weight:700">[INFO]</span> <span style="color:#79c0ff">worker::sync</span> — 字幕已伪装为终端编译日志，静音看剧零违和
+              </div>
             </div>
             <div class="drag-hint" data-zh="按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果" data-en="Drag the live projected video anywhere across the code, sheet, and color blocks">
               按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果
@@ -453,20 +470,50 @@
     <section class="block" id="features">
       <div class="wrap">
         <div class="sec-head">
-          <h2 data-zh="像变色龙一样隐身于桌面的硬核细节" data-en="Engineered for Effortless Chameleon Stealth">像变色龙一样隐身于桌面的硬核细节</h2>
-          <p data-zh="从 Apple Metal 60fps 实时拟态引擎到 macOS 摄像头灵动刘海，每一处交互都做到毫秒级响应。" data-en="From Apple Metal 60fps camouflage to native MacBook Notch controls, every detail runs at native speed.">
-            从 Apple Metal 60fps 实时拟态引擎到 macOS 摄像头灵动刘海，每一处交互都做到毫秒级响应。
+          <h2 data-zh="三大硬核原生黑科技 · 拒绝浅层套壳" data-en="Three Native macOS Breakthroughs">三大硬核原生黑科技 · 拒绝浅层套壳</h2>
+          <p data-zh="从 Apple Vision 本地 AI 背后防偷窥，到免插件网页直连与代码日志字幕条，全部底层原生打造。" data-en="Native Apple Vision anti-peek radar, extension-free web player, and disguised terminal-log subtitles—built directly on macOS frameworks.">
+            从 Apple Vision 本地 AI 背后防偷窥，到免插件网页直连与代码日志字幕条，全部底层原生打造。
           </p>
         </div>
 
         <div class="bento">
           <div class="feat-card">
             <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2"/></svg>
+            </div>
+            <h3><span data-zh="AI 摄像头背后防偷窥雷达" data-en="On-Device AI Anti-Peek Radar">AI 摄像头背后防偷窥雷达</span> <span class="new-chip">NEW</span></h3>
+            <p data-zh="调用 macOS 原生 Apple Vision 框架在内存中实时计数人脸（零拍照、零上传）。只要背后出现第 2 张人脸，0.05 秒自动触发老板键秒隐静音，人走 3 秒后自动恢复播放。" data-en="Uses native Apple Vision face detection strictly in RAM (zero storage, zero upload). Detects a second person behind you in 50ms to auto-hide &amp; mute, then auto-resumes when clear.">
+              调用 macOS 原生 Apple Vision 框架在内存中实时计数人脸（零拍照、零上传）。只要背后出现第 2 张人脸，0.05 秒自动触发老板键秒隐静音，人走 3 秒后自动恢复播放。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <h3><span data-zh="免插件！网页链接直接变色播" data-en="Extension-Free Web URL Player">免插件！网页链接直接变色播</span> <span class="new-chip">NEW</span></h3>
+            <p data-zh="不必再费劲配置浏览器扩展！打开 Mac 客户端点击「网页直连」，直接粘贴 B站、YouTube、抖音或 MP4 链接即可在无边框小窗内原生变色播放，灵动岛全控。" data-en="Zero browser extension required. Paste any Bilibili, YouTube, Douyin, or direct MP4 link right into the Mac app for instant borderless camouflage playback.">
+              不必再费劲配置浏览器扩展！打开 Mac 客户端点击「网页直连」，直接粘贴 B站、YouTube、抖音或 MP4 链接即可在无边框小窗内原生变色播放，灵动岛全控。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            </div>
+            <h3><span data-zh="代码 / 终端日志伪装字幕条" data-en="Terminal-Log Disguised Subtitles">代码 / 终端日志伪装字幕条</span> <span class="new-chip">NEW</span></h3>
+            <p data-zh="办公室没戴耳机？开启「日志字幕」后，视频实时对白自动伪装成 [INFO] worker::sync 等宽终端编译日志，从工位旁走过宛如正在看服务构建输出。" data-en="Watching muted at your desk? Transforms live video subtitles into realistic monospace compiler logs ([INFO] worker::sync) that blend straight into your IDE.">
+              办公室没戴耳机？开启「日志字幕」后，视频实时对白自动伪装成 [INFO] worker::sync 等宽终端编译日志，从工位旁走过宛如正在看服务构建输出。
+            </p>
+          </div>
+
+          <div class="feat-card">
+            <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             </div>
-            <h3><span data-zh="60fps 变色龙拟态融合" data-en="60fps Chameleon Camouflage">60fps 变色龙拟态融合</span></h3>
-            <p data-zh="像变色龙随环境变色一样，底层红绿背景、IDE 代码高亮与白底文档 100% 原色透出，彻底消除传统画中画的黑框违和感。" data-en="Adapts cleanly to whatever is beneath it—code syntax, Excel sheets, and vivid backgrounds shine through untouched with zero opaque frame.">
-              像变色龙随环境变色一样，底层红绿背景、IDE 代码高亮与白底文档 100% 原色透出，彻底消除传统画中画的黑框违和感。
+            <h3><span data-zh="60fps 变色龙拟态（3 模式全免费）" data-en="60fps Camouflage (All 3 Modes Free)">60fps 变色龙拟态（3 模式全免费）</span></h3>
+            <p data-zh="变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。" data-en="All 3 camouflage shaders (Chameleon, Emboss, Cinema) are 100% free forever. Underlying code, Excel grids, and vivid backgrounds shine straight through.">
+              变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。
             </p>
           </div>
 
@@ -474,29 +521,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M8 4v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4"/></svg>
             </div>
-            <h3><span data-zh="MacBook 灵动刘海控制" data-en="MacBook Notch Dynamic Island">MacBook 灵动刘海控制</span></h3>
-            <p data-zh="与屏幕顶部摄像头刘海无缝融合，轻点展开原生面板，随时调节进度、静音、浓度、窗口缩放与悬停显形开关，不占任务栏一像素。" data-en="Fuses seamlessly with your MacBook camera notch. Click to expand native AppKit controls for scrubbing, mute, intensity, zoom, and hover-reveal.">
-              与屏幕顶部摄像头刘海无缝融合，轻点展开原生面板，随时调节进度、静音、浓度、窗口缩放与悬停显形开关，不占任务栏一像素。
-            </p>
-          </div>
-
-          <div class="feat-card">
-            <div class="feat-ico">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M1 1l22 22"/></svg>
-            </div>
-            <h3><span data-zh="会议共享 &amp; 录屏隐身" data-en="Screen-Share Stealth">会议共享 &amp; 录屏隐身</span> <span class="pro-chip">PRO</span></h3>
-            <p data-zh="系统级开启 NSWindow 共享屏蔽，腾讯会议、飞书、Zoom 共享桌面或录屏时自动隐身不可见；搭配一键老板键 ⌃⇧B 秒隐静音。" data-en="Native macOS window sharing exclusion hides the PiP window from Zoom, Feishu, Slack, and screen recordings automatically.">
-              系统级开启 NSWindow 共享屏蔽，腾讯会议、飞书、Zoom 共享桌面或录屏时自动隐身不可见；搭配一键老板键 ⌃⇧B 秒隐静音。
-            </p>
-          </div>
-
-          <div class="feat-card">
-            <div class="feat-ico">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/></svg>
-            </div>
-            <h3><span data-zh="鼠标穿透 &amp; 悬停开关" data-en="Click-Through &amp; Hover Switch">鼠标穿透 &amp; 悬停开关</span></h3>
-            <p data-zh="点一下小窗箭头图标或按 ⌃⇧M 开启鼠标穿透，直接隔着视频点选底下表格与写代码；默认关闭悬停显形，按住 ⌥ 可随时呼出控制条。" data-en="Click the window arrow icon or press ⌃⇧M for instant click-through editing underneath the video. Hover-reveal is OFF by default; hold Option to peek.">
-              点一下小窗箭头图标或按 ⌃⇧M 开启鼠标穿透，直接隔着视频点选底下表格与写代码；默认关闭悬停显形，按住 ⌥ 可随时呼出控制条。
+            <h3><span data-zh="MacBook 灵动刘海 + 会议共享隐身" data-en="Notch Dynamic Island + Screen Stealth">MacBook 灵动刘海 + 会议共享隐身</span></h3>
+            <p data-zh="与屏幕顶部摄像头刘海原生融合，随时调节进度、AI 防窥与日志字幕；系统级屏蔽腾讯会议、飞书、Zoom 共享屏幕与录屏画面，每天免费畅用 30 分钟。" data-en="Fuses natively with your MacBook camera notch and excludes your PiP window from Zoom, Feishu, and screen recordings—with 30 minutes free daily.">
+              与屏幕顶部摄像头刘海原生融合，随时调节进度、AI 防窥与日志字幕；系统级屏蔽腾讯会议、飞书、Zoom 共享屏幕与录屏画面，每天免费畅用 30 分钟。
             </p>
           </div>
 
@@ -505,18 +532,8 @@
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
             </div>
             <h3><span data-zh="全球排行榜 &amp; 1v1 耐力 PK" data-en="Global Arena &amp; 1v1 PK">全球排行榜 &amp; 1v1 耐力 PK</span></h3>
-            <p data-zh="严格仅在真实视频播放时计时，按同城、国家、全球实时排位；支持随机匹配或输入 4 位暗号和同事 1v1 比拼谁不断连更久。" data-en="Counts strictly during active video playback. Climb city, country, and global rankings or challenge colleagues in live 1v1 room-code endurance duels.">
-              严格仅在真实视频播放时计时，按同城、国家、全球实时排位；支持随机匹配或输入 4 位暗号和同事 1v1 比拼谁不断连更久。
-            </p>
-          </div>
-
-          <div class="feat-card">
-            <div class="feat-ico">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <h3><span data-zh="100% 本地渲染零上传" data-en="100% Local Privacy">100% 本地渲染零上传</span></h3>
-            <p data-zh="所有视频帧与音频严格停留在您的本机回环通道（127.0.0.1），绝不上传任何网页内容、视频画面或浏览历史，符合官方商店隐私规范。" data-en="Video frames stay strictly on local loopback (127.0.0.1). Zero browsing history, zero media uploads, fully compliant with browser store policies.">
-              所有视频帧与音频严格停留在您的本机回环通道（127.0.0.1），绝不上传任何网页内容、视频画面或浏览历史，符合官方商店隐私规范。
+            <p data-zh="严格验证真实视频播放才计入时长，支持同城、国家、全球实时排位与 4 位暗号同事约战房，所有视频与摄像头推理 100% 本地离线完成。" data-en="Strictly verified against active video playback. Climb city, country, and global rankings or duel friends via 4-digit room codes with 100% local privacy.">
+              严格验证真实视频播放才计入时长，支持同城、国家、全球实时排位与 4 位暗号同事约战房，所有视频与摄像头推理 100% 本地离线完成。
             </p>
           </div>
         </div>
@@ -563,10 +580,10 @@
         <div class="dl-grid">
           <div class="dl-card featured">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.2</span>
+              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.4（推荐 · 可免插件直连）</span>
               <h3 data-zh="ChameleonPiP macOS 桌面端（GeckoGhost.app）" data-en="ChameleonPiP for macOS (Native App)">ChameleonPiP macOS 桌面端（GeckoGhost.app）</h3>
-              <p data-zh="原生 Swift + Apple Metal 渲染，零边框桌面置顶、刘海灵动岛控制、四角拖拽缩放、本地 MP4 播放及 Pro 共享屏幕隐身。" data-en="Native Swift + Apple Metal engine with MacBook Notch Dynamic Island, borderless corner resizing, local MP4 playback, and screen-share stealth.">
-                原生 Swift + Apple Metal 渲染，零边框桌面置顶、刘海灵动岛控制、四角拖拽缩放、本地 MP4 播放及 Pro 共享屏幕隐身。
+              <p data-zh="原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、免插件网页链接直连播放、代码日志字幕条、刘海灵动岛与会议共享隐身。" data-en="Native Swift + Apple Metal + Apple Vision app featuring AI anti-peek radar, built-in web URL player, disguised terminal-log subtitles, Notch Dynamic Island, and screen-share stealth.">
+                原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、免插件网页链接直连播放、代码日志字幕条、刘海灵动岛与会议共享隐身。
               </p>
               <div class="dl-specs">
                 <span>macOS 13.0+</span><span>Apple Silicon &amp; Intel</span><span>解压即用（~3 MB）</span>
@@ -584,7 +601,7 @@
 
           <div class="dl-card">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 浏览器扩展 · v5.2</span>
+              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 可选伴侣扩展 · v5.4</span>
               <h3 data-zh="ChameleonPiP 浏览器视频投送扩展" data-en="ChameleonPiP Browser Extension">ChameleonPiP 浏览器视频投送扩展</h3>
               <p data-zh="支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。" data-en="Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press ⌃⇧G to cast at 60fps with instant tab-level mute and subtitle sync.">
                 支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。
@@ -615,96 +632,96 @@
       </div>
     </section>
 
-    <!-- Pricing Section -->
+    <!-- Z-Library Style Pricing & Buy-Me-a-Coffee Supporter Section -->
     <section class="block" id="pricing">
       <div class="wrap">
         <div class="sec-head">
-          <h2 data-zh="基础功能永久免费，按需升级 Pro" data-en="Free Forever Core, Upgrade Anytime">基础功能永久免费，按需升级 Pro</h2>
-          <p data-zh="每个账号均支持免费体验 3 天全功能 Pro；付款后自动发放激活码，在客户端或排行榜弹窗输入即可秒级解锁。" data-en="Every account gets a 3-day full Pro trial. License keys activate instantly across desktop and browser.">
-            每个账号均支持免费体验 3 天全功能 Pro；付款后自动发放激活码，在客户端或排行榜弹窗输入即可秒级解锁。
+          <h2 data-zh="拒绝月费订阅 · 每天免费畅用，请喝杯咖啡永久解锁" data-en="Free Daily Usage · Buy Me a Coffee for Lifetime Access">拒绝月费订阅 · 每天免费畅用，请喝杯咖啡永久解锁</h2>
+          <p data-zh="采用类 Z-Library 独立开发者支持模式：核心画中画能力永久免费，每天免费赠送 30 分钟 AI 防偷窥雷达与会议共享隐身。如果你觉得好用，一次请开发者喝杯咖啡即可永久不限时！" data-en="Inspired by Z-Library's honest supporter model: all core modes are free forever with 30 minutes of daily AI anti-peek radar &amp; screen stealth. Support once with a coffee to unlock lifetime unlimited access.">
+            采用类 Z-Library 独立开发者支持模式：核心画中画能力永久免费，每天免费赠送 30 分钟 AI 防偷窥雷达与会议共享隐身。如果你觉得好用，一次请开发者喝杯咖啡即可永久不限时！
           </p>
         </div>
 
         <div class="pricing-grid">
-          <!-- Free -->
+          <!-- Free Daily -->
           <div class="price-card">
             <div>
-              <div class="p-tag" style="color:#6ee7b7" data-zh="永久免费" data-en="FREE FOREVER">永久免费</div>
-              <div class="p-name">Free 免费版</div>
+              <div class="p-tag" style="color:#6ee7b7" data-zh="每天可用 · 永久免费" data-en="FREE EVERY DAY">每天可用 · 永久免费</div>
+              <div class="p-name">每日免费畅用版</div>
               <div class="p-val">¥0<span> / 永久</span></div>
-              <div class="p-usd">$0 forever</div>
+              <div class="p-usd">$0 forever · 无需绑卡</div>
               <ul class="p-list">
-                <li><span class="p-check">✓</span><span>60fps 变色龙拟态融合模式</span></li>
-                <li><span class="p-check">✓</span><span>鼠标穿透 ⌃⇧M + 老板键 + 悬停开关</span></li>
-                <li><span class="p-check">✓</span><span>参与全球 / 同城实时排行榜</span></li>
-                <li><span class="p-check">✓</span><span>每日 3 局 1v1 耐力 PK</span></li>
+                <li><span class="p-check">✓</span><span>全部 3 种变色模式（拟态/浮雕/彩透）</span></li>
+                <li><span class="p-check">✓</span><span>免插件网页直连 + 代码日志字幕条</span></li>
+                <li><span class="p-check">✓</span><span>每日赠送 30m AI 防偷窥 + 会议隐身</span></li>
+                <li><span class="p-check">✓</span><span>每日 3 局 PK + 补给站免费打卡攒时长</span></li>
               </ul>
             </div>
-            <a class="btn" href="#download" data-zh="免费下载使用" data-en="Download Free">免费下载使用</a>
+            <a class="btn" href="#download" data-zh="立即免费下载" data-en="Download Free">立即免费下载</a>
           </div>
 
-          <!-- Monthly -->
+          <!-- Coffee 9.9 -->
           <div class="price-card">
             <div>
-              <div class="p-tag" data-zh="灵活尝鲜" data-en="FLEXIBLE">灵活尝鲜</div>
-              <div class="p-name">Pro 月度会员</div>
-              <div class="p-val">¥9.9<span> / 月</span></div>
-              <div class="p-usd">海外 $3.99 / mo</div>
+              <div class="p-tag" data-zh="一次请喝咖啡 · 永久有效" data-en="ONE-TIME COFFEE · LIFETIME">一次请喝咖啡 · 永久有效</div>
+              <div class="p-name">一杯美式 · 永久支持者</div>
+              <div class="p-val">¥9.9<span> 永久</span></div>
+              <div class="p-usd">一次赞赏 · 海外 $2.99 one-time</div>
               <ul class="p-list">
-                <li><span class="p-check">✓</span><span>解锁浮雕隐身 &amp; 彩透变色模式</span></li>
-                <li><span class="p-check">✓</span><span>录屏 / 腾讯会议 / 飞书共享隐身</span></li>
-                <li><span class="p-check">✓</span><span>无限 1v1 PK + 暗号房 + 百人赛</span></li>
-                <li><span class="p-check">✓</span><span>榜单 PRO 鎏金徽章 · 2 台设备</span></li>
+                <li><span class="p-check">✓</span><span>永久不限时 AI 摄像头背后防偷窥雷达</span></li>
+                <li><span class="p-check">✓</span><span>永久不限时腾讯会议/飞书共享隐身</span></li>
+                <li><span class="p-check">✓</span><span>无限 1v1 耐力 PK + 创建同事暗号房</span></li>
+                <li><span class="p-check">✓</span><span>榜单专属 SUP 支持者金标 · 2 台设备</span></li>
               </ul>
             </div>
-            <button type="button" class="btn btn-gold" data-buy="monthly" data-zh="购买月卡激活码" data-en="Get Monthly Key">购买月卡激活码</button>
+            <button type="button" class="btn btn-gold" data-buy="coffee" data-zh="请喝一杯美式 (¥9.9 永久)" data-en="Buy an Americano ($2.99)">请喝一杯美式 (¥9.9 永久)</button>
           </div>
 
-          <!-- Yearly -->
+          <!-- Latte 19.9 -->
           <div class="price-card pop">
             <div>
-              <div class="p-tag" data-zh="最受欢迎 · 立省 58%" data-en="MOST POPULAR · SAVE 58%">最受欢迎 · 立省 58%</div>
-              <div class="p-name">Pro 年度会员</div>
-              <div class="p-val">¥49<span> / 年</span></div>
-              <div class="p-usd">折合 ¥4/月 · 海外 $19.9 / yr</div>
+              <div class="p-tag" data-zh="最受欢迎 · 永久更新" data-en="MOST POPULAR · LIFETIME">最受欢迎 · 永久更新</div>
+              <div class="p-name">双杯拿铁 · 永久进阶</div>
+              <div class="p-val">¥19.9<span> 永久</span></div>
+              <div class="p-usd">一次买断 · 海外 $5.99 one-time</div>
               <ul class="p-list">
-                <li><span class="p-check">✓</span><span>包含 Pro 月卡全部完整功能</span></li>
-                <li><span class="p-check">✓</span><span>全年 60–120Hz 新特性优先体验</span></li>
-                <li><span class="p-check">✓</span><span>无限创建同事约战房 + 百人赛</span></li>
-                <li><span class="p-check">✓</span><span>榜单 PRO 鎏金徽章 · 2 台设备</span></li>
+                <li><span class="p-check">✓</span><span>包含「一杯美式」全部永久不限时权益</span></li>
+                <li><span class="p-check">✓</span><span>支持最多 3 台设备同时云端激活</span></li>
+                <li><span class="p-check">✓</span><span>百人淘汰赛资格 + 榜单 VIP 鎏金徽章</span></li>
+                <li><span class="p-check">✓</span><span>后续所有新黑科技与版本永久免费更新</span></li>
               </ul>
             </div>
-            <button type="button" class="btn btn-primary" data-buy="yearly" data-zh="立即开通年卡" data-en="Get Yearly Pro">立即开通年卡</button>
+            <button type="button" class="btn btn-primary" data-buy="latte" data-zh="请喝双杯拿铁 (¥19.9 永久)" data-en="Buy Two Lattes ($5.99)">请喝双杯拿铁 (¥19.9 永久)</button>
           </div>
 
-          <!-- Lifetime -->
+          <!-- Patron 49 -->
           <div class="price-card">
             <div>
-              <div class="p-tag" data-zh="早鸟限量买断" data-en="EARLY BIRD LIFETIME">早鸟限量买断</div>
-              <div class="p-name">早鸟买断版 MAX</div>
-              <div class="p-val">¥99<span> 终身</span></div>
-              <div class="p-usd">一次付费 · 海外 $39 one-time</div>
+              <div class="p-tag" data-zh="致谢早期赞助人" data-en="FOUNDING PATRON">致谢早期赞助人</div>
+              <div class="p-name">创始赞助 · 荣誉殿堂</div>
+              <div class="p-val">¥49<span> 永久</span></div>
+              <div class="p-usd">荣誉买断 · 海外 $14.9 one-time</div>
               <ul class="p-list">
-                <li><span class="p-check">✓</span><span>永久解锁当前及后续全部 Pro 能力</span></li>
-                <li><span class="p-check">✓</span><span>支持最多 3 台设备同时激活</span></li>
-                <li><span class="p-check">✓</span><span>榜单专属 MAX 鎏金标识</span></li>
-                <li><span class="p-check">✓</span><span>免续费、永久云端授权校验</span></li>
+                <li><span class="p-check">✓</span><span>包含全部黑科技与未来版本永久权益</span></li>
+                <li><span class="p-check">✓</span><span>支持最多 5 台设备同时激活使用</span></li>
+                <li><span class="p-check">✓</span><span>全球榜单专属 MAX 鎏金荣耀标识</span></li>
+                <li><span class="p-check">✓</span><span>官网创始支持者鸣谢席位 &amp; 优先需求响应</span></li>
               </ul>
             </div>
-            <button type="button" class="btn btn-gold" data-buy="lifetime" data-zh="抢购早鸟买断版" data-en="Get Lifetime MAX">抢购早鸟买断版</button>
+            <button type="button" class="btn btn-gold" data-buy="patron" data-zh="成为创始支持者 (¥49)" data-en="Become Founding Patron">成为创始支持者 (¥49)</button>
           </div>
         </div>
 
         <div class="fuel-banner">
           <div style="display:flex;flex-direction:column;gap:4px;max-width:660px">
-            <div style="font-size:15.5px;font-weight:700;color:#f8fafc" data-zh="不想直接付费？来「变色龙能量补给站」免费攒 Pro 时长" data-en="Earn Free Pro Time in the Chameleon Fuel Station">
-              不想直接付费？来「变色龙能量补给站」免费攒 Pro 时长
+            <div style="font-size:15.5px;font-weight:700;color:#f8fafc" data-zh="零付费也能全天畅享？来「变色龙能量补给站」免费领无限时长" data-en="Want Unlimited Access Without Paying? Visit the Fuel Station">
+              零付费也能全天畅享？来「变色龙能量补给站」免费领无限时长
             </div>
-            <div style="font-size:12.5px;color:#94a3b8" data-zh="每日用小窗真看视频满 30 分钟打卡领 +12 小时 Pro（连签 3 天额外送 +24h）；邀请同事开局约战双方各得 +3 天 Pro！" data-en="Watch 30 minutes of verified video daily to claim +12h Pro (+24h every 3-day streak), or invite a friend so both receive +3 days of Pro!">
-              每日用小窗真看视频满 30 分钟打卡领 +12 小时 Pro（连签 3 天额外送 +24h）；邀请同事开局约战双方各得 +3 天 Pro！
+            <div style="font-size:12.5px;color:#94a3b8" data-zh="除了每天白送 30 分钟 AI 防偷窥外，每日真看视频满 30 分钟打卡即领 +12h 无限额度（连签 3 天送 +24h）；邀请同事约战双方各得 +3 天！" data-en="Beyond your daily 30-min allowance, watch 30m of video daily to claim +12h unlimited (+24h every 3-day streak), or invite a friend so both receive +3 days!">
+              除了每天白送 30 分钟 AI 防偷窥外，每日真看视频满 30 分钟打卡即领 +12h 无限额度（连签 3 天送 +24h）；邀请同事约战双方各得 +3 天！
             </div>
           </div>
-          <a class="btn btn-primary" href="arena.html#fuel" data-zh="打开补给站领 Pro" data-en="Open Fuel Station">打开补给站领 Pro</a>
+          <a class="btn btn-primary" href="arena.html#fuel" data-zh="打开补给站领免费时长" data-en="Open Fuel Station">打开补给站领免费时长</a>
         </div>
 
         <div class="checkout-toast" id="checkoutToast"></div>
@@ -725,11 +742,11 @@
 
     <canvas id="srcDemoCanvas" width="420" height="240" style="display:none"></canvas>
 
-    <script src="store-config.js?v=5.3"></script>
-    <script src="chameleon-stats.js?v=5.3"></script>
+    <script src="store-config.js?v=5.4"></script>
+    <script src="chameleon-stats.js?v=5.4"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.3"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.4"><\/script>');
       }
     </script>
     <script>
@@ -787,10 +804,33 @@
               return;
             }
             toast.innerHTML =
-              '线上收款通道正在配置中，现在即可先前往 <a href="arena.html#upgrade" style="color:#fff;text-decoration:underline;font-weight:700">会员分级中心免费开启 3 天全功能 Pro 体验</a>，或输入已有激活码立即解锁！';
+              '赞赏收款通道配置中！现在即可每天免费畅用（含 30 分钟 AI 防偷窥雷达 + 会议隐身），也可前往 <a href="arena.html#upgrade" style="color:#fff;text-decoration:underline;font-weight:700">支持者中心一键免费体验 3 天无限版</a> 或去补给站免费打卡攒时长！';
             toast.classList.add("show");
           });
         });
+
+        // Live preview toggle for Black Tech #3: Disguised Code/Terminal Log Subtitle Bar
+        const demoLogSub = document.getElementById("demoLogSub");
+        const btnDemoLogSub = document.getElementById("btnDemoLogSub");
+        if (btnDemoLogSub && demoLogSub) {
+          const demoLines = [
+            "字幕已伪装为终端编译日志，静音看剧看番零违和",
+            "Apple Vision 本地 AI 雷达守护中：背后出现 2 人自动秒隐",
+            "免装浏览器插件：直接粘贴 B站 / YouTube 链接即可原生变色播",
+          ];
+          let lineIdx = 0;
+          btnDemoLogSub.addEventListener("click", () => {
+            const on = demoLogSub.classList.toggle("show");
+            btnDemoLogSub.classList.toggle("btn-primary", on);
+          });
+          setInterval(() => {
+            if (!demoLogSub.classList.contains("show")) return;
+            lineIdx = (lineIdx + 1) % demoLines.length;
+            const now = new Date();
+            const ts = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+            demoLogSub.innerHTML = `<span style="color:#64748b">[${ts}]</span> <span style="color:#34d399;font-weight:700">[INFO]</span> <span style="color:#79c0ff">worker::sync</span> — ${demoLines[lineIdx]}`;
+          }, 3600);
+        }
 
         // -----------------------------------------------------------------
         // Live 60fps WebGL Optical Projector Hero Playground

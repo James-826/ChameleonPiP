@@ -447,11 +447,11 @@
             <option value="游戏引擎">游戏引擎</option>
             <option value="独立开发">独立开发</option>
           </select>
-          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日真看视频打卡 / 邀请好友免费领 Pro 时长">
-            <span>免费攒 Pro</span>
+          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日真看视频打卡 / 邀请好友免费领无限防窥时长">
+            <span>免费补给站</span>
           </button>
           <button type="button" class="btn-pro" id="btnOpenPro">
-            <span>升级 Pro 会员</span>
+            <span>请喝咖啡 · 永久支持</span>
           </button>
           <a class="btn-ghost" href="index.html">返回体验台</a>
         </div>
@@ -628,16 +628,16 @@
       </section>
     </div>
 
-    <!-- Membership Tier & License Key Activation Modal -->
+    <!-- Z-Library Style Supporter & License Key Activation Modal -->
     <div class="modal-backdrop" id="proModal" role="dialog" aria-modal="true" aria-labelledby="proModalTitle">
       <div class="modal-card">
         <div class="modal-head">
           <div>
             <div class="modal-title" id="proModalTitle">
-              <span>ChameleonPiP 会员分级中心</span>
+              <span>请开发者喝杯咖啡 · 永久支持者计划</span>
               <span id="modalCurrentBadge"></span>
             </div>
-            <div class="modal-sub" id="modalSubText">基础变色融合、鼠标穿透与排行榜永久免费 · 升级 Pro 解锁进阶隐身与无限联机权益</div>
+            <div class="modal-sub" id="modalSubText">拒绝月费订阅！3 种变色模式、免插件直连与日志字幕永久免费 · 每天赠送 30 分钟 AI 防偷窥与会议隐身 · 一次请喝咖啡永久不限时</div>
           </div>
           <button type="button" class="modal-close" id="btnClosePro" aria-label="关闭">×</button>
         </div>
@@ -645,8 +645,8 @@
         <div class="modal-notice" id="proModalNotice"></div>
 
         <div class="modal-tabs" id="modalTabsBar">
-          <button type="button" class="modal-tab-btn active" data-mtab="plans">会员方案 / 激活码</button>
-          <button type="button" class="modal-tab-btn" data-mtab="fuel">能量补给站（免费攒 Pro）</button>
+          <button type="button" class="modal-tab-btn active" data-mtab="plans">请喝咖啡 · 永久买断</button>
+          <button type="button" class="modal-tab-btn" data-mtab="fuel">能量补给站（零付费白嫖时长）</button>
         </div>
 
         <div id="tabPanelPlans" style="display:flex;flex-direction:column;gap:14px">
@@ -656,17 +656,17 @@
 
           <div class="activate-box">
             <div class="modal-status-bar">
-              <span id="lblMembershipState">当前版本：Free 免费版</span>
+              <span id="lblMembershipState">当前身份：免费畅用版（每日赠送 30 分钟 AI 防窥 + 会议隐身）</span>
               <button type="button" class="btn-pro" id="btnStartTrial" style="padding:5px 11px;font-size:11.5px">
-                一键免费体验 3 天 Pro
+                一键免费体验 3 天无限版
               </button>
             </div>
             <div class="activate-row">
-              <input class="inp" id="inpLicenseKey" placeholder="输入 Pro 激活码，例如 CHM-PRO-XXXX-XXXX-XXXX" />
+              <input class="inp" id="inpLicenseKey" placeholder="输入支持者激活码，例如 CHM-SUP / CHM-VIP / CHM-MAX-XXXX-XXXX-XXXX" />
               <button type="button" class="btn btn-primary" id="btnActivateKey" style="flex:0 0 auto;padding:8px 18px">激活兑换</button>
             </div>
             <div style="font-size:11px;color:#64748b">
-              购买后自动发放激活码 · 同一激活码支持多设备云端同步 · 激活后 Mac 桌面灵动岛与浏览器扩展即刻生效
+              类 Z-Library 独立开发者支持模式 · 一次赞赏永久有效 · 激活后 Mac 桌面灵动岛与浏览器扩展秒级同步
             </div>
           </div>
         </div>
@@ -724,11 +724,11 @@
       </div>
     </div>
 
-    <script src="store-config.js?v=5.3" onerror="this.remove()"></script>
-    <script src="chameleon-stats.js?v=5.3" onerror="this.remove()"></script>
+    <script src="store-config.js?v=5.4" onerror="this.remove()"></script>
+    <script src="chameleon-stats.js?v=5.4" onerror="this.remove()"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.3"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.4"><\/script>');
       }
     </script>
     <script>
@@ -1082,7 +1082,7 @@
                 <div class="plan-usd">海外定价 ${p.priceUsd} ${p.period}</div>
                 <div class="plan-desc" style="flex:1">${p.desc}</div>
                 <button type="button" class="btn ${p.recommended ? "btn-primary" : ""}" data-modal-buy="${p.id}" style="margin-top:8px;padding:7px 10px;font-size:11.5px">
-                  ${checkoutUrls[p.id] ? "立即购买激活码" : "获取激活码"}
+                  ${checkoutUrls[p.id] ? "请喝咖啡 · 立即获取激活码" : "请喝咖啡 · 获取永久码"}
                 </button>
               </div>
             `
@@ -1094,17 +1094,17 @@
               if (url) {
                 window.open(url, "_blank", "noopener");
               } else {
-                showModalNotice("在线购买链接配置中！你现在可以先点击下方「一键免费体验 3 天 Pro」，或直接输入已领取的激活码兑换。", false);
+                showModalNotice("赞赏收款链接配置中！你可以先每天免费畅用（含 30 分钟 AI 防窥 + 会议隐身），点下方「一键免费体验 3 天无限版」，或去「能量补给站」免费打卡攒时长！", false);
                 document.getElementById("inpLicenseKey")?.focus();
               }
             });
           });
 
           document.getElementById("compareTable").innerHTML =
-            `<div class="cmp-row head"><span>核心功能权益</span><span style="text-align:center">Free 免费版</span><span style="text-align:center;color:#fde68a">Pro 会员</span></div>` +
+            `<div class="cmp-row head"><span>核心能力（拒绝订阅 · 每天可用）</span><span style="text-align:center">每日免费版</span><span style="text-align:center;color:#fde68a">永久支持者</span></div>` +
             S.PRO_FEATURE_CATALOG.map((f) => {
-              const freeCell = f.free === true ? '<span class="cmp-yes">支持</span>' : f.free === false ? '<span class="cmp-no">—</span>' : `<span style="text-align:center;color:#94a3b8">${f.free}</span>`;
-              const proCell = f.pro === true ? '<span class="cmp-pro">完整解锁</span>' : `<span class="cmp-pro">${f.pro}</span>`;
+              const freeCell = f.free === true ? '<span class="cmp-yes">永久免费</span>' : f.free === false ? '<span class="cmp-no">—</span>' : `<span style="text-align:center;color:#6ee7b7;font-weight:600">${f.free}</span>`;
+              const proCell = f.pro === true ? '<span class="cmp-pro">永久解锁</span>' : `<span class="cmp-pro">${f.pro}</span>`;
               return `<div class="cmp-row"><span>${f.name}</span>${freeCell}${proCell}</div>`;
             }).join("");
         }
@@ -1115,21 +1115,21 @@
           const btnPro = document.getElementById("btnOpenPro");
           if (isPro) {
             btnPro.className = "btn-pro active-pro";
-            btnPro.innerHTML = `${S.renderProBadgeSvg(membership.tier)}<span>${membership.planName || "Pro 会员"}</span>`;
+            btnPro.innerHTML = `${S.renderProBadgeSvg(membership.tier, membership.plan)}<span>${membership.planName || "永久支持者"}</span>`;
           } else {
             btnPro.className = "btn-pro";
-            btnPro.innerHTML = `<span>升级 Pro 会员</span>`;
+            btnPro.innerHTML = `<span>请喝咖啡 · 永久支持</span>`;
           }
 
           document.getElementById("modalCurrentBadge").innerHTML = isPro
-            ? S.renderProBadgeSvg(membership.tier)
-            : '<span class="tag" style="color:#94a3b8">FREE</span>';
+            ? S.renderProBadgeSvg(membership.tier, membership.plan)
+            : '<span class="tag" style="color:#6ee7b7">每日免费可用</span>';
 
           const lblState = document.getElementById("lblMembershipState");
           if (isPro) {
-            lblState.innerHTML = `当前身份：<strong style="color:#6ee7b7">${membership.planName}</strong>（有效期至 ${S.formatExpiryDate(membership.expiresAt)}）`;
+            lblState.innerHTML = `当前身份：<strong style="color:#6ee7b7">${membership.planName}</strong>（${S.formatExpiryDate(membership.expiresAt)}）`;
           } else {
-            lblState.innerHTML = `当前身份：<strong style="color:#e2e8f0">Free 免费版</strong>（每日 3 局免费 PK，支持基础光影投影）`;
+            lblState.innerHTML = `当前身份：<strong style="color:#e2e8f0">免费畅用版</strong>（全模式免费 + 每日 30m 免费 AI 防窥与会议隐身）`;
           }
 
           const btnTrial = document.getElementById("btnStartTrial");
@@ -1139,18 +1139,18 @@
             btnTrial.style.display = "inline-flex";
             btnTrial.disabled = true;
             btnTrial.style.opacity = "0.45";
-            btnTrial.textContent = "已体验过 3 天试用";
+            btnTrial.textContent = "已体验过 3 天无限版";
           } else {
             btnTrial.style.display = "inline-flex";
             btnTrial.disabled = false;
             btnTrial.style.opacity = "1";
-            btnTrial.textContent = "一键免费体验 3 天 Pro";
+            btnTrial.textContent = "一键免费体验 3 天无限版";
           }
 
           const quotaBadge = document.getElementById("pkQuotaBadge");
           if (quotaBadge) {
             if (isPro) {
-              quotaBadge.textContent = "PRO 无限对战";
+              quotaBadge.textContent = "支持者无限对战";
               quotaBadge.style.color = "#fde68a";
               quotaBadge.style.borderColor = "rgba(245,158,11,0.35)";
             } else {
@@ -1401,7 +1401,7 @@
         });
 
         if (window.location.hash === "#upgrade") {
-          setTimeout(() => openProModal("升级 Pro 解锁浮雕隐身、彩透变色与会议共享隐身！", "plans"), 200);
+          setTimeout(() => openProModal("全部 3 种变色模式永久免费！请开发者喝杯美式（¥9.9 永久）即可不限时畅享 AI 防偷窥雷达与会议共享隐身。", "plans"), 200);
         } else if (window.location.hash === "#fuel") {
           setTimeout(() => openProModal("", "fuel"), 200);
         }

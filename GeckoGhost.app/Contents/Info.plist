@@ -15,13 +15,15 @@
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>5.0.0</string>
+  <string>5.4.0</string>
   <key>CFBundleVersion</key>
-  <string>5</string>
+  <string>7</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSCameraUsageDescription</key>
+  <string>ChameleonPiP 仅在您手动开启「AI 背后防偷窥雷达」时于本地内存中运行 Apple Vision 人脸计数检测（检测到背后 ≥2 人时自动触发老板键隐藏）。摄像头画面实时丢弃，绝不录制、存储或上传。</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

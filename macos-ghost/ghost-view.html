@@ -83,8 +83,44 @@
         transition: bottom 0.18s ease, color 0.2s ease;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
       }
+      .subtitle-el.stealth-log {
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        text-align: left;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "SF Mono", monospace;
+        font-size: 10.5px;
+        font-weight: 500;
+        line-height: 1.4;
+        padding: 5px 9px;
+        border-radius: 6px;
+        background: rgba(13, 17, 23, 0.86);
+        border: 1px solid rgba(52, 211, 153, 0.24);
+        color: #c9d1d9;
+        text-shadow: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .subtitle-el.stealth-log.light-bg {
+        background: rgba(248, 250, 252, 0.9);
+        border-color: rgba(15, 23, 42, 0.16);
+        color: #1e293b;
+      }
+      .subtitle-el.stealth-log .log-ts { color: #64748b; }
+      .subtitle-el.stealth-log .log-lv { color: #34d399; font-weight: 700; }
+      .subtitle-el.stealth-log.light-bg .log-lv { color: #059669; }
+      .subtitle-el.stealth-log .log-mod { color: #79c0ff; }
+      .subtitle-el.stealth-log.light-bg .log-mod { color: #0284c7; }
       .pip-root.hovered .subtitle-el {
         bottom: 66px;
+      }
+      .icon-btn.active {
+        background: rgba(16, 185, 129, 0.28);
+        border-color: rgba(52, 211, 153, 0.65);
+        color: #a7f3d0;
       }
 
       /* Top & Bottom Hover Glass Bars */
@@ -233,6 +269,7 @@
           <button class="icon-btn" data-size="280" title="小尺寸">S</button>
           <button class="icon-btn" data-size="392" title="中尺寸">M</button>
           <button class="icon-btn" data-size="520" title="大尺寸">L</button>
+          <button class="icon-btn" id="btnStealthSub" title="代码日志字幕条：将视频字幕伪装成 VS Code / 终端编译日志，静音看剧神器">日志</button>
           <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（鼠标直接穿透小窗操作底下内容，在顶部灵动岛或按 ⌃⇧M 恢复）"></button>
           <button class="icon-btn" id="btnBoss" title="老板键隐藏"></button>
         </div>
@@ -282,10 +319,11 @@
 
       <div class="idle-card" id="idleCard">
         <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙画中画已就绪</div>
-        <div style="color:#94a3b8">可在顶部摄像头灵动刘海控制/查看排行PK，也可直接拖拽四角自由缩放：</div>
-        <div class="idle-btns">
-          <button class="cta-btn" id="btnTryDemo">播放演示视频</button>
-          <button class="cta-btn sec" id="btnOpenMp4">打开本地 MP4</button>
+        <div style="color:#94a3b8">免插件直接粘贴 B站/YouTube 链接播放，或在顶部灵动刘海开启 AI 防偷窥雷达：</div>
+        <div class="idle-btns" style="flex-wrap:wrap">
+          <button class="cta-btn" id="btnOpenWebUrl">粘贴网页链接直连</button>
+          <button class="cta-btn sec" id="btnTryDemo">演示视频</button>
+          <button class="cta-btn sec" id="btnOpenMp4">本地 MP4</button>
         </div>
       </div>
 
@@ -294,16 +332,16 @@
 
     <canvas id="demoGenCanvas" width="480" height="270" style="display:none"></canvas>
 
-    <script src="gecko-core.js?v=4.2"></script>
+    <script src="gecko-core.js?v=5.4"></script>
     <script>
       if (!window.GeckoCore) {
-        document.write('<script src="../extension/gecko-core.js?v=4.2"><\/script>');
+        document.write('<script src="../extension/gecko-core.js?v=5.4"><\/script>');
       }
     </script>
-    <script src="chameleon-stats.js?v=5.2"></script>
+    <script src="chameleon-stats.js?v=5.4"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.2"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.4"><\/script>');
       }
     </script>
     <script>
@@ -640,6 +678,39 @@
         let lastAppliedFeatherKey = "";
         let mutedLockUntil = 0;
         let pausedLockUntil = 0;
+        let lastRawSubtitle = "";
+
+        function escapeHtml(str) {
+          return String(str || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        function renderSubtitle(rawText) {
+          if (rawText !== undefined) lastRawSubtitle = String(rawText || "");
+          const clean = lastRawSubtitle.trim();
+          if (!state.mirrorSubtitles || !clean) {
+            subtitleEl.style.display = "none";
+            subtitleEl.textContent = "";
+            subtitleEl.classList.remove("stealth-log", "light-bg");
+            return;
+          }
+          subtitleEl.style.display = "block";
+          if (state.stealthSubtitle && Core.formatStealthLogParts) {
+            const parts = Core.formatStealthLogParts(clean);
+            const isLight = Core.getLuminance(state.bgColor || "#505050") > 0.62;
+            subtitleEl.classList.add("stealth-log");
+            subtitleEl.classList.toggle("light-bg", isLight);
+            subtitleEl.style.color = "";
+            subtitleEl.innerHTML = `<span class="log-ts">[${parts.ts}]</span> <span class="log-lv">[${parts.level}]</span> <span class="log-mod">${parts.mod}</span> — ${escapeHtml(parts.text)}`;
+          } else {
+            subtitleEl.classList.remove("stealth-log", "light-bg");
+            subtitleEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : (state.inkColor || Core.deriveAutoInkColor(state.bgColor));
+            subtitleEl.textContent = clean;
+          }
+        }
+
         function render() {
           root.classList.toggle("boss-active", Boolean(state.bossMode));
           root.setAttribute("data-mode", state.mode);
@@ -660,11 +731,13 @@
             }
           }
 
-          subtitleEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : state.inkColor;
+          renderSubtitle();
 
           document.querySelectorAll(".seg-btn").forEach((b) => {
             b.classList.toggle("active", b.dataset.mode === state.mode);
           });
+          const btnSub = document.getElementById("btnStealthSub");
+          if (btnSub) btnSub.classList.toggle("active", Boolean(state.stealthSubtitle));
           document.getElementById("rngStealth").value = state.stealth;
           document.getElementById("lblStealth").textContent = `${state.stealth}%`;
           renderPlayerControls(false);
@@ -840,6 +913,19 @@
             ctx.fillStyle = "#fff";
             ctx.fillText(msg, w / 2, h - 22);
 
+            const demoSubtitles = [
+              "变色龙拟态 60fps 运行中：底层代码、Excel 与红绿色块原样透出",
+              "开启「日志字幕」后，视频对白自动伪装为终端编译日志，静音看剧超隐蔽",
+              "顶部灵动岛支持「AI防窥雷达」：本地检测背后有人靠近自动秒隐",
+              "点击「网页直连」可直接粘贴 B站 / YouTube 链接，免装浏览器插件",
+            ];
+            const subIdx = Math.floor(player.currentTime / 4.5) % demoSubtitles.length;
+            if (state.stealthSubtitle) {
+              if (lastRawSubtitle !== demoSubtitles[subIdx]) renderSubtitle(demoSubtitles[subIdx]);
+            } else if (lastRawSubtitle && demoSubtitles.includes(lastRawSubtitle)) {
+              renderSubtitle("");
+            }
+
             if (glProjector) {
               glProjector.uploadAndDraw(c, w, h, state);
             }
@@ -881,6 +967,9 @@
           requestAnimationFrame(pump);
         }
 
+        document.getElementById("btnOpenWebUrl").addEventListener("click", () => {
+          postNative({ action: "openWebVideoUrl" });
+        });
         document.getElementById("btnTryDemo").addEventListener("click", startBuiltInDemo);
         document.getElementById("btnOpenMp4").addEventListener("click", () => {
           postNative({ action: "openLocalMp4" });
@@ -927,6 +1016,7 @@
                 if (!hasLiveChromeStream) {
                   hasLiveChromeStream = true;
                   demoRunning = false;
+                  postNative({ action: "chromeStreamStarted" });
                   localVideo.pause();
                   localVideo.srcObject = null;
                   localVideo.style.display = "none";
@@ -949,6 +1039,9 @@
                     if (msg.state && typeof msg.state.mirrorSubtitles === "boolean") {
                       state.mirrorSubtitles = msg.state.mirrorSubtitles;
                     }
+                    if (msg.state && typeof msg.state.stealthSubtitle === "boolean") {
+                      state.stealthSubtitle = msg.state.stealthSubtitle;
+                    }
                     if (msg.player) {
                       const nowTs = performance.now();
                       const incoming = { ...msg.player };
@@ -956,7 +1049,7 @@
                       if (nowTs < pausedLockUntil) delete incoming.paused;
                       player = { ...player, ...incoming };
                     }
-                    subtitleEl.textContent = state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "";
+                    renderSubtitle(state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "");
                     renderPlayerControls(false);
                   } else if (msg.type === "statePatch" && msg.patch) {
                     const p = { ...msg.patch };
@@ -1067,18 +1160,15 @@
         }
         syncMembershipWithNative();
 
+        // All 3 Chameleon visual modes (拟态 / 浮雕 / 彩透) are 100% FREE forever!
         document.querySelectorAll(".seg-btn").forEach((b) => {
           b.addEventListener("click", () => {
-            const S = window.ChameleonStats;
-            if (b.dataset.mode !== "projector" && S && !S.isProMember()) {
-              postNative({
-                action: "requestUpgrade",
-                reason: "「浮雕隐身」与「彩透变色」为 Pro 会员专属变色龙模式，点击下方可免费试用 3 天或激活会员！",
-              });
-              return;
-            }
             broadcastStateUpdate({ mode: b.dataset.mode });
           });
+        });
+        document.getElementById("btnStealthSub")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          broadcastStateUpdate({ stealthSubtitle: !state.stealthSubtitle });
         });
         document.querySelectorAll("[data-size]").forEach((b) => {
           b.addEventListener("click", () => {
@@ -1123,7 +1213,7 @@
               const patch = Core.computeAutoScenePatch(sensor, state);
               state.bgColor = Core.lerpColor(state.bgColor, patch.bgColor, 0.45);
               state.inkColor = Core.deriveAutoInkColor(state.bgColor, sensor.archetype);
-              subtitleEl.style.color = state.inkColor;
+              renderSubtitle();
               const nextLum = Core.getLuminance(state.bgColor);
               const prevBucket = prevLum > 0.86 ? 2 : prevLum < 0.14 ? 0 : 1;
               const nextBucket = nextLum > 0.86 ? 2 : nextLum < 0.14 ? 0 : 1;

@@ -351,18 +351,43 @@
   const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
 
   const PRO_FEATURE_CATALOG = [
-    { key: "optical_projector", name: "变色龙拟态融合 + 鼠标穿透 (⌃⇧M) + 老板键", free: true, pro: true },
-    { key: "optical_modes", name: "浮雕隐身 (Emboss) & 彩透变色 (Cinema) 进阶模式", free: false, pro: true },
-    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕自动隐身", free: false, pro: true },
-    { key: "pk_unlimited", name: "1v1 线上耐力 PK 对战", free: "每日 3 局", pro: "无限畅玩" },
-    { key: "room_pk", name: "创建 4 位暗号同事约战房 & 百人淘汰赛", free: false, pro: true },
-    { key: "pro_badge", name: "全球/同城榜 PRO 鎏金专属徽章", free: false, pro: true },
+    { key: "optical_modes", name: "全部 3 种变色模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
+    { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
+    { key: "click_through", name: "鼠标穿透 (⌃⇧M) + 悬停开关 + 灵动刘海 + 老板键", free: "永久免费", pro: "永久免费" },
+    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "每日 30 分钟", pro: "永久不限时" },
+    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕系统级隐身", free: "每日 30 分钟", pro: "永久不限时" },
+    { key: "pk_unlimited", name: "1v1 耐力 PK · 4位暗号同事房 · 百人赛 · 支持者金标", free: "每日 3 局 PK", pro: "永久无限 + 金标" },
   ];
 
   const PRICING_PLANS = [
-    { id: "monthly", name: "Pro 月度会员", priceCny: "¥9.9", priceUsd: "$3.99", period: "/ 月", tag: "灵活尝鲜", desc: "解锁浮雕隐身/彩透变色、会议共享隐身、无限 PK，最多 2 台设备" },
-    { id: "yearly", name: "Pro 年度会员", priceCny: "¥49", priceUsd: "$19.9", period: "/ 年", tag: "最受欢迎 · 省 58%", recommended: true, desc: "折合仅 ¥4/月，全年畅享全功能与优先更新" },
-    { id: "lifetime", name: "早鸟买断版 MAX", priceCny: "¥99", priceUsd: "$39", period: "终身买断", tag: "限量早鸟", desc: "一次付费永久使用，支持 3 台设备 + 专属 MAX 徽章" },
+    {
+      id: "coffee",
+      name: "一杯美式 · 永久支持者",
+      priceCny: "¥9.9",
+      priceUsd: "$2.99",
+      period: "一次买断 · 永久",
+      tag: "Z-Library 同款 · 请喝咖啡",
+      desc: "永久解除每日 30 分钟限制（AI防窥雷达 + 会议隐身不限时）、无限 PK & 同事暗号房、榜单 SUP 金标（2 台设备）",
+    },
+    {
+      id: "latte",
+      name: "双杯拿铁 · 永久进阶",
+      priceCny: "¥19.9",
+      priceUsd: "$5.99",
+      period: "一次买断 · 永久",
+      tag: "最受欢迎 · 永久更新",
+      recommended: true,
+      desc: "包含一杯美式全部永久权益 + 支持 3 台设备 + 百人淘汰赛 + 专属 VIP 鎏金徽章 + 后续黑科技永久免费",
+    },
+    {
+      id: "patron",
+      name: "创始赞助 · 荣誉殿堂",
+      priceCny: "¥49",
+      priceUsd: "$14.9",
+      period: "荣誉买断 · 永久",
+      tag: "致谢早期赞助人",
+      desc: "支持最多 5 台设备同时激活 + 榜单专属 MAX 鎏金标识 + 官网创始支持者荣誉鸣谢",
+    },
   ];
 
   function getDeviceId() {
@@ -440,7 +465,18 @@
 
   function hasFeature(featureKey, m) {
     const pro = isProMember(m);
-    if (featureKey === "optical_projector" || featureKey === "projector") return true;
+    if (
+      featureKey === "optical_projector" ||
+      featureKey === "projector" ||
+      featureKey === "emboss" ||
+      featureKey === "cinema" ||
+      featureKey === "optical_modes" ||
+      featureKey === "built_in_web" ||
+      featureKey === "stealth_subtitle" ||
+      featureKey === "click_through"
+    ) {
+      return true;
+    }
     return pro;
   }
 
@@ -540,12 +576,14 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
-  function renderProBadgeSvg(tier = "pro") {
-    const isMax = tier === "lifetime";
-    const label = isMax ? "MAX" : "PRO";
-    const gStart = isMax ? "#fde68a" : "#fcd34d";
-    const gMid = isMax ? "#f59e0b" : "#f59e0b";
-    const gEnd = isMax ? "#d97706" : "#b45309";
+  function renderProBadgeSvg(tier = "pro", plan = "") {
+    const isPatron = plan === "patron" || (tier === "lifetime" && plan !== "coffee" && plan !== "latte");
+    const isLatte = plan === "latte";
+    const isCoffee = plan === "coffee";
+    const label = isPatron ? "MAX" : isLatte ? "VIP" : isCoffee ? "SUP" : "PRO";
+    const gStart = isPatron ? "#fef08a" : isLatte ? "#fde68a" : "#fcd34d";
+    const gMid = "#f59e0b";
+    const gEnd = isPatron ? "#d97706" : "#b45309";
     return `<svg viewBox="0 0 34 15" width="34" height="15" style="flex-shrink:0;vertical-align:middle" aria-label="${label}">
       <defs>
         <linearGradient id="pg-${label}" x1="0" y1="0" x2="1" y2="1">

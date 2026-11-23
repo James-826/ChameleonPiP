@@ -24,10 +24,14 @@ const ADMIN_KEY = process.env.CHAMELEON_ADMIN_KEY || "";
 const FREE_DAILY_PK_LIMIT = 3;
 
 const PLAN_CATALOG = {
-  trial: { tier: "pro", plan: "trial", planName: "Pro 3天体验版", durationDays: 3, maxDevices: 2 },
-  monthly: { tier: "pro", plan: "monthly", planName: "Pro 月度会员", durationDays: 30, maxDevices: 2 },
-  yearly: { tier: "pro", plan: "yearly", planName: "Pro 年度会员", durationDays: 365, maxDevices: 2 },
-  lifetime: { tier: "lifetime", plan: "lifetime", planName: "Pro 早鸟买断版", durationDays: 0, maxDevices: 3 },
+  trial: { tier: "pro", plan: "trial", planName: "支持者 3天畅享体验", durationDays: 3, maxDevices: 2 },
+  coffee: { tier: "lifetime", plan: "coffee", planName: "一杯美式 · 永久支持者", durationDays: 0, maxDevices: 2 },
+  latte: { tier: "lifetime", plan: "latte", planName: "双杯拿铁 · 永久进阶支持者", durationDays: 0, maxDevices: 3 },
+  patron: { tier: "lifetime", plan: "patron", planName: "创始赞助 · 荣誉殿堂支持者", durationDays: 0, maxDevices: 5 },
+  // Legacy plans kept 100% compatible with already-issued keys
+  monthly: { tier: "pro", plan: "monthly", planName: "支持者月度体验版", durationDays: 30, maxDevices: 2 },
+  yearly: { tier: "pro", plan: "yearly", planName: "支持者年度畅享版", durationDays: 365, maxDevices: 2 },
+  lifetime: { tier: "lifetime", plan: "lifetime", planName: "早鸟永久支持者 MAX", durationDays: 0, maxDevices: 3 },
 };
 
 const SEED_PLAYERS = [
@@ -56,8 +60,15 @@ function todayDateKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function generateLicenseKey(plan = "yearly") {
-  const prefix = plan === "lifetime" ? "CHM-MAX" : "CHM-PRO";
+function generateLicenseKey(plan = "latte") {
+  const prefix =
+    plan === "patron" || plan === "lifetime"
+      ? "CHM-MAX"
+      : plan === "latte"
+      ? "CHM-VIP"
+      : plan === "coffee"
+      ? "CHM-SUP"
+      : "CHM-PRO";
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const seg = () => {
     let out = "";
@@ -218,10 +229,15 @@ function getUserEntitlement(userId) {
     dailyPkLimit: isPro ? -1 : FREE_DAILY_PK_LIMIT,
     dailyPkUsed: rec.dailyPkCount || 0,
     dailyPkRemaining: remaining,
+    dailyShieldFreeMinutes: isPro ? -1 : 30,
     fuel: getUserFuelSummary(userId, rec),
     features: {
-      opticalModes: isPro ? ["projector", "emboss", "cinema"] : ["projector"],
+      opticalModes: ["projector", "emboss", "cinema"],
       clickThrough: true,
+      builtInWebPlayer: true,
+      stealthSubtitle: true,
+      dailyAntiPeekRadar: true,
+      unlimitedRadar: isPro,
       screenShareStealth: isPro,
       roomPkCreate: isPro,
       royalePk: isPro,
@@ -606,7 +622,7 @@ function handleWsMessage(client, msg) {
       sendWsJson(client, {
         type: "pro_required",
         feature: "daily_pk_limit",
-        message: `免费版每日限 ${FREE_DAILY_PK_LIMIT} 局 1v1 耐力 PK（今日已用完），升级 Pro 或开启 3 天试用解锁无限对战。`,
+        message: `每日免费额度为 ${FREE_DAILY_PK_LIMIT} 局 1v1 耐力 PK（今日已用完，明天自动刷新）。去能量补给站免费打卡领时长，或请开发者喝杯美式（¥9.9 永久）解锁无限对战！`,
         entitlement: ent,
       });
       return;
@@ -643,7 +659,7 @@ function handleWsMessage(client, msg) {
       sendWsJson(client, {
         type: "pro_required",
         feature: "room_pk",
-        message: "创建私人 4 位暗号约战房为 Pro 会员专属功能（受邀加入好友房间免费）。开启 3 天试用或升级 Pro 即可创建！",
+        message: "创建私人 4 位暗号约战房为永久支持者专属权益（受邀加入好友房间免费）。请喝杯美式（¥9.9 永久）或领免费能量时长即可创建！",
         entitlement: ent,
       });
       return;
@@ -675,7 +691,7 @@ function handleWsMessage(client, msg) {
     if (m.isBotMatch) {
       setTimeout(() => {
         if (activeMatches.has(m.id)) {
-          const replies = ["收到，稳住节奏", "光学投影已拉满", "看谁坚持更久"];
+          const replies = ["收到，稳住节奏", "变色拟态已拉满", "看谁坚持更久"];
           sendWsJson(client, {
             type: "pk_signal",
             from: m.botName || "对手",
@@ -805,7 +821,7 @@ const server = http.createServer((req, res) => {
       const key = String(data.key || "").trim().toUpperCase();
       if (!userId || !key) {
         res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: false, error: "missing_params", message: "请输入完整的激活码（格式：CHM-PRO-XXXX-XXXX-XXXX）。" }));
+        res.end(JSON.stringify({ ok: false, error: "missing_params", message: "请输入完整的支持者激活码（格式：CHM-SUP / CHM-VIP / CHM-MAX-XXXX-XXXX-XXXX）。" }));
         return;
       }
       if (!licenses.has(key)) loadLicensesDatabase(false);
@@ -1163,6 +1179,7 @@ const server = http.createServer((req, res) => {
         ".png": "image/png",
         ".svg": "image/svg+xml",
         ".json": "application/json; charset=utf-8",
+        ".zip": "application/zip",
       }[ext] || "application/octet-stream";
       res.writeHead(200, { "Content-Type": mime, "Cache-Control": "no-store, must-revalidate" });
       res.end(fs.readFileSync(fullPath));

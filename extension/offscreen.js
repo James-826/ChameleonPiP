@@ -329,7 +329,7 @@
         const prev = currentState || {};
         currentState = msg.state;
         const diff = {};
-        for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles", "hoverReveal"]) {
+        for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles", "stealthSubtitle", "hoverReveal"]) {
           if (msg.state[k] !== undefined && msg.state[k] !== prev[k]) diff[k] = msg.state[k];
         }
         if (Object.keys(diff).length > 0) sendStatePatchToGhost(diff);

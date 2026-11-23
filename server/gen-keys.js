@@ -6,9 +6,9 @@
  * (auto hot-reloaded by arena-server.js with zero downtime).
  *
  * Usage:
- *   node server/gen-keys.js --plan monthly --count 10
- *   node server/gen-keys.js --plan yearly --count 20
- *   node server/gen-keys.js --plan lifetime --count 5
+ *   node server/gen-keys.js --plan coffee --count 20   (¥9.9 一杯美式 · 永久支持者)
+ *   node server/gen-keys.js --plan latte --count 20    (¥19.9 双杯拿铁 · 永久进阶支持者)
+ *   node server/gen-keys.js --plan patron --count 10   (¥49 创始赞助 · 荣誉殿堂支持者)
  */
 "use strict";
 
@@ -20,9 +20,12 @@ const DATA_DIR = path.join(__dirname, "data");
 const LICENSES_FILE = path.join(DATA_DIR, "licenses-db.json");
 
 const PLANS = {
-  monthly: { tier: "pro", plan: "monthly", planName: "Pro 月度会员", durationDays: 30, maxDevices: 2, prefix: "CHM-PRO" },
-  yearly: { tier: "pro", plan: "yearly", planName: "Pro 年度会员", durationDays: 365, maxDevices: 2, prefix: "CHM-PRO" },
-  lifetime: { tier: "lifetime", plan: "lifetime", planName: "Pro 早鸟买断版", durationDays: 0, maxDevices: 3, prefix: "CHM-MAX" },
+  coffee: { tier: "lifetime", plan: "coffee", planName: "一杯美式 · 永久支持者", durationDays: 0, maxDevices: 2, prefix: "CHM-SUP" },
+  latte: { tier: "lifetime", plan: "latte", planName: "双杯拿铁 · 永久进阶支持者", durationDays: 0, maxDevices: 3, prefix: "CHM-VIP" },
+  patron: { tier: "lifetime", plan: "patron", planName: "创始赞助 · 荣誉殿堂支持者", durationDays: 0, maxDevices: 5, prefix: "CHM-MAX" },
+  monthly: { tier: "pro", plan: "monthly", planName: "支持者月度体验版", durationDays: 30, maxDevices: 2, prefix: "CHM-PRO" },
+  yearly: { tier: "pro", plan: "yearly", planName: "支持者年度畅享版", durationDays: 365, maxDevices: 2, prefix: "CHM-PRO" },
+  lifetime: { tier: "lifetime", plan: "lifetime", planName: "早鸟永久支持者 MAX", durationDays: 0, maxDevices: 3, prefix: "CHM-MAX" },
 };
 
 const args = process.argv.slice(2);
@@ -31,11 +34,11 @@ function getArg(name, fallback) {
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : fallback;
 }
 
-const planArg = getArg("plan", "yearly");
+const planArg = getArg("plan", "latte");
 const count = Math.min(500, Math.max(1, Number(getArg("count", "5"))));
 const spec = PLANS[planArg];
 if (!spec) {
-  console.error("Invalid --plan. Use: monthly | yearly | lifetime");
+  console.error("Invalid --plan. Use: coffee | latte | patron | monthly | yearly | lifetime");
   process.exit(1);
 }
 

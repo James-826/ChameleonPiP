@@ -10,17 +10,20 @@
   global.CHAMELEON_STORE_CONFIG = {
     brandName: "ChameleonPiP",
     brandNameZh: "变色龙画中画",
-    version: "v5.2.0",
+    version: "v5.4.0",
     siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",
     downloads: {
-      macAppZip: "https://github.com/James-826/ChameleonPiP/releases/download/v5.2.0/ChameleonPiP-macOS-App-v5.2.zip",
-      chromeExtZip: "https://github.com/James-826/ChameleonPiP/releases/download/v5.2.0/ChameleonPiP-Chrome-Extension-v5.2.zip",
+      macAppZip: "https://chameleonpip.site/downloads/ChameleonPiP-macOS-App-v5.4.zip",
+      chromeExtZip: "https://chameleonpip.site/downloads/ChameleonPiP-Chrome-Extension-v5.4.zip",
       chromeWebStore: "", // Fill after Chrome Web Store approval
       edgeAddons: "",     // Fill after Microsoft Edge Add-ons approval
     },
-    // Fill with your Mianbaoduo (mbd.pub) / Afdian / Lemon Squeezy checkout links
+    // Z-Library style one-time coffee supporter checkout links (Mianbaoduo / Afdian / Lemon Squeezy)
     checkoutUrls: {
+      coffee: "",
+      latte: "",
+      patron: "",
       monthly: "",
       yearly: "",
       lifetime: "",

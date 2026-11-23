@@ -1,5 +1,5 @@
 /**
- * ChameleonPiP (变色龙光学画中画) — Telemetry, Custom SVG Crests, Medals, Flags & Cloud Arena Client
+ * ChameleonPiP (变色龙画中画) — Telemetry, Custom SVG Crests, Medals, Flags & Cloud Arena Client
  * Uses 100% custom-crafted vector SVG emblems, metallic podium medals, and crisp vector mini-flags.
  */
 (function (global) {
@@ -7,12 +7,12 @@
 
   const STORAGE_KEY = "chameleon_arena_v2";
   const API_BASE_KEY = "chameleon_api_base";
-  const DEFAULT_API_BASE = "https://passenger-leave-merger-permission.trycloudflare.com";
+  const DEFAULT_API_BASE = "https://chameleonpip.site";
 
   function getApiBase() {
     try {
       const saved = localStorage.getItem(API_BASE_KEY);
-      if (saved && saved.startsWith("https://")) {
+      if (saved && saved.startsWith("https://") && !saved.includes("trycloudflare.com")) {
         return saved.replace(/\/+$/, "");
       }
       return DEFAULT_API_BASE;
@@ -208,16 +208,16 @@
   }
 
   const RANKS = [
-    { level: 1, code: "Lv.1", title: "透明实习生", minMin: 0, color: "#94a3b8", desc: "初入光学潜伏" },
+    { level: 1, code: "Lv.1", title: "透明实习生", minMin: 0, color: "#94a3b8", desc: "初入变色潜伏" },
     { level: 2, code: "Lv.2", title: "工位幼龙", minMin: 15, color: "#34d399", desc: "基础底色融合" },
     { level: 3, code: "Lv.3", title: "拟态学徒", minMin: 60, color: "#38bdf8", desc: "代码文档自如切换" },
-    { level: 4, code: "Lv.4", title: "光学猎手", minMin: 180, color: "#818cf8", desc: "三米外无法察觉" },
+    { level: 4, code: "Lv.4", title: "拟态猎手", minMin: 180, color: "#818cf8", desc: "三米外无法察觉" },
     { level: 5, code: "Lv.5", title: "幻影魔术师", minMin: 480, color: "#fbbf24", desc: "撞色背景无缝隐形" },
     { level: 6, code: "Lv.6", title: "死角艺术家", minMin: 1200, color: "#fb7185", desc: "余光与截屏双免疫" },
     { level: 7, code: "Lv.7", title: "带薪修行师", minMin: 3000, color: "#c084fc", desc: "周会同步追番" },
-    { level: 8, code: "Lv.8", title: "工位光学幽灵", minMin: 7200, color: "#2dd4bf", desc: "与屏幕融为一体" },
+    { level: 8, code: "Lv.8", title: "暗影变色龙", minMin: 7200, color: "#2dd4bf", desc: "与屏幕融为一体" },
     { level: 9, code: "Lv.9", title: "殿堂级变色龙", minMin: 18000, color: "#f59e0b", desc: "全球前 0.5% 宗师" },
-    { level: 10, code: "Lv.10", title: "摸鱼之神", minMin: 36000, color: "#f43f5e", desc: "光影即吾身" },
+    { level: 10, code: "Lv.10", title: "摸鱼之神", minMin: 36000, color: "#f43f5e", desc: "万物皆可融入" },
   ];
 
   const CITIES = [
@@ -274,15 +274,15 @@
       regionCode: "CN",
       industry: "互联网",
       hourlyWage: 85,
-      totalSeconds: 1980,
+      totalSeconds: 0,
       todayDate: todayKey(),
-      todaySeconds: 740,
+      todaySeconds: 0,
       currentStreakSeconds: 0,
-      bestStreakSeconds: 740,
-      bossDodges: 3,
-      pkWins: 2,
+      bestStreakSeconds: 0,
+      bossDodges: 0,
+      pkWins: 0,
       pkLosses: 0,
-      pkElo: 1248,
+      pkElo: 1200,
     };
   }
 
@@ -347,27 +347,285 @@
     return `${m}m ${rem}s`;
   }
 
+  const MEMBERSHIP_STORAGE_KEY = "chameleon_membership_v1";
+  const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
+
+  const PRO_FEATURE_CATALOG = [
+    { key: "optical_modes", name: "全部 3 种变色模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
+    { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
+    { key: "click_through", name: "鼠标穿透 (⌃⇧M) + 悬停开关 + 灵动刘海 + 老板键", free: "永久免费", pro: "永久免费" },
+    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "每日 30 分钟", pro: "永久不限时" },
+    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕系统级隐身", free: "每日 30 分钟", pro: "永久不限时" },
+    { key: "pk_unlimited", name: "1v1 耐力 PK · 4位暗号同事房 · 百人赛 · 支持者金标", free: "每日 3 局 PK", pro: "永久无限 + 金标" },
+  ];
+
+  const PRICING_PLANS = [
+    {
+      id: "coffee",
+      name: "一杯美式 · 永久支持者",
+      priceCny: "¥9.9",
+      priceUsd: "$2.99",
+      period: "一次买断 · 永久",
+      tag: "Z-Library 同款 · 请喝咖啡",
+      desc: "永久解除每日 30 分钟限制（AI防窥雷达 + 会议隐身不限时）、无限 PK & 同事暗号房、榜单 SUP 金标（2 台设备）",
+    },
+    {
+      id: "latte",
+      name: "双杯拿铁 · 永久进阶",
+      priceCny: "¥19.9",
+      priceUsd: "$5.99",
+      period: "一次买断 · 永久",
+      tag: "最受欢迎 · 永久更新",
+      recommended: true,
+      desc: "包含一杯美式全部永久权益 + 支持 3 台设备 + 百人淘汰赛 + 专属 VIP 鎏金徽章 + 后续黑科技永久免费",
+    },
+    {
+      id: "patron",
+      name: "创始赞助 · 荣誉殿堂",
+      priceCny: "¥49",
+      priceUsd: "$14.9",
+      period: "荣誉买断 · 永久",
+      tag: "致谢早期赞助人",
+      desc: "支持最多 5 台设备同时激活 + 榜单专属 MAX 鎏金标识 + 官网创始支持者荣誉鸣谢",
+    },
+  ];
+
+  function getDeviceId() {
+    try {
+      let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+      if (!id) {
+        id = "dev_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+      }
+      return id;
+    } catch (_) {
+      return "dev_local";
+    }
+  }
+
+  function defaultMembership() {
+    return {
+      tier: "free",
+      isPro: false,
+      plan: "free",
+      planName: "Free 免费版",
+      expiresAt: null,
+      trialUsed: false,
+      dailyPkLimit: 3,
+      dailyPkUsed: 0,
+      dailyPkRemaining: 3,
+      updatedAt: 0,
+    };
+  }
+
+  function loadMembership() {
+    try {
+      const raw = localStorage.getItem(MEMBERSHIP_STORAGE_KEY);
+      if (!raw) return defaultMembership();
+      const m = { ...defaultMembership(), ...JSON.parse(raw) };
+      if (m.tier === "pro" && m.expiresAt && Date.now() > m.expiresAt) {
+        m.tier = "free";
+        m.isPro = false;
+        m.plan = "free";
+        m.planName = "Free 免费版";
+        saveMembership(m);
+      } else {
+        m.isPro = m.tier === "pro" || m.tier === "lifetime";
+      }
+      return m;
+    } catch (_) {
+      return defaultMembership();
+    }
+  }
+
+  function saveMembership(m) {
+    const clean = {
+      ...defaultMembership(),
+      ...m,
+      isPro: m?.tier === "pro" || m?.tier === "lifetime",
+      updatedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(clean));
+    } catch (_) {}
+    try {
+      if (typeof chrome !== "undefined" && chrome?.storage?.local) {
+        chrome.storage.local.set({ geckoMembership: clean });
+      }
+    } catch (_) {}
+    return clean;
+  }
+
+  function isProMember(m) {
+    const cur = m || loadMembership();
+    if (cur.tier === "lifetime") return true;
+    if (cur.tier === "pro") return !cur.expiresAt || Date.now() <= cur.expiresAt;
+    return false;
+  }
+
+  function hasFeature(featureKey, m) {
+    const pro = isProMember(m);
+    if (
+      featureKey === "optical_projector" ||
+      featureKey === "projector" ||
+      featureKey === "emboss" ||
+      featureKey === "cinema" ||
+      featureKey === "optical_modes" ||
+      featureKey === "built_in_web" ||
+      featureKey === "stealth_subtitle" ||
+      featureKey === "click_through"
+    ) {
+      return true;
+    }
+    return pro;
+  }
+
+  async function refreshMembership(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/status?userId=${encodeURIComponent(uid)}`);
+      if (!res.ok) return loadMembership();
+      const data = await res.json();
+      if (data?.ok && data.entitlement) {
+        return saveMembership(data.entitlement);
+      }
+    } catch (_) {}
+    return loadMembership();
+  }
+
+  async function startFreeTrial(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/trial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: uid }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法连接鉴权服务器，请稍后再试。" };
+    }
+  }
+
+  async function activateLicenseKey(key, userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/license/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: String(key || "").trim(), userId: uid, deviceId: getDeviceId() }),
+      });
+      const data = await res.json();
+      if (data?.ok && data.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "无法连接鉴权服务器，请确认网络畅通后重试。" };
+    }
+  }
+
+  async function fetchFuelStatus(userId) {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/status?userId=${encodeURIComponent(uid)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.ok && data.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function claimDailyFuel(userId, taskType = "daily_30m") {
+    const uid = userId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: uid, taskType }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法连接能量补给站服务器。" };
+    }
+  }
+
+  async function claimReferralBonus(inviterId, inviteeId) {
+    const uid = inviteeId || loadProfile().userId;
+    try {
+      const res = await fetch(`${getApiBase()}/api/fuel/referral`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviterId, inviteeId: uid }),
+      });
+      const data = await res.json();
+      if (data?.entitlement) saveMembership(data.entitlement);
+      return data;
+    } catch (_) {
+      return { ok: false, message: "网络异常，无法验证好友邀请。" };
+    }
+  }
+
+  function formatExpiryDate(ts) {
+    if (!ts) return "永久有效";
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function renderProBadgeSvg(tier = "pro", plan = "") {
+    const isPatron = plan === "patron" || (tier === "lifetime" && plan !== "coffee" && plan !== "latte");
+    const isLatte = plan === "latte";
+    const isCoffee = plan === "coffee";
+    const label = isPatron ? "MAX" : isLatte ? "VIP" : isCoffee ? "SUP" : "PRO";
+    const gStart = isPatron ? "#fef08a" : isLatte ? "#fde68a" : "#fcd34d";
+    const gMid = "#f59e0b";
+    const gEnd = isPatron ? "#d97706" : "#b45309";
+    return `<svg viewBox="0 0 34 15" width="34" height="15" style="flex-shrink:0;vertical-align:middle" aria-label="${label}">
+      <defs>
+        <linearGradient id="pg-${label}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${gStart}"/>
+          <stop offset="55%" stop-color="${gMid}"/>
+          <stop offset="100%" stop-color="${gEnd}"/>
+        </linearGradient>
+      </defs>
+      <rect x="0.6" y="0.6" width="32.8" height="13.8" rx="4" fill="url(#pg-${label})" fill-opacity="0.2" stroke="url(#pg-${label})" stroke-width="1.1"/>
+      <text x="17" y="10.6" text-anchor="middle" fill="#fde68a" font-size="8.2" font-weight="800" letter-spacing="0.06em" font-family="ui-monospace,SFMono-Regular,Menlo,sans-serif">${label}</text>
+    </svg>`;
+  }
+
   function computeSalaryEarned(seconds, hourlyWage = 85) {
     return ((Math.max(0, seconds) / 3600) * Math.max(0, hourlyWage)).toFixed(2);
   }
 
   function normalizeLeaderboardItems(rawItems, profile) {
-    return rawItems.map((r, idx) => ({
-      pos: r.pos || idx + 1,
-      userId: r.userId,
-      isMe: Boolean(r.isMe || r.userId === profile.userId),
-      nickname: r.nickname,
-      city: r.city,
-      country: r.country,
-      regionCode: r.regionCode || "CN",
-      industry: r.industry || "互联网",
-      mode: r.mode || "光影 58%",
-      streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
-      today: r.todaySeconds || 0,
-      pkElo: r.pkElo || 1200,
-      rankInfo: getRankForSeconds(r.totalSeconds || 1800).current,
-      live: Boolean(r.live),
-    }));
+    const myMem = loadMembership();
+    return rawItems.map((r, idx) => {
+      const isMe = Boolean(r.isMe || r.userId === profile.userId);
+      const tier = isMe ? myMem.tier : (r.tier || "free");
+      const isPro = isMe ? isProMember(myMem) : Boolean(r.isPro || tier === "pro" || tier === "lifetime");
+      return {
+        pos: r.pos || idx + 1,
+        userId: r.userId,
+        isMe,
+        nickname: r.nickname,
+        city: r.city,
+        country: r.country,
+        regionCode: r.regionCode || "CN",
+        industry: r.industry || "互联网",
+        mode: r.mode || "光影 58%",
+        streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
+        today: r.todaySeconds || 0,
+        pkElo: r.pkElo || 1200,
+        rankInfo: getRankForSeconds(r.totalSeconds || 1800).current,
+        tier,
+        isPro,
+        live: Boolean(r.live),
+      };
+    });
   }
 
   function buildFallbackLeaderboard(profile, scope = "city", metric = "streak") {
@@ -404,18 +662,34 @@
 
   global.ChameleonStats = {
     STORAGE_KEY,
+    MEMBERSHIP_STORAGE_KEY,
     DEFAULT_API_BASE,
     SVG_ICONS,
     RANKS,
     CITIES,
     FALLBACK_RIVALS,
+    PRO_FEATURE_CATALOG,
+    PRICING_PLANS,
     renderFlagSvg,
     renderPodiumBadgeSvg,
     renderRankCrestSvg,
+    renderProBadgeSvg,
     getApiBase,
     setApiBase,
+    getDeviceId,
     loadProfile,
     saveProfile,
+    loadMembership,
+    saveMembership,
+    isProMember,
+    hasFeature,
+    refreshMembership,
+    startFreeTrial,
+    activateLicenseKey,
+    fetchFuelStatus,
+    claimDailyFuel,
+    claimReferralBonus,
+    formatExpiryDate,
     getRankForSeconds,
     formatDuration,
     computeSalaryEarned,

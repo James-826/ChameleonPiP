@@ -83,18 +83,54 @@
         transition: bottom 0.18s ease, color 0.2s ease;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
       }
+      .subtitle-el.stealth-log {
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+        text-align: left;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "SF Mono", monospace;
+        font-size: 10.5px;
+        font-weight: 500;
+        line-height: 1.4;
+        padding: 5px 9px;
+        border-radius: 6px;
+        background: rgba(13, 17, 23, 0.86);
+        border: 1px solid rgba(52, 211, 153, 0.24);
+        color: #c9d1d9;
+        text-shadow: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .subtitle-el.stealth-log.light-bg {
+        background: rgba(248, 250, 252, 0.9);
+        border-color: rgba(15, 23, 42, 0.16);
+        color: #1e293b;
+      }
+      .subtitle-el.stealth-log .log-ts { color: #64748b; }
+      .subtitle-el.stealth-log .log-lv { color: #34d399; font-weight: 700; }
+      .subtitle-el.stealth-log.light-bg .log-lv { color: #059669; }
+      .subtitle-el.stealth-log .log-mod { color: #79c0ff; }
+      .subtitle-el.stealth-log.light-bg .log-mod { color: #0284c7; }
       .pip-root.hovered .subtitle-el {
         bottom: 66px;
+      }
+      .icon-btn.active {
+        background: rgba(16, 185, 129, 0.28);
+        border-color: rgba(52, 211, 153, 0.65);
+        color: #a7f3d0;
       }
 
       /* Top & Bottom Hover Glass Bars */
       .hud-top {
         position: absolute;
-        top: 0; left: 0; right: 0; height: 44px;
-        padding: 7px 10px;
+        top: 0; left: 0; right: 0; height: 46px;
+        padding: 10px 12px 4px 12px;
         display: flex; align-items: center; justify-content: space-between;
-        background: linear-gradient(to bottom, rgba(8, 12, 18, 0.84) 0%, rgba(8, 12, 18, 0.35) 70%, transparent 100%);
-        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+        background: linear-gradient(to bottom, rgba(8, 12, 18, 0.86) 0%, rgba(8, 12, 18, 0.36) 72%, transparent 100%);
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 65;
       }
       .hud-bottom {
         position: absolute;
@@ -102,7 +138,7 @@
         padding: 10px 14px 10px 12px;
         display: flex; flex-direction: column; gap: 6px;
         background: linear-gradient(to top, rgba(8, 12, 18, 0.9) 0%, rgba(8, 12, 18, 0.5) 72%, transparent 100%);
-        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 20;
+        opacity: 0; pointer-events: none; transition: opacity 0.16s ease; z-index: 65;
       }
       .pip-root.hovered:not(.boss-active) .hud-top,
       .pip-root.hovered:not(.boss-active) .hud-bottom {
@@ -168,12 +204,12 @@
 
       /* 8-Way Direct Resize Handles on Borderless Window (with visible 4-corner brackets on hover!) */
       .rz { position: absolute; z-index: 55; }
-      .rz-n  { top: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
-      .rz-s  { bottom: 0; left: 24px; right: 24px; height: 12px; cursor: ns-resize; }
-      .rz-e  { right: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
-      .rz-w  { left: 0; top: 24px; bottom: 24px; width: 12px; cursor: ew-resize; }
+      .rz-n  { top: 0; left: 22px; right: 22px; height: 8px; cursor: ns-resize; }
+      .rz-s  { bottom: 0; left: 22px; right: 22px; height: 8px; cursor: ns-resize; }
+      .rz-e  { right: 0; top: 22px; bottom: 22px; width: 10px; cursor: ew-resize; }
+      .rz-w  { left: 0; top: 22px; bottom: 22px; width: 10px; cursor: ew-resize; }
       .rz-nw, .rz-ne, .rz-sw, .rz-se {
-        width: 24px; height: 24px; z-index: 60;
+        width: 20px; height: 20px; z-index: 60;
         opacity: 0; transition: opacity 0.15s ease;
       }
       .rz-nw { top: 0; left: 0; cursor: nwse-resize; border-top: 2.5px solid rgba(52, 211, 153, 0.9); border-left: 2.5px solid rgba(52, 211, 153, 0.9); border-top-left-radius: 11px; }
@@ -223,9 +259,9 @@
     <div class="pip-root" id="pipRoot" data-mode="projector">
       <div class="hud-top">
         <div class="pill-group">
-          <button class="seg-btn active" data-mode="projector" title="光学投影：底层红绿背景原样透出，叠加视频明暗纹理">光影</button>
-          <button class="seg-btn" data-mode="emboss" title="浮雕纹理：将视频凹凸轮廓雕刻在底层桌面上">浮雕</button>
-          <button class="seg-btn" data-mode="cinema" title="彩透投影：保留轻度原片色彩并透出桌面背景">彩透</button>
+          <button class="seg-btn active" data-mode="projector" title="变色融合：像变色龙一样融入屏幕底色，红绿/代码原样透出">拟态</button>
+          <button class="seg-btn" data-mode="emboss" title="浮雕隐身：仅保留视频立体纹理，极高隐蔽度">浮雕</button>
+          <button class="seg-btn" data-mode="cinema" title="彩透变色：保留轻度原片色彩并与桌面融合">彩透</button>
         </div>
         <div style="display:flex;align-items:center;gap:3px">
           <button class="icon-btn" data-scale="0.85" title="缩小窗口 (-)">−</button>
@@ -233,7 +269,8 @@
           <button class="icon-btn" data-size="280" title="小尺寸">S</button>
           <button class="icon-btn" data-size="392" title="中尺寸">M</button>
           <button class="icon-btn" data-size="520" title="大尺寸">L</button>
-          <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（可在顶部系统菜单栏解锁）"></button>
+          <button class="icon-btn" id="btnStealthSub" title="代码日志字幕条：将视频字幕伪装成 VS Code / 终端编译日志，静音看剧神器">日志</button>
+          <button class="icon-btn" id="btnThrough" title="开启鼠标穿透（鼠标直接穿透小窗操作底下内容，在顶部灵动岛或按 ⌃⇧M 恢复）"></button>
           <button class="icon-btn" id="btnBoss" title="老板键隐藏"></button>
         </div>
       </div>
@@ -262,7 +299,7 @@
           </div>
 
           <div class="sliders-inline">
-            <label class="gecko-pill" title="光学投影浓度（底层颜色始终透出）">
+            <label class="gecko-pill" title="变色融合浓度（底层颜色始终透出）">
               <span>浓度</span>
               <input type="range" id="rngStealth" min="10" max="95" value="58" />
               <span class="gecko-pct" id="lblStealth">58%</span>
@@ -281,11 +318,12 @@
       <div class="rz rz-se" data-dir="se" id="cornerGrip" title="按住拖拽调整小窗尺寸"></div>
 
       <div class="idle-card" id="idleCard">
-        <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙光学投影画中画已就绪</div>
-        <div style="color:#94a3b8">可在顶部摄像头灵动刘海控制/查看排行PK，也可直接拖拽四角自由缩放：</div>
-        <div class="idle-btns">
-          <button class="cta-btn" id="btnTryDemo">播放演示视频</button>
-          <button class="cta-btn sec" id="btnOpenMp4">打开本地 MP4</button>
+        <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙画中画已就绪</div>
+        <div style="color:#94a3b8">免插件直接粘贴 B站/YouTube 链接播放，或在顶部灵动刘海开启 AI 防偷窥雷达：</div>
+        <div class="idle-btns" style="flex-wrap:wrap">
+          <button class="cta-btn" id="btnOpenWebUrl">粘贴网页链接直连</button>
+          <button class="cta-btn sec" id="btnTryDemo">演示视频</button>
+          <button class="cta-btn sec" id="btnOpenMp4">本地 MP4</button>
         </div>
       </div>
 
@@ -294,16 +332,16 @@
 
     <canvas id="demoGenCanvas" width="480" height="270" style="display:none"></canvas>
 
-    <script src="gecko-core.js?v=4.2"></script>
+    <script src="gecko-core.js?v=5.4"></script>
     <script>
       if (!window.GeckoCore) {
-        document.write('<script src="../extension/gecko-core.js?v=4.2"><\/script>');
+        document.write('<script src="../extension/gecko-core.js?v=5.4"><\/script>');
       }
     </script>
-    <script src="chameleon-stats.js?v=5.2"></script>
+    <script src="chameleon-stats.js?v=5.4"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.2"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.4"><\/script>');
       }
     </script>
     <script>
@@ -484,6 +522,13 @@
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
           }
 
+          // Pre-warm Metal WebGL pipeline immediately with 1x1 transparent pixel so Frame 1 renders in <1ms!
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+          gl.clearColor(0.0, 0.0, 0.0, 0.0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
           return {
             uploadAndDraw(source, w, h, st) {
               texW = w || source.videoWidth || source.width || 512;
@@ -502,19 +547,44 @@
         const glProjector = createWebGlProjector(streamCanvas);
         const fallbackCtx = glProjector ? null : streamCanvas.getContext("2d", { alpha: false, desynchronized: true });
 
-        document.getElementById("btnThrough").innerHTML = Core.ICONS.cursorThrough;
+        document.getElementById("btnThrough").innerHTML = `${Core.ICONS.cursorThrough}<span style="font-size:10px">穿透</span>`;
         document.getElementById("btnBoss").innerHTML = Core.ICONS.eyeHide;
         document.getElementById("btnBack10").innerHTML = Core.ICONS.back10;
         document.getElementById("btnFwd10").innerHTML = Core.ICONS.fwd10;
         document.getElementById("cornerGrip").innerHTML = Core.ICONS.resizeGrip;
 
-        document.addEventListener("mouseenter", () => {
-          isHovering = true;
-          root.classList.add("hovered");
+        function applyHoverReveal(hovered, forcePeek = false) {
+          const allow = Boolean(state.hoverReveal) || Boolean(forcePeek);
+          isHovering = Boolean(hovered) && allow;
+          root.classList.toggle("hovered", isHovering);
+        }
+
+        if (new URLSearchParams(window.location.search).get("hoverReveal") === "1") {
+          state.hoverReveal = true;
+        }
+
+        let pointerInsideDoc = false;
+        document.addEventListener("mouseenter", (e) => {
+          pointerInsideDoc = true;
+          applyHoverReveal(true, Boolean(e?.altKey));
+        });
+        document.addEventListener("mousemove", (e) => {
+          pointerInsideDoc = true;
+          if (e.altKey || state.hoverReveal) {
+            if (!isHovering) applyHoverReveal(true, Boolean(e.altKey));
+          } else if (isHovering) {
+            applyHoverReveal(false, false);
+          }
         });
         document.addEventListener("mouseleave", () => {
-          isHovering = false;
-          root.classList.remove("hovered");
+          pointerInsideDoc = false;
+          applyHoverReveal(false, false);
+        });
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Alt" && pointerInsideDoc) applyHoverReveal(true, true);
+        });
+        window.addEventListener("keyup", (e) => {
+          if (e.key === "Alt" && !state.hoverReveal) applyHoverReveal(false, false);
         });
 
         function postNative(payload) {
@@ -534,11 +604,61 @@
           postNative({ action: "stateChanged", state });
         }
 
+        let lastVideoFrameAt = 0;
+        let lastNotifiedActiveVideo = null;
+        let lastBroadcastPlaying = null;
+
+        function isRealVideoPlaying() {
+          if (state.bossMode) return false;
+          const chromeActive =
+            hasLiveChromeStream &&
+            !player.paused &&
+            !player.ended &&
+            (player.readyState === undefined || player.readyState >= 2) &&
+            performance.now() - lastVideoFrameAt < 3500;
+          const localFileActive =
+            Boolean(localVideo.src) &&
+            !localVideo.paused &&
+            !localVideo.ended &&
+            localVideo.readyState >= 2;
+          const demoActive = demoRunning && !player.paused;
+          return chromeActive || localFileActive || demoActive;
+        }
+
+        function pushVideoPlaybackState(force = false) {
+          const playing = isRealVideoPlaying();
+          if (!force && playing === lastBroadcastPlaying) return;
+          lastBroadcastPlaying = playing;
+          if (ws?.readyState === WebSocket.OPEN) {
+            const S = window.ChameleonStats;
+            const p = S ? S.loadProfile() : null;
+            ws.send(
+              JSON.stringify({
+                type: "videoPlaybackState",
+                playing,
+                mode: `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`,
+                stats: p
+                  ? {
+                      currentStreakSeconds: p.currentStreakSeconds || 0,
+                      bestStreakSeconds: p.bestStreakSeconds || 0,
+                      todaySeconds: p.todaySeconds || 0,
+                      totalSeconds: p.totalSeconds || 0,
+                    }
+                  : null,
+              })
+            );
+          }
+        }
+
         function notifyHostPlayer(force = false) {
           const now = performance.now();
-          if (!force && now - lastPlayerSyncAt < 180) return;
+          const hasActiveVideo = isRealVideoPlaying();
+          const activeChanged = hasActiveVideo !== lastNotifiedActiveVideo;
+          if (!force && !activeChanged && now - lastPlayerSyncAt < 180) return;
           lastPlayerSyncAt = now;
-          postNative({ action: "playerChanged", player });
+          lastNotifiedActiveVideo = hasActiveVideo;
+          postNative({ action: "playerChanged", player: { ...player, hasActiveVideo } });
+          pushVideoPlaybackState(force || activeChanged);
         }
 
         function renderPlayerControls(forceHost = false) {
@@ -556,9 +676,47 @@
         }
 
         let lastAppliedFeatherKey = "";
+        let mutedLockUntil = 0;
+        let pausedLockUntil = 0;
+        let lastRawSubtitle = "";
+
+        function escapeHtml(str) {
+          return String(str || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        function renderSubtitle(rawText) {
+          if (rawText !== undefined) lastRawSubtitle = String(rawText || "");
+          const clean = lastRawSubtitle.trim();
+          if (!state.mirrorSubtitles || !clean) {
+            subtitleEl.style.display = "none";
+            subtitleEl.textContent = "";
+            subtitleEl.classList.remove("stealth-log", "light-bg");
+            return;
+          }
+          subtitleEl.style.display = "block";
+          if (state.stealthSubtitle && Core.formatStealthLogParts) {
+            const parts = Core.formatStealthLogParts(clean);
+            const isLight = Core.getLuminance(state.bgColor || "#505050") > 0.62;
+            subtitleEl.classList.add("stealth-log");
+            subtitleEl.classList.toggle("light-bg", isLight);
+            subtitleEl.style.color = "";
+            subtitleEl.innerHTML = `<span class="log-ts">[${parts.ts}]</span> <span class="log-lv">[${parts.level}]</span> <span class="log-mod">${parts.mod}</span> — ${escapeHtml(parts.text)}`;
+          } else {
+            subtitleEl.classList.remove("stealth-log", "light-bg");
+            subtitleEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : (state.inkColor || Core.deriveAutoInkColor(state.bgColor));
+            subtitleEl.textContent = clean;
+          }
+        }
+
         function render() {
           root.classList.toggle("boss-active", Boolean(state.bossMode));
           root.setAttribute("data-mode", state.mode);
+          if (!state.hoverReveal && !state.bossMode && isHovering) {
+            applyHoverReveal(false, false);
+          }
 
           if (glProjector) {
             streamCanvas.style.filter = "none";
@@ -573,24 +731,49 @@
             }
           }
 
-          subtitleEl.style.color = state.autoInk ? Core.deriveAutoInkColor(state.bgColor) : state.inkColor;
+          renderSubtitle();
 
           document.querySelectorAll(".seg-btn").forEach((b) => {
             b.classList.toggle("active", b.dataset.mode === state.mode);
           });
+          const btnSub = document.getElementById("btnStealthSub");
+          if (btnSub) btnSub.classList.toggle("active", Boolean(state.stealthSubtitle));
           document.getElementById("rngStealth").value = state.stealth;
           document.getElementById("lblStealth").textContent = `${state.stealth}%`;
           renderPlayerControls(false);
         }
 
         function sendPlayerCmd(action, extra = {}) {
+          const now = performance.now();
           if (hasLiveChromeStream && ws?.readyState === WebSocket.OPEN) {
+            if (action === "toggleMute" || action === "setMuted") {
+              const targetMuted = action === "setMuted" ? Boolean(extra.value) : !player.muted;
+              player.muted = targetMuted;
+              mutedLockUntil = now + 800;
+              ws.send(JSON.stringify({ type: "cmd", action: "setMuted", value: targetMuted }));
+              renderPlayerControls(true);
+              return;
+            }
+            if (action === "togglePlay" || action === "setPaused" || action === "play" || action === "pause") {
+              const targetPaused =
+                action === "setPaused"
+                  ? Boolean(extra.value)
+                  : action === "play"
+                  ? false
+                  : action === "pause"
+                  ? true
+                  : !player.paused;
+              player.paused = targetPaused;
+              pausedLockUntil = now + 700;
+              ws.send(JSON.stringify({ type: "cmd", action: "setPaused", value: targetPaused }));
+              renderPlayerControls(true);
+              return;
+            }
             ws.send(JSON.stringify({ type: "cmd", action, ...extra }));
-            if (action === "togglePlay") player.paused = !player.paused;
-            else if (action === "toggleMute") player.muted = !player.muted;
-            else if (action === "setVolume" && Number.isFinite(extra.value)) {
+            if (action === "setVolume" && Number.isFinite(extra.value)) {
               player.volume = Core.clamp(extra.value, 0, 1);
               player.muted = player.volume === 0;
+              mutedLockUntil = now + 600;
             } else if (action === "setRate" && Number.isFinite(extra.value)) {
               player.playbackRate = extra.value;
             } else if (action === "seekTo" && Number.isFinite(extra.value)) {
@@ -602,31 +785,40 @@
             return;
           }
 
-          // If idle and user clicks Play from the Menu Bar, auto-start the built-in 60fps demo!
-          if (!demoRunning && localVideo.style.display === "none" && (action === "togglePlay" || action === "play")) {
+          const hasLocalMp4 = Boolean(localVideo.src) && !demoRunning && !hasLiveChromeStream;
+
+          // If idle (no Chrome stream, no local MP4, no demo) and user clicks Play from Dynamic Island, start built-in 60fps demo!
+          if (!demoRunning && !hasLocalMp4 && (action === "togglePlay" || action === "play" || (action === "setPaused" && !extra.value))) {
             startBuiltInDemo();
             return;
           }
 
-          if (localVideo.style.display !== "none") {
-            if (demoRunning && !hasLiveChromeStream && localVideo.srcObject) {
-              if (action === "togglePlay") player.paused = !player.paused;
-              else if (action === "play") player.paused = false;
-              else if (action === "pause") player.paused = true;
-              else if (action === "seek") player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, 180);
-              else if (action === "seekTo") player.currentTime = Core.clamp(extra.value, 0, 180);
-              else if (action === "setRate") player.playbackRate = extra.value;
-              else if (action === "toggleMute") player.muted = !player.muted;
-              else if (action === "setVolume" && Number.isFinite(extra.value)) {
-                player.volume = Core.clamp(extra.value, 0, 1);
-                player.muted = player.volume === 0;
-              }
-              renderPlayerControls(true);
-              return;
+          if (demoRunning && !hasLiveChromeStream) {
+            if (action === "togglePlay") player.paused = !player.paused;
+            else if (action === "setPaused") player.paused = Boolean(extra.value);
+            else if (action === "play") player.paused = false;
+            else if (action === "pause") player.paused = true;
+            else if (action === "seek") player.currentTime = Core.clamp(player.currentTime + Number(extra.delta || 0), 0, 180);
+            else if (action === "seekTo") player.currentTime = Core.clamp(extra.value, 0, 180);
+            else if (action === "setRate") player.playbackRate = extra.value;
+            else if (action === "setMuted") player.muted = Boolean(extra.value);
+            else if (action === "toggleMute") player.muted = !player.muted;
+            else if (action === "setVolume" && Number.isFinite(extra.value)) {
+              player.volume = Core.clamp(extra.value, 0, 1);
+              player.muted = player.volume === 0;
             }
+            renderPlayerControls(true);
+            return;
+          }
+
+          // Local MP4 playback (works identically whether rendered via WebGL streamCanvas or <video>!)
+          if (hasLocalMp4) {
             if (action === "togglePlay") {
               if (localVideo.paused) localVideo.play().catch(() => {});
               else localVideo.pause();
+            } else if (action === "setPaused") {
+              if (extra.value) localVideo.pause();
+              else localVideo.play().catch(() => {});
             } else if (action === "play") {
               localVideo.play().catch(() => {});
             } else if (action === "pause") {
@@ -635,8 +827,14 @@
               localVideo.currentTime = Math.max(0, localVideo.currentTime + Number(extra.delta || 0));
             } else if (action === "seekTo" && Number.isFinite(localVideo.duration)) {
               localVideo.currentTime = Core.clamp(extra.value, 0, localVideo.duration);
+            } else if (action === "setMuted") {
+              const targetMuted = Boolean(extra.value);
+              localVideo.muted = targetMuted;
+              if (!targetMuted && localVideo.volume < 0.05) localVideo.volume = 0.85;
             } else if (action === "toggleMute") {
-              localVideo.muted = !localVideo.muted;
+              const currentlyMuted = localVideo.muted || localVideo.volume === 0;
+              localVideo.muted = !currentlyMuted;
+              if (currentlyMuted && localVideo.volume < 0.05) localVideo.volume = 0.85;
             } else if (action === "setVolume" && Number.isFinite(extra.value)) {
               localVideo.volume = Core.clamp(extra.value, 0, 1);
               localVideo.muted = localVideo.volume === 0;
@@ -710,10 +908,23 @@
             ctx.textAlign = "center";
             ctx.lineWidth = 4.2;
             ctx.strokeStyle = "#000";
-            const msg = "60fps 光学投影：拖到红绿或代码背景上，底色原样透出！";
+            const msg = "60fps 变色龙拟态：拖到红绿或代码背景上，底色原样透出！";
             ctx.strokeText(msg, w / 2, h - 22);
             ctx.fillStyle = "#fff";
             ctx.fillText(msg, w / 2, h - 22);
+
+            const demoSubtitles = [
+              "变色龙拟态 60fps 运行中：底层代码、Excel 与红绿色块原样透出",
+              "开启「日志字幕」后，视频对白自动伪装为终端编译日志，静音看剧超隐蔽",
+              "顶部灵动岛支持「AI防窥雷达」：本地检测背后有人靠近自动秒隐",
+              "点击「网页直连」可直接粘贴 B站 / YouTube 链接，免装浏览器插件",
+            ];
+            const subIdx = Math.floor(player.currentTime / 4.5) % demoSubtitles.length;
+            if (state.stealthSubtitle) {
+              if (lastRawSubtitle !== demoSubtitles[subIdx]) renderSubtitle(demoSubtitles[subIdx]);
+            } else if (lastRawSubtitle && demoSubtitles.includes(lastRawSubtitle)) {
+              renderSubtitle("");
+            }
 
             if (glProjector) {
               glProjector.uploadAndDraw(c, w, h, state);
@@ -756,6 +967,9 @@
           requestAnimationFrame(pump);
         }
 
+        document.getElementById("btnOpenWebUrl").addEventListener("click", () => {
+          postNative({ action: "openWebVideoUrl" });
+        });
         document.getElementById("btnTryDemo").addEventListener("click", startBuiltInDemo);
         document.getElementById("btnOpenMp4").addEventListener("click", () => {
           postNative({ action: "openLocalMp4" });
@@ -792,12 +1006,17 @@
           try {
             ws = new WebSocket("ws://127.0.0.1:51937");
             ws.binaryType = "blob";
-            ws.onopen = () => ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
+            ws.onopen = () => {
+              ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
+              pushVideoPlaybackState(true);
+            };
             ws.onmessage = (ev) => {
               if (ev.data instanceof Blob) {
+                lastVideoFrameAt = performance.now();
                 if (!hasLiveChromeStream) {
                   hasLiveChromeStream = true;
                   demoRunning = false;
+                  postNative({ action: "chromeStreamStarted" });
                   localVideo.pause();
                   localVideo.srcObject = null;
                   localVideo.style.display = "none";
@@ -820,8 +1039,17 @@
                     if (msg.state && typeof msg.state.mirrorSubtitles === "boolean") {
                       state.mirrorSubtitles = msg.state.mirrorSubtitles;
                     }
-                    if (msg.player) player = { ...player, ...msg.player };
-                    subtitleEl.textContent = state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "";
+                    if (msg.state && typeof msg.state.stealthSubtitle === "boolean") {
+                      state.stealthSubtitle = msg.state.stealthSubtitle;
+                    }
+                    if (msg.player) {
+                      const nowTs = performance.now();
+                      const incoming = { ...msg.player };
+                      if (nowTs < mutedLockUntil) delete incoming.muted;
+                      if (nowTs < pausedLockUntil) delete incoming.paused;
+                      player = { ...player, ...incoming };
+                    }
+                    renderSubtitle(state.mirrorSubtitles && msg.subtitle ? msg.subtitle : "");
                     renderPlayerControls(false);
                   } else if (msg.type === "statePatch" && msg.patch) {
                     const p = { ...msg.patch };
@@ -831,6 +1059,17 @@
                     state = { ...state, ...p };
                     render();
                     postNative({ action: "stateChanged", state });
+                  } else if (msg.type === "membershipUpdated" && msg.membership) {
+                    const S = window.ChameleonStats;
+                    if (S) {
+                      const saved = S.saveMembership(msg.membership);
+                      postNative({
+                        action: "membershipChanged",
+                        isPro: S.isProMember(saved),
+                        tier: saved.tier || "free",
+                        planName: saved.planName || "Free 免费版",
+                      });
+                    }
                   } else if (msg.type === "streamStopped") {
                     hasLiveChromeStream = false;
                     stage.style.display = "none";
@@ -863,7 +1102,7 @@
           }
         });
         stage.addEventListener("mouseup", (e) => {
-          if (downPt && Math.hypot(e.screenX - downPt.x, e.screenY - downPt.y) < 5) {
+          if (downPt && Math.hypot(e.screenX - downPt.x, e.screenY - downPt.y) < 5 && (state.hoverReveal || isHovering)) {
             sendPlayerCmd("togglePlay");
           }
           downPt = null;
@@ -900,8 +1139,36 @@
           renderPlayerControls();
         });
 
+        function syncMembershipWithNative() {
+          const S = window.ChameleonStats;
+          if (!S) return;
+          const cur = S.loadMembership();
+          postNative({
+            action: "membershipChanged",
+            isPro: S.isProMember(cur),
+            tier: cur.tier || "free",
+            planName: cur.planName || "Free 免费版",
+          });
+          S.refreshMembership(S.loadProfile().userId).then((fresh) => {
+            postNative({
+              action: "membershipChanged",
+              isPro: S.isProMember(fresh),
+              tier: fresh.tier || "free",
+              planName: fresh.planName || "Free 免费版",
+            });
+          });
+        }
+        syncMembershipWithNative();
+
+        // All 3 Chameleon visual modes (拟态 / 浮雕 / 彩透) are 100% FREE forever!
         document.querySelectorAll(".seg-btn").forEach((b) => {
-          b.addEventListener("click", () => broadcastStateUpdate({ mode: b.dataset.mode }));
+          b.addEventListener("click", () => {
+            broadcastStateUpdate({ mode: b.dataset.mode });
+          });
+        });
+        document.getElementById("btnStealthSub")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          broadcastStateUpdate({ stealthSubtitle: !state.stealthSubtitle });
         });
         document.querySelectorAll("[data-size]").forEach((b) => {
           b.addEventListener("click", () => {
@@ -927,14 +1194,17 @@
           broadcastStateUpdate({ stealth: Number(e.target.value) });
         });
 
-        document.getElementById("btnThrough").addEventListener("click", () => postNative({ action: "enableClickThrough" }));
+        document.getElementById("btnThrough").addEventListener("click", (e) => {
+          e.stopPropagation();
+          applyHoverReveal(false, false);
+          postNative({ action: "enableClickThrough" });
+        });
         document.getElementById("btnBoss").addEventListener("click", () => postNative({ action: "setBoss", value: true }));
         document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
 
         window.GeckoNativeBridge = {
-          setHovered(val) {
-            isHovering = Boolean(val);
-            root.classList.toggle("hovered", isHovering);
+          setHovered(val, forcePeek = false) {
+            applyHoverReveal(val, forcePeek);
           },
           onMacSensor(sensor) {
             isTyping = Boolean(sensor.isTyping);
@@ -943,7 +1213,7 @@
               const patch = Core.computeAutoScenePatch(sensor, state);
               state.bgColor = Core.lerpColor(state.bgColor, patch.bgColor, 0.45);
               state.inkColor = Core.deriveAutoInkColor(state.bgColor, sensor.archetype);
-              subtitleEl.style.color = state.inkColor;
+              renderSubtitle();
               const nextLum = Core.getLuminance(state.bgColor);
               const prevBucket = prevLum > 0.86 ? 2 : prevLum < 0.14 ? 0 : 1;
               const nextBucket = nextLum > 0.86 ? 2 : nextLum < 0.14 ? 0 : 1;
@@ -963,6 +1233,7 @@
           setBossMode(val) {
             state.bossMode = Boolean(val);
             render();
+            notifyHostPlayer(true);
             if (ws?.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "cmd", action: state.bossMode ? "pause" : "play" }));
             }
@@ -990,16 +1261,17 @@
           },
         };
 
-        // Automatically record slacking time & sync to global cloud leaderboard while playing in PiP window
+        // Automatically record slacking time & sync to global cloud leaderboard ONLY while an actual video is playing
         let pipPausedSec = 0;
         let tickCount = 0;
         setInterval(() => {
           const S = window.ChameleonStats;
           if (!S) return;
-          const isActivelyPlaying =
-            !state.bossMode &&
-            !player.paused &&
-            (hasLiveChromeStream || demoRunning || (localVideo.src && !localVideo.paused));
+          const isActivelyPlaying = isRealVideoPlaying();
+          if (isActivelyPlaying !== lastNotifiedActiveVideo) {
+            notifyHostPlayer(true);
+          }
+
           const p = S.loadProfile();
           if (isActivelyPlaying) {
             pipPausedSec = 0;
@@ -1009,6 +1281,7 @@
             if (p.currentStreakSeconds > (p.bestStreakSeconds || 0)) {
               p.bestStreakSeconds = p.currentStreakSeconds;
             }
+            p.lastTickAt = Date.now();
             S.saveProfile(p);
           } else if (p.currentStreakSeconds > 0) {
             pipPausedSec += 1;
@@ -1021,6 +1294,8 @@
           }
 
           tickCount += 1;
+          pushVideoPlaybackState(tickCount % 2 === 0);
+
           if (isActivelyPlaying && tickCount % 12 === 0) {
             const modeLabel = `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`;
             fetch(`${S.getApiBase()}/api/heartbeat`, {

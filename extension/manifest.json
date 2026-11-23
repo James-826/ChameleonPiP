@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "ChameleonPiP 变色龙画中画",
-  "version": "5.2.0",
+  "version": "5.4.0",
   "homepage_url": "https://chameleonpip.site",
-  "description": "像变色龙一样融进屏幕的 60fps 零边框画中画，底层代码表格与色彩原样透出；支持 Mac 灵动刘海、鼠标穿透、瞬间静音与全球摸鱼耐力榜。",
+  "description": "像变色龙一样融进屏幕的 60fps 零边框画中画，3 种变色模式永久免费；支持 AI 防偷窥雷达、代码日志伪装字幕条、鼠标穿透与全球摸鱼耐力榜。",
   "permissions": [
     "storage",
     "activeTab",

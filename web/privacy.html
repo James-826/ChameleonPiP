@@ -100,12 +100,13 @@
         <h1>隐私政策（Privacy Policy）</h1>
         <p class="meta">生效日期：2026-11-19 · 适用范围：ChameleonPiP Chrome/Edge 浏览器扩展、macOS/Windows 桌面端及联机排行榜服务</p>
 
-        <h2>1. 核心承诺：视频画面与音频 100% 本地处理</h2>
+        <h2>1. 核心承诺：视频画面、音频与本地 AI 检测 100% 离线处理</h2>
         <p>
           ChameleonPiP（变色龙画中画）是一款专注于零边框变色融合画中画（Picture-in-Picture）体验的桌面与浏览器工具。
-          <strong>我们绝不上传、存储、分析或向任何第三方传输您观看的视频画面、网页内容、音频、字幕或屏幕截图。</strong>
+          <strong>我们绝不上传、存储、录制、分析或向任何第三方传输您观看的视频画面、摄像头图像、网页内容、音频、字幕或屏幕截图。</strong>
         </p>
         <ul>
+          <li><strong>AI 摄像头背后防偷窥雷达（Apple Vision）</strong>：仅在您手动点击开启「AI 防窥」时激活前置摄像头，调用 macOS 系统原生 <code>Vision</code> 框架在本地内存中统计画面人脸数量（检测到 ≥2 人时自动触发老板键隐藏）。每一帧画面在计数完成后即刻于内存释放，<strong>绝不拍照、绝不录像、绝不写盘、绝不联网上传</strong>。</li>
           <li>浏览器扩展通过 <code>tabCapture</code> 捕获的视频帧仅在您的本机回环地址（<code>ws://127.0.0.1:51937</code>）传输至您本地运行的桌面端进行 Metal/WebGL 实时变色融合渲染，数据从不离开您的电脑。</li>
           <li>桌面端使用 macOS <code>ScreenCaptureKit</code> 采样底层背景亮度时，仅在本地内存计算平均 RGB 亮度值并立即丢弃像素，绝不写入磁盘或网络发送。</li>
         </ul>
@@ -139,12 +140,13 @@
         <h1>Privacy Policy</h1>
         <p class="meta">Effective Date: November 19, 2026 · Applies to ChameleonPiP Chrome/Edge Extension, macOS/Windows Desktop App, and Arena Services</p>
 
-        <h2>1. Zero Media Upload Guarantee (100% Local Processing)</h2>
+        <h2>1. Zero Media &amp; Camera Upload Guarantee (100% On-Device Processing)</h2>
         <p>
-          ChameleonPiP is an optical Picture-in-Picture (PiP) productivity and viewing tool.
-          <strong>We never upload, record, store, inspect, or share your video frames, audio streams, webpage contents, subtitles, or screen captures with any external server or third party.</strong>
+          ChameleonPiP is a native Picture-in-Picture (PiP) viewing and screen camouflage tool.
+          <strong>We never upload, record, store, inspect, or share your video frames, camera frames, audio streams, webpage contents, subtitles, or screen captures with any external server or third party.</strong>
         </p>
         <ul>
+          <li><strong>On-Device AI Anti-Peek Radar (Apple Vision)</strong>: Activated strictly when you explicitly toggle it ON. Uses macOS native <code>AVFoundation</code> and <code>VNDetectFaceRectanglesRequest</code> purely in RAM to count faces in view (triggering Boss Mode when 2 or more faces are detected). Every camera frame is discarded immediately after inference—never recorded, saved to disk, or transmitted over any network.</li>
           <li>Video frames captured via <code>tabCapture</code> are streamed strictly over your machine's local loopback interface (<code>ws://127.0.0.1:51937</code>) to your local desktop window for real-time WebGL/Metal rendering and never leave your device.</li>
           <li>Ambient color sampling (e.g., via macOS <code>ScreenCaptureKit</code>) computes an in-memory average RGB value locally and discards the sample immediately; nothing is saved to disk or transmitted over the network.</li>
         </ul>

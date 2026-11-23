@@ -10,19 +10,19 @@
 		</data>
 		<key>Resources/arena.html</key>
 		<data>
-		f7gK525H60beL+1yfSubFJ+0MjI=
+		WmAAyH91YVsGtYtVBN8dM31HaEY=
 		</data>
 		<key>Resources/chameleon-stats.js</key>
 		<data>
-		Lgg7ut9hZAoF43XiBwxmb/TAN08=
+		wIW7YFghZ+ejxsek16b6Z7oMnS4=
 		</data>
 		<key>Resources/gecko-core.js</key>
 		<data>
-		jimizwbO+8EDRvu6bDdOgRVuLnQ=
+		Bs+yeM69frSc25awtzL3BSnPYFU=
 		</data>
 		<key>Resources/ghost-view.html</key>
 		<data>
-		otjOwel9OaaetWRf1lM/WyuxtO8=
+		TQYTXD3Ww8haK6fRecPgdZjfcmI=
 		</data>
 		<key>Resources/icon128.png</key>
 		<data>
@@ -35,6 +35,10 @@
 		<key>Resources/menubar.html</key>
 		<data>
 		6yb/5hmEyr6hQEN5010cLhKDbdY=
+		</data>
+		<key>Resources/store-config.js</key>
+		<data>
+		I9rmI4aP9NWN8nHpRpDMbw0oPmA=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -50,28 +54,28 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			yR6c6ZK6q1UH/JwplMBHzUiXpjUFaHbYCHnadgWmE7A=
+			GyzeKGeP32iH053WMBj6kO3Jq3S8bDebb/H/zLv7CjA=
 			</data>
 		</dict>
 		<key>Resources/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Db9AZLUG8UHu4UgP95kUFdmZUdakNA3ZF2NHpuRu9mY=
+			W6uYpqQvWOfXOLOczDMQLDVXVkMt/GowbWAZru3jDQI=
 			</data>
 		</dict>
 		<key>Resources/gecko-core.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			c/Im4pm7kvuDGIaAe9aw8ibx/Q+lQp5Q8LIaODgFhrE=
+			zgWnrBedEqJaTalEXdKIqp1JSprOI70KMuTd7JtnHJI=
 			</data>
 		</dict>
 		<key>Resources/ghost-view.html</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			+9VAcjNN7S81j5Zl+YQj62W8dSCsc6nSAqRF7o81teo=
+			QuFADq/I/8DfPhFa5bxnNV2JTM9r+KcNqDHQTnNYu1A=
 			</data>
 		</dict>
 		<key>Resources/icon128.png</key>
@@ -95,18 +99,25 @@
 			PX7oYlRr1HCPag41ryKe47uoYnFKRw2SgRB4TEnMCfs=
 			</data>
 		</dict>
+		<key>Resources/store-config.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			MUYmAqB0HTsFfTQ8J7tsip/1jiqxrQ235IGCsIfdeQQ=
+			</data>
+		</dict>
 		<key>extension/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Db9AZLUG8UHu4UgP95kUFdmZUdakNA3ZF2NHpuRu9mY=
+			W6uYpqQvWOfXOLOczDMQLDVXVkMt/GowbWAZru3jDQI=
 			</data>
 		</dict>
 		<key>extension/gecko-core.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			c/Im4pm7kvuDGIaAe9aw8ibx/Q+lQp5Q8LIaODgFhrE=
+			zgWnrBedEqJaTalEXdKIqp1JSprOI70KMuTd7JtnHJI=
 			</data>
 		</dict>
 		<key>extension/icons/icon128.png</key>

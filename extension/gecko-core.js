@@ -22,7 +22,8 @@
     feather: 28, // 镜头边缘柔化 (0% 清晰圆角 -> 80% 羽化无界)
     detail: 72,
     mirrorSubtitles: true,
-    hoverReveal: false, // 悬停小窗显示控制条开关（默认关闭：鼠标碰到小窗不显形、保持纯光学隐身）
+    stealthSubtitle: false, // 黑科技：将字幕伪装成 VS Code / 终端编译日志条（静音摸鱼神器）
+    hoverReveal: false, // 悬停小窗显示控制条开关（默认关闭：鼠标碰到小窗不显形、保持纯隐身）
     bossMode: false,
     pipWidth: 392,
     pipHeight: 220,
@@ -340,11 +341,29 @@
     }`;
   }
 
+  const STEALTH_LOG_MODULES = ["worker::sync", "build::ast", "kernel::io", "cache::lru", "net::grpc", "sched::tick"];
+
+  function formatStealthLogParts(rawText, nowDate) {
+    const clean = String(rawText || "").replace(/\s+/g, " ").trim();
+    if (!clean) return null;
+    const d = nowDate || new Date();
+    const ts = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(
+      d.getSeconds()
+    ).padStart(2, "0")}`;
+    let hash = 0;
+    for (let i = 0; i < Math.min(18, clean.length); i++) {
+      hash = (hash * 31 + clean.charCodeAt(i)) | 0;
+    }
+    const mod = STEALTH_LOG_MODULES[Math.abs(hash) % STEALTH_LOG_MODULES.length];
+    return { ts, level: "INFO", mod, text: clean };
+  }
+
   global.GeckoCore = {
     DEFAULT_STATE,
     ICONS,
     clamp,
     formatTime,
+    formatStealthLogParts,
     hexToRgb,
     rgbToHex,
     lerpColor,
