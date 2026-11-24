@@ -7,22 +7,24 @@
   const supportsOffscreen = typeof OffscreenCanvas !== "undefined";
   const encodeCanvas = supportsOffscreen ? new OffscreenCanvas(448, 252) : cropCanvas;
   const ctx = encodeCanvas.getContext("2d", { alpha: false, desynchronized: true });
+  const supportsTrackProcessor = typeof MediaStreamTrackProcessor === "function";
 
   let mediaStream = null;
+  let frameReader = null;
+  let pendingVideoFrame = null;
+  let encodingBusy = false;
   let workerTicker = null;
-  let rvfcHandle = null;
   let ws = null;
   let wsReconnectTimer = null;
   let wsConnected = false;
   let streamingActive = false;
-  let inflightEncodes = 0;
   let frameSeq = 0;
   let lastSentSeq = 0;
   let lastCaptureTs = 0;
   let streamStartedAt = 0;
-  let lastEncodedMediaTime = -1;
-  let lastRvfcMediaTime = -1;
+  let lastDecodedFrames = -1;
   let idleHeartbeatFrames = 0;
+  let crossTabSendBusy = false;
 
   // Normalized crop box [0..1] within the captured tab viewport
   let cropBox = { nx: 0, ny: 0, nw: 1, nh: 1, aspect: 16 / 9, subtitle: "" };
@@ -46,8 +48,8 @@
           connected: true,
         }).catch(() => {});
         sendMetaToGhost();
-        // Push first video frame immediately on WS connect for zero startup delay
-        processVideoFrame(true);
+        // Push first fallback frame immediately if using legacy <video> pipeline
+        if (!frameReader) processFallbackVideoFrame(true);
       };
 
       ws.onmessage = (ev) => {
@@ -119,10 +121,11 @@
     stopCapture(false);
     streamingActive = true;
     streamStartedAt = performance.now();
-    lastEncodedMediaTime = -1;
-    lastRvfcMediaTime = -1;
+    lastDecodedFrames = -1;
     idleHeartbeatFrames = 0;
-    inflightEncodes = 0;
+    encodingBusy = false;
+    crossTabSendBusy = false;
+    lastCaptureTs = 0;
     if (initialState) currentState = initialState;
     if (initialCrop) cropBox = { ...cropBox, ...initialCrop };
 
@@ -133,9 +136,11 @@
           mandatory: {
             chromeMediaSource: "tab",
             chromeMediaSourceId: streamId,
-            maxWidth: 768,
-            maxHeight: 432,
-            minFrameRate: 24,
+            minWidth: 480,
+            maxWidth: 854,
+            minHeight: 270,
+            maxHeight: 480,
+            minFrameRate: 30,
             maxFrameRate: 60,
           },
         },
@@ -147,35 +152,53 @@
 
     const videoTrack = mediaStream.getVideoTracks()[0];
     if (videoTrack) {
+      if ("contentHint" in videoTrack) {
+        try { videoTrack.contentHint = "motion"; } catch (_) {}
+      }
       videoTrack.addEventListener("ended", () => {
         stopCapture(true);
       });
     }
 
-    capVideo.srcObject = mediaStream;
-    await capVideo.play().catch(() => {});
-
     connectGhostWs();
-    startHighFpsLoop();
+
+    if (supportsTrackProcessor && videoTrack) {
+      startProcessorLoop(videoTrack);
+    } else {
+      capVideo.srcObject = mediaStream;
+      await capVideo.play().catch(() => {});
+      startFallbackVideoLoop();
+    }
     return { ok: true };
+  }
+
+  function closeFrameSafe(src) {
+    if (src && typeof src.close === "function") {
+      try { src.close(); } catch (_) {}
+    }
   }
 
   function stopCapture(notifyBg = true) {
     streamingActive = false;
     clearTimeout(wsReconnectTimer);
+    if (pendingVideoFrame) {
+      closeFrameSafe(pendingVideoFrame);
+      pendingVideoFrame = null;
+    }
+    if (frameReader) {
+      try { frameReader.cancel().catch(() => {}); } catch (_) {}
+      frameReader = null;
+    }
     if (workerTicker) {
       workerTicker.terminate();
       workerTicker = null;
-    }
-    if (rvfcHandle !== null && typeof capVideo.cancelVideoFrameCallback === "function") {
-      try { capVideo.cancelVideoFrameCallback(rvfcHandle); } catch (_) {}
-      rvfcHandle = null;
     }
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
       mediaStream = null;
     }
     capVideo.srcObject = null;
+    encodingBusy = false;
     if (ws) {
       try {
         ws.send(JSON.stringify({ type: "streamStopped" }));
@@ -189,57 +212,53 @@
     }
   }
 
-  function processVideoFrame(force = false) {
-    if (!streamingActive || inflightEncodes >= 1) return;
-    if (capVideo.readyState < 2 || !capVideo.videoWidth) return;
-    if (!wsConnected && !hasCrossTabViewers) return;
-    if (currentState?.bossMode) return;
-    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount > 40 * 1024) return;
-
-    const now = performance.now();
-    // Cap at ~60fps (15.5ms min delta) so rvfc + backup timer never double-encode the same frame
-    if (!force && now - lastCaptureTs < 15.5) return;
-
-    // Skip encoding identical unchanged frames (unless periodic keepalive every ~500ms)
-    const curMediaTime = lastRvfcMediaTime >= 0 ? lastRvfcMediaTime : capVideo.currentTime;
-    if (!force && curMediaTime === lastEncodedMediaTime && idleHeartbeatFrames < 30) {
-      idleHeartbeatFrames++;
-      return;
+  function encodeCanvasToBlob(quality) {
+    if (supportsOffscreen && typeof encodeCanvas.convertToBlob === "function") {
+      return encodeCanvas.convertToBlob({ type: "image/jpeg", quality });
     }
-    idleHeartbeatFrames = 0;
-    lastEncodedMediaTime = curMediaTime;
-    lastCaptureTs = now;
+    return new Promise((resolve) => cropCanvas.toBlob(resolve, "image/jpeg", quality));
+  }
 
-    const vw = capVideo.videoWidth;
-    const vh = capVideo.videoHeight;
+  async function encodeAndDispatchSource(src) {
+    encodingBusy = true;
+    const isVideoFrame = typeof src?.close === "function";
+    try {
+      const vw = src.displayWidth || src.codedWidth || src.videoWidth || 0;
+      const vh = src.displayHeight || src.codedHeight || src.videoHeight || 0;
+      if (!vw || !vh) {
+        closeFrameSafe(src);
+        return;
+      }
 
-    const sx = Math.max(0, Math.min(vw - 2, Math.round(cropBox.nx * vw)));
-    const sy = Math.max(0, Math.min(vh - 2, Math.round(cropBox.ny * vh)));
-    const sw = Math.max(16, Math.min(vw - sx, Math.round(cropBox.nw * vw)));
-    const sh = Math.max(16, Math.min(vh - sy, Math.round(cropBox.nh * vh)));
+      const now = performance.now();
+      lastCaptureTs = now;
 
-    const aspect = sw / Math.max(1, sh);
-    const warmingUp = now - streamStartedAt < 1800;
-    const targetW = aspect < 0.85 ? 268 : (warmingUp ? 384 : 448);
-    const targetH = Math.max(135, Math.round(targetW / aspect));
-    const quality = warmingUp ? 0.62 : 0.72;
+      const sx = Math.max(0, Math.min(vw - 2, Math.round(cropBox.nx * vw)));
+      const sy = Math.max(0, Math.min(vh - 2, Math.round(cropBox.ny * vh)));
+      const sw = Math.max(16, Math.min(vw - sx, Math.round(cropBox.nw * vw)));
+      const sh = Math.max(16, Math.min(vh - sy, Math.round(cropBox.nh * vh)));
 
-    if (encodeCanvas.width !== targetW || encodeCanvas.height !== targetH) {
-      encodeCanvas.width = targetW;
-      encodeCanvas.height = targetH;
-    }
+      const aspect = sw / Math.max(1, sh);
+      const warmingUp = now - streamStartedAt < 1800;
+      const targetW = aspect < 0.85 ? 268 : warmingUp ? 384 : 448;
+      const targetH = Math.max(135, Math.round(targetW / aspect));
+      const quality = warmingUp ? 0.64 : 0.72;
 
-    ctx.drawImage(capVideo, sx, sy, sw, sh, 0, 0, targetW, targetH);
+      if (encodeCanvas.width !== targetW || encodeCanvas.height !== targetH) {
+        encodeCanvas.width = targetW;
+        encodeCanvas.height = targetH;
+      }
 
-    const mySeq = ++frameSeq;
-    inflightEncodes++;
+      ctx.drawImage(src, sx, sy, sw, sh, 0, 0, targetW, targetH);
+      // Immediately release GPU capture buffer before async JPEG compression!
+      if (isVideoFrame) closeFrameSafe(src);
 
-    const handleEncodedBlob = async (blob) => {
-      inflightEncodes = Math.max(0, inflightEncodes - 1);
+      const mySeq = ++frameSeq;
+      const blob = await encodeCanvasToBlob(quality);
       if (!blob || !streamingActive || mySeq < lastSentSeq) return;
       lastSentSeq = mySeq;
 
-      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 128 * 1024) {
+      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 48 * 1024) {
         try {
           const buf = await blob.arrayBuffer();
           if (mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
@@ -248,7 +267,8 @@
         } catch (_) {}
       }
 
-      if (hasCrossTabViewers && mySeq % 2 === 0) {
+      if (hasCrossTabViewers && !crossTabSendBusy) {
+        crossTabSendBusy = true;
         const reader = new FileReader();
         reader.onloadend = () => {
           if (typeof reader.result === "string") {
@@ -259,48 +279,108 @@
                 aspect,
                 subtitle: cropBox.subtitle || "",
               })
-              .catch(() => {});
+              .catch(() => {})
+              .finally(() => {
+                crossTabSendBusy = false;
+              });
+          } else {
+            crossTabSendBusy = false;
           }
+        };
+        reader.onerror = () => {
+          crossTabSendBusy = false;
         };
         reader.readAsDataURL(blob);
       }
-    };
-
-    if (supportsOffscreen && typeof encodeCanvas.convertToBlob === "function") {
-      encodeCanvas
-        .convertToBlob({ type: "image/jpeg", quality })
-        .then(handleEncodedBlob)
-        .catch(() => {
-          inflightEncodes = Math.max(0, inflightEncodes - 1);
-        });
-    } else {
-      cropCanvas.toBlob(handleEncodedBlob, "image/jpeg", quality);
+    } catch (_) {
+      if (isVideoFrame) closeFrameSafe(src);
+    } finally {
+      encodingBusy = false;
+      if (streamingActive && pendingVideoFrame) {
+        const next = pendingVideoFrame;
+        pendingVideoFrame = null;
+        if (!currentState?.bossMode && (wsConnected || hasCrossTabViewers)) {
+          encodeAndDispatchSource(next);
+        } else {
+          closeFrameSafe(next);
+        }
+      }
     }
   }
 
-  function startHighFpsLoop() {
+  async function startProcessorLoop(videoTrack) {
+    try {
+      const processor = new MediaStreamTrackProcessor({ track: videoTrack });
+      frameReader = processor.readable.getReader();
+      while (streamingActive) {
+        const { value: videoFrame, done } = await frameReader.read();
+        if (done || !videoFrame) {
+          closeFrameSafe(videoFrame);
+          break;
+        }
+        if (!streamingActive || currentState?.bossMode || (!wsConnected && !hasCrossTabViewers)) {
+          closeFrameSafe(videoFrame);
+          continue;
+        }
+        if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 48 * 1024) {
+          closeFrameSafe(videoFrame);
+          continue;
+        }
+        const now = performance.now();
+        if (!encodingBusy && now - lastCaptureTs < 14) {
+          closeFrameSafe(videoFrame);
+          continue;
+        }
+        if (encodingBusy) {
+          // Strict 1-slot latest-frame mailbox: never leak or stall Chrome's C++ capturer!
+          if (pendingVideoFrame) closeFrameSafe(pendingVideoFrame);
+          pendingVideoFrame = videoFrame;
+          continue;
+        }
+        encodeAndDispatchSource(videoFrame);
+      }
+    } catch (_) {
+      if (streamingActive && !workerTicker && mediaStream) {
+        capVideo.srcObject = mediaStream;
+        await capVideo.play().catch(() => {});
+        startFallbackVideoLoop();
+      }
+    }
+  }
+
+  function processFallbackVideoFrame(force = false) {
+    if (!streamingActive || encodingBusy) return;
+    if (capVideo.readyState < 2 || !capVideo.videoWidth) return;
+    if (!wsConnected && !hasCrossTabViewers) return;
+    if (currentState?.bossMode) return;
+    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 48 * 1024) return;
+
+    const now = performance.now();
+    if (!force && now - lastCaptureTs < 15.5) return;
+
+    const totalFrames = capVideo.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
+    if (!force && totalFrames >= 0 && totalFrames === lastDecodedFrames && idleHeartbeatFrames < 8) {
+      idleHeartbeatFrames++;
+      return;
+    }
+    idleHeartbeatFrames = 0;
+    if (totalFrames >= 0) lastDecodedFrames = totalFrames;
+
+    encodeAndDispatchSource(capVideo);
+  }
+
+  function startFallbackVideoLoop() {
     if (workerTicker) {
       workerTicker.terminate();
       workerTicker = null;
-    }
-    if (typeof capVideo.requestVideoFrameCallback === "function") {
-      const onFrame = (_now, metadata) => {
-        if (!streamingActive) return;
-        if (metadata && Number.isFinite(metadata.mediaTime)) {
-          lastRvfcMediaTime = metadata.mediaTime;
-        }
-        processVideoFrame(false);
-        rvfcHandle = capVideo.requestVideoFrameCallback(onFrame);
-      };
-      rvfcHandle = capVideo.requestVideoFrameCallback(onFrame);
     }
     // Unthrottled Dedicated Web Worker 60Hz clock (immune to Chrome background tab timer throttling!)
     try {
       const blob = new Blob(["setInterval(() => postMessage(1), 16);"], { type: "application/javascript" });
       workerTicker = new Worker(URL.createObjectURL(blob));
-      workerTicker.onmessage = () => processVideoFrame(false);
+      workerTicker.onmessage = () => processFallbackVideoFrame(false);
     } catch (_) {
-      setInterval(() => processVideoFrame(false), 16);
+      setInterval(() => processFallbackVideoFrame(false), 16);
     }
   }
 

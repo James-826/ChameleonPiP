@@ -84,7 +84,79 @@ function stopCropPolling() {
   }
 }
 
+async function setTabStreamKeepAwake(tabId, enabled) {
+  if (!tabId) return;
+  chrome.tabs.update(tabId, { autoDiscardable: !enabled }).catch(() => {});
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      args: [Boolean(enabled)],
+      func: (active) => {
+        window.__CHAMELEON_STREAM_AWAKE__ = active;
+        if (!window.__CHAMELEON_VIS_HOOKED__) {
+          window.__CHAMELEON_VIS_HOOKED__ = true;
+          const origHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
+          const origVis = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+          if (origHidden?.get) {
+            try {
+              Object.defineProperty(document, "hidden", {
+                configurable: true,
+                get: () => (window.__CHAMELEON_STREAM_AWAKE__ ? false : origHidden.get.call(document)),
+              });
+            } catch (_) {}
+          }
+          if (origVis?.get) {
+            try {
+              Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                get: () => (window.__CHAMELEON_STREAM_AWAKE__ ? "visible" : origVis.get.call(document)),
+              });
+            } catch (_) {}
+          }
+          const stopVis = (e) => {
+            if (window.__CHAMELEON_STREAM_AWAKE__) e.stopImmediatePropagation();
+          };
+          document.addEventListener("visibilitychange", stopVis, true);
+          document.addEventListener("webkitvisibilitychange", stopVis, true);
+          window.addEventListener("visibilitychange", stopVis, true);
+        }
+
+        const vids = Array.from(document.querySelectorAll("video"));
+        const mainVid =
+          vids.find((v) => !v.paused && v.readyState >= 2) ||
+          vids.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+        if (!mainVid) return { hadMutedVideo: false };
+
+        if (active) {
+          if (mainVid.muted || mainVid.volume === 0) {
+            mainVid.__chameleonWasElementMuted = true;
+            mainVid.__chameleonPrevVol = mainVid.volume;
+            mainVid.muted = false;
+            if (mainVid.volume < 0.05) mainVid.volume = 0.5;
+            return { hadMutedVideo: true };
+          }
+        } else if (mainVid.__chameleonWasElementMuted) {
+          mainVid.muted = true;
+          if (typeof mainVid.__chameleonPrevVol === "number") {
+            mainVid.volume = mainVid.__chameleonPrevVol;
+          }
+          delete mainVid.__chameleonWasElementMuted;
+          delete mainVid.__chameleonPrevVol;
+        }
+        return { hadMutedVideo: false };
+      },
+    });
+    if (enabled && results?.[0]?.result?.hadMutedVideo) {
+      await chrome.tabs.update(tabId, { muted: true }).catch(() => {});
+    }
+  } catch (_) {}
+}
+
 async function startTabStream(tabId, preIssuedStreamId) {
+  if (streamingTabId && streamingTabId !== tabId) {
+    setTabStreamKeepAwake(streamingTabId, false);
+  }
   // Reuse existing offscreen document if already alive — avoids 400ms startup frame stutter!
   await ensureOffscreenDocument();
   const streamId =
@@ -104,6 +176,7 @@ async function startTabStream(tabId, preIssuedStreamId) {
     };
   }
 
+  await setTabStreamKeepAwake(tabId, true);
   const crop = await queryVideoCropFromTab(tabId);
   if (!cachedGeckoState) {
     const stored = await chrome.storage.local.get(["geckoState"]);
@@ -120,14 +193,18 @@ async function startTabStream(tabId, preIssuedStreamId) {
   if (res?.ok) {
     streamingTabId = tabId;
     startCropPolling();
+  } else {
+    setTabStreamKeepAwake(tabId, false);
   }
   return { ...res, streamingTabId };
 }
 
 async function stopTabStream() {
   stopCropPolling();
+  const prevTabId = streamingTabId;
   streamingTabId = null;
   ghostWsConnected = false;
+  if (prevTabId) setTabStreamKeepAwake(prevTabId, false);
   try {
     await chrome.runtime.sendMessage({ type: "GECKO_OFFSCREEN_STOP" });
   } catch (_) {}
@@ -193,8 +270,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "GECKO_STREAM_STOPPED") {
     stopCropPolling();
+    const prevTabId = streamingTabId;
     streamingTabId = null;
     ghostWsConnected = false;
+    if (prevTabId) setTabStreamKeepAwake(prevTabId, false);
     return false;
   }
 

@@ -673,13 +673,48 @@
       mediaSlot.appendChild(localVideo);
       if (wasPlaying && !state.bossMode) localVideo.play().catch(() => {});
     } else {
-      const streamImg = document.createElement("img");
-      streamImg.className = "p-media";
-      mediaSlot.appendChild(streamImg);
+      const streamCanvas = document.createElement("canvas");
+      streamCanvas.className = "p-media";
+      streamCanvas.width = 448;
+      streamCanvas.height = 252;
+      const streamCtx = streamCanvas.getContext("2d", { alpha: false, desynchronized: true });
+      mediaSlot.appendChild(streamCanvas);
+
+      let pendingFrameUrl = null;
+      let decodingFrame = false;
+      const consumeNextFrame = () => {
+        if (decodingFrame || !pendingFrameUrl || !parasiteOpen) return;
+        const url = pendingFrameUrl;
+        pendingFrameUrl = null;
+        decodingFrame = true;
+        fetch(url)
+          .then((r) => r.blob())
+          .then((b) => createImageBitmap(b))
+          .then((bmp) => {
+            decodingFrame = false;
+            if (!parasiteOpen) {
+              bmp.close();
+              return;
+            }
+            if (streamCanvas.width !== bmp.width || streamCanvas.height !== bmp.height) {
+              streamCanvas.width = bmp.width;
+              streamCanvas.height = bmp.height;
+            }
+            streamCtx?.drawImage(bmp, 0, 0);
+            bmp.close();
+            if (pendingFrameUrl) consumeNextFrame();
+          })
+          .catch(() => {
+            decodingFrame = false;
+            if (pendingFrameUrl) consumeNextFrame();
+          });
+      };
+
       parasiteStreamPort = chrome.runtime.connect({ name: "gecko-parasite-viewer" });
       parasiteStreamPort.onMessage.addListener((msg) => {
         if (msg.type === "GECKO_FRAME" && msg.dataUrl) {
-          streamImg.src = msg.dataUrl;
+          pendingFrameUrl = msg.dataUrl;
+          consumeNextFrame();
           renderParasiteSubtitle(shadow.getElementById("pSub"), state.mirrorSubtitles ? msg.subtitle || "" : "");
         } else if (msg.type === "GECKO_STREAM_ENDED") {
           closeParasiteOverlay();

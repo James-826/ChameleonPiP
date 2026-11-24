@@ -637,9 +637,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var isWindowHovered: Bool = false
     private var lastExternalApp: (name: String, archetype: String) = ("桌面", "web")
     private var hotKeyRefs: [EventHotKeyRef?] = []
+    private var appNapActivity: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        appNapActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+            reason: "ChameleonPiP 60fps Real-Time Video Camouflage"
+        )
         loadDailyShieldQuota()
         configureAntiPeekRadarCallbacks()
         wsHub.onArenaConnected = { [weak self] in
