@@ -376,7 +376,7 @@
             canvas.getContext("webgl", {
               alpha: true,
               premultipliedAlpha: true,
-              preserveDrawingBuffer: true,
+              preserveDrawingBuffer: false,
               antialias: false,
               depth: false,
               stencil: false,
@@ -520,6 +520,7 @@
             gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.8));
             gl.uniform2f(uTexel, 1 / Math.max(1, texW), 1 / Math.max(1, texH));
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.flush();
           }
 
           // Pre-warm Metal WebGL pipeline immediately with 1x1 transparent pixel so Frame 1 renders in <1ms!
@@ -975,13 +976,22 @@
           postNative({ action: "openLocalMp4" });
         });
 
-        let pendingBlob = null;
-        function consumeNextStreamBlob() {
-          if (decodingBitmap || !pendingBlob) return;
-          const blob = pendingBlob;
-          pendingBlob = null;
+        let pendingFrameData = null;
+        function decodeFrameBlobFast(blob) {
+          return createImageBitmap(blob, {
+            premultiplyAlpha: "none",
+            colorSpaceConversion: "none",
+          }).catch(() => createImageBitmap(blob));
+        }
+
+        function consumeNextStreamFrame() {
+          if (decodingBitmap || !pendingFrameData) return;
+          const raw = pendingFrameData;
+          pendingFrameData = null;
           decodingBitmap = true;
-          createImageBitmap(blob)
+          const blob =
+            raw instanceof Blob ? raw : new Blob([raw], { type: "image/jpeg" });
+          decodeFrameBlobFast(blob)
             .then((bmp) => {
               decodingBitmap = false;
               if (glProjector) {
@@ -994,24 +1004,24 @@
                 fallbackCtx.drawImage(bmp, 0, 0);
               }
               bmp.close();
-              if (pendingBlob) consumeNextStreamBlob();
+              if (pendingFrameData) consumeNextStreamFrame();
             })
             .catch(() => {
               decodingBitmap = false;
-              if (pendingBlob) consumeNextStreamBlob();
+              if (pendingFrameData) consumeNextStreamFrame();
             });
         }
 
         function connectHub() {
           try {
             ws = new WebSocket("ws://127.0.0.1:51937");
-            ws.binaryType = "blob";
+            ws.binaryType = "arraybuffer";
             ws.onopen = () => {
               ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
               pushVideoPlaybackState(true);
             };
             ws.onmessage = (ev) => {
-              if (ev.data instanceof Blob) {
+              if (ev.data instanceof ArrayBuffer || ev.data instanceof Blob) {
                 lastVideoFrameAt = performance.now();
                 if (!hasLiveChromeStream) {
                   hasLiveChromeStream = true;
@@ -1026,8 +1036,8 @@
                   idleCard.style.display = "none";
                   render();
                 }
-                pendingBlob = ev.data;
-                consumeNextStreamBlob();
+                pendingFrameData = ev.data;
+                consumeNextStreamFrame();
                 return;
               }
               if (typeof ev.data === "string") {

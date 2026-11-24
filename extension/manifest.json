@@ -39,9 +39,21 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "js": ["page-hooks.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
       "css": ["content.css"],
       "js": ["gecko-core.js", "content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["stream-bridge.html", "stream-bridge.js"],
+      "matches": ["<all_urls>"]
     }
   ],
   "commands": {

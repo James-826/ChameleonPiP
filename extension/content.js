@@ -7,7 +7,12 @@
   "use strict";
 
   // Clean up any stale DOM hosts from a previous extension reload in chrome://extensions
-  for (const staleId of ["gecko-pip-hover-host", "gecko-parasite-host", "gecko-topbar-host"]) {
+  for (const staleId of [
+    "gecko-pip-hover-host",
+    "gecko-parasite-host",
+    "gecko-topbar-host",
+    "gecko-stream-bridge-frame",
+  ]) {
     const old = document.getElementById(staleId);
     if (old) old.remove();
   }
@@ -163,6 +168,16 @@
     if (activeVideo && activeVideo.isConnected) return activeVideo;
     let best = null;
     let bestScore = -1;
+    // Fast-path: check top-document <video> elements first to avoid costly iframe queries
+    for (const v of document.querySelectorAll("video")) {
+      const s = scoreVideo(v);
+      if (s > bestScore) {
+        bestScore = s;
+        best = v;
+      }
+    }
+    if (best && bestScore >= 1200) return best;
+
     for (const v of collectAllVideos()) {
       const s = scoreVideo(v);
       if (s > bestScore) {
@@ -1259,6 +1274,373 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Zero-Lag Direct <video>.captureStream() Hardware Decoder Pipeline
+  // Bypasses Viz background tab compositor throttling completely!
+  // ---------------------------------------------------------------------------
+  let directStreamActive = false;
+  let directBridgeFrame = null;
+  let directBridgeReady = false;
+  let directBridgeOrigin = "*";
+  let directMediaStream = null;
+  let directFrameReader = null;
+  let directPendingFrame = null;
+  let directEncodingBusy = false;
+  let directEncodeCanvas = null;
+  let directEncodeCtx = null;
+  let directSupportsOffscreen = false;
+  let directLastFrameTs = 0;
+  let directVideoEl = null;
+  let directWatchdogTimer = null;
+  let directFramesSent = 0;
+  let directBindStartedAt = 0;
+  let directLastFrameAt = 0;
+  let directLastObsTime = -1;
+  let directFrameSeq = 0;
+  let directLastSentSeq = 0;
+
+  function releaseDirectFrameSafe(frame) {
+    if (frame && typeof frame.close === "function") {
+      try {
+        frame.close();
+      } catch (_) {}
+    }
+  }
+
+  function onBridgeWindowMessage(ev) {
+    if (!directBridgeFrame || ev.source !== directBridgeFrame.contentWindow) return;
+    const msg = ev.data;
+    if (msg && msg.type === "GECKO_BRIDGE_WS_STATE") {
+      directBridgeReady = Boolean(msg.open);
+    }
+  }
+  window.addEventListener("message", onBridgeWindowMessage);
+
+  function ensureDirectEncodeSurface(w, h) {
+    if (!directEncodeCanvas) {
+      if (typeof OffscreenCanvas !== "undefined") {
+        directEncodeCanvas = new OffscreenCanvas(w, h);
+        directSupportsOffscreen = true;
+      } else {
+        directEncodeCanvas = document.createElement("canvas");
+        directEncodeCanvas.width = w;
+        directEncodeCanvas.height = h;
+        directSupportsOffscreen = false;
+      }
+      directEncodeCtx = directEncodeCanvas.getContext("2d", {
+        alpha: false,
+        desynchronized: true,
+      });
+    }
+    if (directEncodeCanvas.width !== w || directEncodeCanvas.height !== h) {
+      directEncodeCanvas.width = w;
+      directEncodeCanvas.height = h;
+    }
+    return directEncodeCtx;
+  }
+
+  function encodeDirectSurfaceToBlob(quality) {
+    if (directSupportsOffscreen && typeof directEncodeCanvas.convertToBlob === "function") {
+      return directEncodeCanvas.convertToBlob({ type: "image/jpeg", quality });
+    }
+    return new Promise((resolve) => directEncodeCanvas.toBlob(resolve, "image/jpeg", quality));
+  }
+
+  function ensureStreamBridgeFrame() {
+    if (!chrome?.runtime?.getURL) return null;
+    const bridgeUrl = chrome.runtime.getURL("stream-bridge.html");
+    try {
+      directBridgeOrigin = new URL(bridgeUrl).origin;
+    } catch (_) {
+      directBridgeOrigin = "*";
+    }
+    if (directBridgeFrame && directBridgeFrame.isConnected) {
+      try {
+        directBridgeFrame.contentWindow?.postMessage({ type: "GECKO_BRIDGE_START" }, directBridgeOrigin);
+      } catch (_) {}
+      return directBridgeFrame;
+    }
+    const old = document.getElementById("gecko-stream-bridge-frame");
+    if (old) old.remove();
+
+    const frame = document.createElement("iframe");
+    frame.id = "gecko-stream-bridge-frame";
+    frame.src = bridgeUrl;
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText =
+      "display:none !important;width:0 !important;height:0 !important;border:0 !important;position:fixed !important;top:-99px !important;left:-99px !important;pointer-events:none !important;";
+    directBridgeReady = false;
+    frame.addEventListener("load", () => {
+      try {
+        frame.contentWindow?.postMessage({ type: "GECKO_BRIDGE_START" }, directBridgeOrigin);
+      } catch (_) {}
+    });
+    (document.documentElement || document.body)?.appendChild(frame);
+    directBridgeFrame = frame;
+    return frame;
+  }
+
+  function cleanupDirectCaptureReaderOnly() {
+    if (directPendingFrame) {
+      releaseDirectFrameSafe(directPendingFrame);
+      directPendingFrame = null;
+    }
+    if (directFrameReader) {
+      const r = directFrameReader;
+      directFrameReader = null;
+      try {
+        r.cancel().catch(() => {});
+      } catch (_) {}
+    }
+    if (directMediaStream) {
+      try {
+        directMediaStream.getTracks().forEach((t) => t.stop());
+      } catch (_) {}
+      directMediaStream = null;
+    }
+    directEncodingBusy = false;
+  }
+
+  async function encodeAndPostDirectFrame(frame, ownerReader) {
+    directEncodingBusy = true;
+    try {
+      const vw = frame.displayWidth || frame.codedWidth || 0;
+      const vh = frame.displayHeight || frame.codedHeight || 0;
+      if (!vw || !vh) {
+        releaseDirectFrameSafe(frame);
+        return;
+      }
+      directLastFrameTs = performance.now();
+      const aspect = vw / Math.max(1, vh);
+      const targetW = aspect < 0.85 ? 272 : 464;
+      const targetH = Math.max(136, Math.round(targetW / aspect));
+
+      const ctx = ensureDirectEncodeSurface(targetW, targetH);
+      if (!ctx) {
+        releaseDirectFrameSafe(frame);
+        return;
+      }
+
+      ctx.drawImage(frame, 0, 0, targetW, targetH);
+      // Release hardware decoder VideoFrame immediately before async JPEG encode
+      releaseDirectFrameSafe(frame);
+
+      const mySeq = ++directFrameSeq;
+      const blob = await encodeDirectSurfaceToBlob(0.72);
+      if (!blob || !directStreamActive || mySeq < directLastSentSeq) return;
+      directLastSentSeq = mySeq;
+
+      if (directBridgeFrame?.contentWindow && directBridgeReady) {
+        const buf = await blob.arrayBuffer();
+        if (directStreamActive && mySeq >= directLastSentSeq && directBridgeFrame?.contentWindow) {
+          directBridgeFrame.contentWindow.postMessage(
+            { type: "GECKO_BRIDGE_FRAME", buf },
+            directBridgeOrigin,
+            [buf]
+          );
+          directFramesSent += 1;
+          directLastFrameAt = performance.now();
+        }
+      }
+    } catch (err) {
+      releaseDirectFrameSafe(frame);
+      // Cross-origin tainted <video> or codec error -> seamless fallback to offscreen tabCapture!
+      if (
+        err &&
+        (err.name === "SecurityError" ||
+          String(err).toLowerCase().includes("tainted") ||
+          String(err).toLowerCase().includes("security"))
+      ) {
+        stopDirectVideoStream(true);
+      }
+    } finally {
+      directEncodingBusy = false;
+      if (directStreamActive && directPendingFrame && directFrameReader === ownerReader) {
+        const next = directPendingFrame;
+        directPendingFrame = null;
+        if (!state.bossMode && directBridgeReady) {
+          encodeAndPostDirectFrame(next, ownerReader);
+        } else {
+          releaseDirectFrameSafe(next);
+        }
+      }
+    }
+  }
+
+  function bindDirectCaptureToVideo(v) {
+    cleanupDirectCaptureReaderOnly();
+    if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight || v.mediaKeys) {
+      return false;
+    }
+    if (typeof MediaStreamTrackProcessor !== "function") {
+      return false;
+    }
+    const captureFn = v.captureStream || v.mozCaptureStream;
+    if (typeof captureFn !== "function") {
+      return false;
+    }
+
+    let stream = null;
+    try {
+      stream = captureFn.call(v);
+    } catch (_) {
+      return false;
+    }
+    const track = stream?.getVideoTracks?.()?.[0];
+    if (!track || track.readyState === "ended") {
+      try {
+        stream?.getTracks?.().forEach((t) => t.stop());
+      } catch (_) {}
+      return false;
+    }
+    if ("contentHint" in track) {
+      try {
+        track.contentHint = "motion";
+      } catch (_) {}
+    }
+
+    let processor = null;
+    try {
+      processor = new MediaStreamTrackProcessor({ track });
+    } catch (_) {
+      try {
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (_2) {}
+      return false;
+    }
+
+    directVideoEl = v;
+    directMediaStream = stream;
+    const localReader = processor.readable.getReader();
+    directFrameReader = localReader;
+    directFramesSent = 0;
+    directBindStartedAt = performance.now();
+    directLastFrameAt = directBindStartedAt;
+    directLastObsTime = v.currentTime || 0;
+
+    (async () => {
+      try {
+        while (directStreamActive && directFrameReader === localReader) {
+          const { value: videoFrame, done } = await localReader.read();
+          if (done || !videoFrame) {
+            releaseDirectFrameSafe(videoFrame);
+            break;
+          }
+          if (!directStreamActive || directFrameReader !== localReader || state.bossMode || !directBridgeReady) {
+            releaseDirectFrameSafe(videoFrame);
+            continue;
+          }
+          const now = performance.now();
+          if (!directEncodingBusy && now - directLastFrameTs < 8) {
+            releaseDirectFrameSafe(videoFrame);
+            continue;
+          }
+          if (directEncodingBusy) {
+            if (directPendingFrame) releaseDirectFrameSafe(directPendingFrame);
+            directPendingFrame = videoFrame;
+            continue;
+          }
+          encodeAndPostDirectFrame(videoFrame, localReader);
+        }
+      } catch (_) {
+        if (directStreamActive && directFrameReader === localReader) {
+          stopDirectVideoStream(true);
+        }
+      }
+    })();
+
+    return true;
+  }
+
+  function startDirectVideoStream() {
+    if (document.documentElement) {
+      document.documentElement.dataset.chameleonStreamAwake = "1";
+    }
+    if (typeof MediaStreamTrackProcessor !== "function") {
+      return { ok: false, reason: "no_track_processor" };
+    }
+    const v = findBestVideo();
+    if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight || v.mediaKeys) {
+      return { ok: false, reason: "unsupported" };
+    }
+
+    stopDirectVideoStream(false);
+    if (document.documentElement) {
+      document.documentElement.dataset.chameleonStreamAwake = "1";
+    }
+    directStreamActive = true;
+    ensureStreamBridgeFrame();
+
+    if (!bindDirectCaptureToVideo(v)) {
+      stopDirectVideoStream(true);
+      return { ok: false, reason: "capture_failed" };
+    }
+
+    directWatchdogTimer = setInterval(() => {
+      if (!directStreamActive) {
+        clearInterval(directWatchdogTimer);
+        directWatchdogTimer = null;
+        return;
+      }
+      const best = findBestVideo();
+      if (best && best !== directVideoEl && best.readyState >= 2 && best.videoWidth > 0 && !best.mediaKeys) {
+        if (!bindDirectCaptureToVideo(best)) {
+          stopDirectVideoStream(true);
+        }
+        return;
+      }
+      if (!directVideoEl || !directVideoEl.isConnected || directVideoEl.mediaKeys) {
+        stopDirectVideoStream(true);
+        return;
+      }
+      if (!directVideoEl.paused && !directVideoEl.ended && directVideoEl.readyState >= 2 && directBridgeReady) {
+        const curT = directVideoEl.currentTime || 0;
+        const advancing = Math.abs(curT - directLastObsTime) > 0.08;
+        directLastObsTime = curT;
+        const now = performance.now();
+        if (
+          advancing &&
+          ((directFramesSent === 0 && now - directBindStartedAt > 1800) ||
+            (directFramesSent > 0 && now - directLastFrameAt > 2600))
+        ) {
+          stopDirectVideoStream(true);
+        }
+      } else if (directVideoEl) {
+        directLastObsTime = directVideoEl.currentTime || 0;
+        directLastFrameAt = performance.now();
+      }
+    }, 900);
+
+    return { ok: true };
+  }
+
+  function stopDirectVideoStream(notifyFallback = false) {
+    directStreamActive = false;
+    if (directWatchdogTimer) {
+      clearInterval(directWatchdogTimer);
+      directWatchdogTimer = null;
+    }
+    cleanupDirectCaptureReaderOnly();
+    directVideoEl = null;
+    directBridgeReady = false;
+    if (directBridgeFrame) {
+      try {
+        directBridgeFrame.contentWindow?.postMessage({ type: "GECKO_BRIDGE_STOP" }, directBridgeOrigin);
+      } catch (_) {}
+      directBridgeFrame.remove();
+      directBridgeFrame = null;
+    }
+    if (notifyFallback && chrome?.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: "GECKO_DIRECT_STREAM_STATUS", active: false }).catch(() => {});
+    }
+  }
+
+  window.__GECKO_PIP_CLEANUP__ = () => {
+    stopDirectVideoStream(false);
+    closeParasiteOverlay();
+    window.removeEventListener("message", onBridgeWindowMessage);
+  };
+
   if (chrome?.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!msg || typeof msg !== "object") return false;
@@ -1273,6 +1655,18 @@
       }
       if (msg.type === "GECKO_GET_VIDEO_CROP") {
         sendResponse(getNormalizedVideoCrop());
+        return false;
+      }
+      if (msg.type === "GECKO_START_DIRECT_STREAM") {
+        sendResponse(startDirectVideoStream());
+        return false;
+      }
+      if (msg.type === "GECKO_STOP_DIRECT_STREAM") {
+        if (document.documentElement) {
+          delete document.documentElement.dataset.chameleonStreamAwake;
+        }
+        stopDirectVideoStream(false);
+        sendResponse({ ok: true });
         return false;
       }
       if (msg.type === "GECKO_TOGGLE_PARASITE") {

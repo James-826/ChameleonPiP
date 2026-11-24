@@ -407,6 +407,7 @@ final class LocalWebSocketHub {
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var ghostViewIds: Set<ObjectIdentifier> = []
     private var arenaViewIds: Set<ObjectIdentifier> = []
+    private var producerIds: Set<ObjectIdentifier> = []
     // Zero-lag 1-frame mailbox: drops stale intermediate frames so video NEVER lags behind audio!
     private var sendingBinary: Set<ObjectIdentifier> = []
     private var pendingBinary: [ObjectIdentifier: Data] = [:]
@@ -448,9 +449,13 @@ final class LocalWebSocketHub {
     }
 
     private func cleanup(_ id: ObjectIdentifier) {
-        connections.removeValue(forKey: id)
+        if let conn = connections.removeValue(forKey: id) {
+            conn.stateUpdateHandler = nil
+            conn.cancel()
+        }
         ghostViewIds.remove(id)
         arenaViewIds.remove(id)
+        producerIds.remove(id)
         sendingBinary.remove(id)
         pendingBinary.removeValue(forKey: id)
     }
@@ -480,6 +485,8 @@ final class LocalWebSocketHub {
                     } else if text.contains("\"role\":\"arenaView\"") {
                         self.arenaViewIds.insert(id)
                         self.onArenaConnected?()
+                    } else if text.contains("\"role\":\"streamProducer\"") {
+                        self.producerIds.insert(id)
                     } else if self.arenaViewIds.contains(id) {
                         if text.contains("\"type\":\"membershipUpdated\"") {
                             self.broadcast(data: data, opcode: .text, toGhostViews: true, sender: id)
@@ -546,7 +553,10 @@ final class LocalWebSocketHub {
         let meta = NWProtocolWebSocket.Metadata(opcode: opcode)
         let ctx = NWConnection.ContentContext(identifier: "wsFrame", metadata: [meta])
         for (cid, c) in connections where cid != sender {
-            if ghostViewIds.contains(cid) == toGhostViews {
+            let match = toGhostViews
+                ? ghostViewIds.contains(cid)
+                : (!ghostViewIds.contains(cid) && !producerIds.contains(cid) && !arenaViewIds.contains(cid))
+            if match {
                 c.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
             }
         }
@@ -633,6 +643,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var pointerTrackTimer: Timer?
     private var isWindowHovered: Bool = false
     private var lastExternalApp: (name: String, archetype: String) = ("桌面", "web")
+    private var lastSensedAppName: String = ""
+    private var lastSensedFrame: NSRect = .zero
+    private var senseDebounceWork: DispatchWorkItem?
     private var hotKeyRefs: [EventHotKeyRef?] = []
     private var appNapActivity: NSObjectProtocol?
 
@@ -1960,6 +1973,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if let st = dict["state"] as? [String: Any] {
                 if let m = st["mode"] as? String { currentMode = m }
                 if let s = st["stealth"] as? Int { currentStealth = s }
+                if let asVal = st["autoSense"] as? Bool { autoSense = asVal }
                 if let ss = st["stealthSubtitle"] as? Bool, ss != stealthSubtitleEnabled {
                     stealthSubtitleEnabled = ss
                     UserDefaults.standard.set(ss, forKey: "chameleonStealthSubtitle")
@@ -2074,12 +2088,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     private func startAutoSceneLoop() {
-        // Defer first ScreenCaptureKit probe by 1.5s so macOS media startup never competes with video Frame 1!
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self, self.isVisible, !self.bossMode else { return }
+            self.senseDebounceWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self = self, self.isVisible, !self.bossMode else { return }
+                self.senseEnvironmentAsync(periodic: false)
+            }
+            self.senseDebounceWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+        }
+
+        // Defer first ScreenCaptureKit probe by 1.5s, then use a lightweight 10s periodic fallback
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             guard let self = self else { return }
-            Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
+            Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
                 guard let self = self, self.isVisible, !self.bossMode else { return }
-                self.senseEnvironmentAsync()
+                self.senseEnvironmentAsync(periodic: true)
             }
         }
     }
@@ -2118,10 +2147,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
-    private func senseEnvironmentAsync() {
+    private func senseEnvironmentAsync(periodic: Bool = false) {
+        guard autoSense else { return }
         let (appName, archetype) = classifyFrontmostApp()
         let isTyping = (ProcessInfo.processInfo.systemUptime - lastKeyTime) < 1.5
         let panelFrame = panel.frame
+        if periodic && hasActiveVideoPlaying && appName == lastSensedAppName && panelFrame == lastSensedFrame {
+            return
+        }
+        lastSensedAppName = appName
+        lastSensedFrame = panelFrame
         let ghostWinID = CGWindowID(panel.windowNumber)
 
         guard CGPreflightScreenCaptureAccess() else {

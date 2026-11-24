@@ -30,6 +30,17 @@
   let cropBox = { nx: 0, ny: 0, nw: 1, nh: 1, aspect: 16 / 9, subtitle: "" };
   let currentState = null;
   let hasCrossTabViewers = false;
+  let directBypassActive = false;
+
+  function syncTrackConstraintsForBypass() {
+    const track = mediaStream?.getVideoTracks?.()?.[0];
+    if (!track || typeof track.applyConstraints !== "function") return;
+    if (directBypassActive && !hasCrossTabViewers) {
+      track.applyConstraints({ width: 64, height: 36, frameRate: 1 }).catch(() => {});
+    } else {
+      track.applyConstraints({ width: 640, height: 360, frameRate: 60 }).catch(() => {});
+    }
+  }
 
   function connectGhostWs() {
     if (!streamingActive) return;
@@ -120,6 +131,7 @@
   async function startCapture(streamId, initialState, initialCrop) {
     stopCapture(false);
     streamingActive = true;
+    directBypassActive = false;
     streamStartedAt = performance.now();
     lastDecodedFrames = -1;
     idleHeartbeatFrames = 0;
@@ -180,6 +192,7 @@
 
   function stopCapture(notifyBg = true) {
     streamingActive = false;
+    directBypassActive = false;
     clearTimeout(wsReconnectTimer);
     if (pendingVideoFrame) {
       closeFrameSafe(pendingVideoFrame);
@@ -258,10 +271,10 @@
       if (!blob || !streamingActive || mySeq < lastSentSeq) return;
       lastSentSeq = mySeq;
 
-      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 48 * 1024) {
+      if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 24 * 1024) {
         try {
           const buf = await blob.arrayBuffer();
-          if (mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
+          if (!directBypassActive && mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
             ws.send(buf);
           }
         } catch (_) {}
@@ -322,12 +335,16 @@
           closeFrameSafe(videoFrame);
           continue;
         }
-        if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 48 * 1024) {
+        if (directBypassActive && !hasCrossTabViewers) {
+          closeFrameSafe(videoFrame);
+          continue;
+        }
+        if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 24 * 1024) {
           closeFrameSafe(videoFrame);
           continue;
         }
         const now = performance.now();
-        if (!encodingBusy && now - lastCaptureTs < 14) {
+        if (!encodingBusy && now - lastCaptureTs < 8) {
           closeFrameSafe(videoFrame);
           continue;
         }
@@ -353,10 +370,11 @@
     if (capVideo.readyState < 2 || !capVideo.videoWidth) return;
     if (!wsConnected && !hasCrossTabViewers) return;
     if (currentState?.bossMode) return;
-    if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 48 * 1024) return;
+    if (directBypassActive && !hasCrossTabViewers) return;
+    if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 24 * 1024) return;
 
     const now = performance.now();
-    if (!force && now - lastCaptureTs < 15.5) return;
+    if (!force && now - lastCaptureTs < 9.5) return;
 
     const totalFrames = capVideo.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
     if (!force && totalFrames >= 0 && totalFrames === lastDecodedFrames && idleHeartbeatFrames < 8) {
@@ -416,8 +434,16 @@
       }
       if (typeof msg.hasCrossTabViewers === "boolean") {
         hasCrossTabViewers = msg.hasCrossTabViewers;
+        syncTrackConstraintsForBypass();
       }
       sendResponse({ ok: true, wsConnected, streamingActive });
+      return false;
+    }
+
+    if (msg.type === "GECKO_OFFSCREEN_DIRECT_BYPASS") {
+      directBypassActive = Boolean(msg.active);
+      syncTrackConstraintsForBypass();
+      sendResponse({ ok: true });
       return false;
     }
 

@@ -5,6 +5,7 @@ let streamingTabId = null;
 let ghostWsConnected = false;
 let cropPollTimer = null;
 let cachedGeckoState = null;
+let offscreenBootstrappedThisRun = false;
 const parasitePorts = new Set();
 
 chrome.storage.local.get(["geckoState"], (res) => {
@@ -12,7 +13,15 @@ chrome.storage.local.get(["geckoState"], (res) => {
 });
 
 async function ensureOffscreenDocument() {
-  if (chrome.offscreen.hasDocument) {
+  if (!offscreenBootstrappedThisRun) {
+    offscreenBootstrappedThisRun = true;
+    if (chrome.offscreen.hasDocument) {
+      const stale = await chrome.offscreen.hasDocument().catch(() => false);
+      if (stale) {
+        await chrome.offscreen.closeDocument().catch(() => {});
+      }
+    }
+  } else if (chrome.offscreen.hasDocument) {
     const exists = await chrome.offscreen.hasDocument();
     if (exists) return;
   }
@@ -25,6 +34,29 @@ async function ensureOffscreenDocument() {
   } catch (err) {
     if (!String(err).includes("Only a single offscreen")) {
       throw err;
+    }
+  }
+}
+
+async function ensureTabContentScripts(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "GECKO_GET_VIDEO_CROP" });
+    return true;
+  } catch (_) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "MAIN",
+        files: ["page-hooks.js"],
+      }).catch(() => {});
+      await chrome.scripting.insertCSS({ target: { tabId }, files: ["content.css"] }).catch(() => {});
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["gecko-core.js", "content.js"],
+      });
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 }
@@ -74,7 +106,7 @@ function startCropPolling() {
         hasCrossTabViewers: parasitePorts.size > 0,
       })
       .catch(() => {});
-  }, 260);
+  }, 450);
 }
 
 function stopCropPolling() {
@@ -94,6 +126,9 @@ async function setTabStreamKeepAwake(tabId, enabled) {
       args: [Boolean(enabled)],
       func: (active) => {
         window.__CHAMELEON_STREAM_AWAKE__ = active;
+        if (document.documentElement) {
+          document.documentElement.dataset.chameleonStreamAwake = active ? "1" : "0";
+        }
         if (!window.__CHAMELEON_VIS_HOOKED__) {
           window.__CHAMELEON_VIS_HOOKED__ = true;
           const origHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
@@ -155,9 +190,11 @@ async function setTabStreamKeepAwake(tabId, enabled) {
 
 async function startTabStream(tabId, preIssuedStreamId) {
   if (streamingTabId && streamingTabId !== tabId) {
+    chrome.tabs.sendMessage(streamingTabId, { type: "GECKO_STOP_DIRECT_STREAM" }).catch(() => {});
     setTabStreamKeepAwake(streamingTabId, false);
   }
-  // Reuse existing offscreen document if already alive — avoids 400ms startup frame stutter!
+  await ensureTabContentScripts(tabId);
+  // Reuse existing offscreen document if already alive in this SW session
   await ensureOffscreenDocument();
   const streamId =
     preIssuedStreamId ||
@@ -193,6 +230,8 @@ async function startTabStream(tabId, preIssuedStreamId) {
   if (res?.ok) {
     streamingTabId = tabId;
     startCropPolling();
+    // Kick off direct hardware <video>.captureStream() fast-path concurrently!
+    chrome.tabs.sendMessage(tabId, { type: "GECKO_START_DIRECT_STREAM" }).catch(() => {});
   } else {
     setTabStreamKeepAwake(tabId, false);
   }
@@ -204,7 +243,10 @@ async function stopTabStream() {
   const prevTabId = streamingTabId;
   streamingTabId = null;
   ghostWsConnected = false;
-  if (prevTabId) setTabStreamKeepAwake(prevTabId, false);
+  if (prevTabId) {
+    chrome.tabs.sendMessage(prevTabId, { type: "GECKO_STOP_DIRECT_STREAM" }).catch(() => {});
+    setTabStreamKeepAwake(prevTabId, false);
+  }
   try {
     await chrome.runtime.sendMessage({ type: "GECKO_OFFSCREEN_STOP" });
   } catch (_) {}
@@ -273,7 +315,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const prevTabId = streamingTabId;
     streamingTabId = null;
     ghostWsConnected = false;
-    if (prevTabId) setTabStreamKeepAwake(prevTabId, false);
+    if (prevTabId) {
+      chrome.tabs.sendMessage(prevTabId, { type: "GECKO_STOP_DIRECT_STREAM" }).catch(() => {});
+      setTabStreamKeepAwake(prevTabId, false);
+    }
+    return false;
+  }
+
+  if (msg.type === "GECKO_DIRECT_STREAM_STATUS") {
+    if (streamingTabId && (!sender.tab || sender.tab.id === streamingTabId)) {
+      chrome.runtime
+        .sendMessage({
+          type: "GECKO_OFFSCREEN_DIRECT_BYPASS",
+          active: Boolean(msg.active),
+        })
+        .catch(() => {});
+    }
     return false;
   }
 
