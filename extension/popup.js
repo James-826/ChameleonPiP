@@ -108,17 +108,15 @@
     }
     if (desc) {
       desc.textContent = isPro
-        ? `${membership.planName || "永久支持者"} · ${Stats.formatExpiryDate(membership.expiresAt)}`
-        : "全模式永久免费 · 每日 30m 免费 AI 防窥";
+        ? `${membership.planName || "咖啡支持者"} · 感谢支持`
+        : "全功能永久免费无限制 · 零套路";
     }
-    if (btn) btn.textContent = isPro ? "支持者中心" : "支持 / 激活";
+    if (btn) btn.textContent = isPro ? "致谢中心" : "请喝咖啡";
     if (btnTrial) {
       btnTrial.style.display = isPro ? "none" : "inline-block";
-      if (membership.trialUsed) {
-        btnTrial.disabled = true;
-        btnTrial.textContent = "已用过 3 天试用";
-        btnTrial.style.opacity = "0.5";
-      }
+      btnTrial.disabled = false;
+      btnTrial.textContent = "一键点亮支持者金标";
+      btnTrial.style.opacity = "1";
     }
     document.querySelectorAll(".mini-pro-tag").forEach((el) => {
       el.style.display = isPro ? "none" : "inline-block";
@@ -322,16 +320,16 @@
     const btn = document.getElementById("btnPopTrial");
     const msg = document.getElementById("popProMsg");
     btn.disabled = true;
-    btn.textContent = "开通中...";
-    const res = await Stats.startFreeTrial(Stats.loadProfile().userId);
+    btn.textContent = "点亮中...";
+    const res = await (Stats.claimHonorSupporter || Stats.startFreeTrial)(Stats.loadProfile().userId);
     if (res?.ok && res.entitlement) {
       membership = Stats.saveMembership(res.entitlement);
       syncMembershipToDesktopApp(membership);
-      if (msg) msg.textContent = res.message || "已开启 3 天 Pro 体验，所有模式已解锁！";
+      if (msg) msg.textContent = res.message || "感谢支持！已为你点亮榜单 SUP 支持者徽章！";
     } else {
       btn.disabled = false;
-      btn.textContent = "一键免费试用 3 天 Pro";
-      if (msg) msg.textContent = res?.message || "试用开通失败，请稍后重试。";
+      btn.textContent = "一键点亮支持者金标";
+      if (msg) msg.textContent = res?.message || "连接服务器失败，请稍后重试。";
     }
     renderMembershipBar();
   });
@@ -342,7 +340,7 @@
     const msg = document.getElementById("popProMsg");
     const key = inp?.value.trim();
     if (!key) {
-      if (msg) msg.textContent = "请输入 Pro 激活码（CHM-PRO-...）";
+      if (msg) msg.textContent = "如有 VIP / MAX 荣誉码，请先粘贴后再点击（所有功能均已免费开放）";
       return;
     }
     const res = await Stats.activateLicenseKey(key, Stats.loadProfile().userId);
@@ -350,9 +348,9 @@
       membership = Stats.saveMembership(res.entitlement);
       syncMembershipToDesktopApp(membership);
       if (inp) inp.value = "";
-      if (msg) msg.textContent = res.message || "激活成功！已解锁全部 Pro 权益。";
+      if (msg) msg.textContent = res.message || "感谢支持！专属鎏金徽章已点亮。";
     } else if (msg) {
-      msg.textContent = res?.message || "激活码无效，请检查后重试。";
+      msg.textContent = res?.message || "荣誉码无效，请检查后重试。";
     }
     renderMembershipBar();
   });

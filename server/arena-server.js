@@ -216,20 +216,20 @@ function getUserEntitlement(userId) {
   }
 
   const isPro = activeTier === "pro" || activeTier === "lifetime";
-  const remaining = isPro ? 999 : Math.max(0, FREE_DAILY_PK_LIMIT - (rec.dailyPkCount || 0));
 
   return {
     userId,
     tier: activeTier,
     isPro,
+    isSupporter: isPro,
     plan: activePlan,
     planName: activePlanName,
     expiresAt: activeExpiresAt,
     trialUsed: Boolean(rec.trialUsed),
-    dailyPkLimit: isPro ? -1 : FREE_DAILY_PK_LIMIT,
+    dailyPkLimit: -1,
     dailyPkUsed: rec.dailyPkCount || 0,
-    dailyPkRemaining: remaining,
-    dailyShieldFreeMinutes: isPro ? -1 : 30,
+    dailyPkRemaining: 999,
+    dailyShieldFreeMinutes: -1,
     fuel: getUserFuelSummary(userId, rec),
     features: {
       opticalModes: ["projector", "emboss", "cinema"],
@@ -237,11 +237,11 @@ function getUserEntitlement(userId) {
       builtInWebPlayer: true,
       stealthSubtitle: true,
       dailyAntiPeekRadar: true,
-      unlimitedRadar: isPro,
-      screenShareStealth: isPro,
-      roomPkCreate: isPro,
-      royalePk: isPro,
-      unlimitedPk: isPro,
+      unlimitedRadar: true,
+      screenShareStealth: true,
+      roomPkCreate: true,
+      royalePk: true,
+      unlimitedPk: true,
       proBadge: isPro,
     },
   };
@@ -617,16 +617,6 @@ function handleWsMessage(client, msg) {
   }
 
   if (msg.type === "join_queue") {
-    const ent = getUserEntitlement(client.userId);
-    if (!ent.isPro && ent.dailyPkRemaining <= 0) {
-      sendWsJson(client, {
-        type: "pro_required",
-        feature: "daily_pk_limit",
-        message: `每日免费额度为 ${FREE_DAILY_PK_LIMIT} 局 1v1 耐力 PK（今日已用完，明天自动刷新）。去能量补给站免费打卡领时长，或请开发者喝杯美式（¥9.9 永久）解锁无限对战！`,
-        entitlement: ent,
-      });
-      return;
-    }
     recordUserPkStart(client.userId);
     if (client.matchId) finishMatch(client.matchId, "b", "重新匹配");
     if (msg.targetRivalId) {
@@ -652,18 +642,7 @@ function handleWsMessage(client, msg) {
   if (msg.type === "join_room") {
     const code = String(msg.roomCode || "").trim();
     if (!code) return;
-    const ent = getUserEntitlement(client.userId);
     const existing = waitingRooms.get(code);
-    // Viral PLG: Creating a private room requires Pro; joining an existing room created by a Pro friend is free!
-    if (!existing && !ent.isPro) {
-      sendWsJson(client, {
-        type: "pro_required",
-        feature: "room_pk",
-        message: "创建私人 4 位暗号约战房为永久支持者专属权益（受邀加入好友房间免费）。请喝杯美式（¥9.9 永久）或领免费能量时长即可创建！",
-        entitlement: ent,
-      });
-      return;
-    }
     if (client.matchId) finishMatch(client.matchId, "b", "切换房间");
     removeClientFromQueues(client);
 
@@ -757,7 +736,35 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.method === "POST" && parsedUrl.pathname === "/api/license/trial") {
+  function grantHonorSupporterBadge(userId) {
+    const today = todayDateKey();
+    const prev = userMemberships.get(userId);
+    const curEnt = getUserEntitlement(userId);
+    if (prev && prev.tier === "lifetime" && (prev.plan === "latte" || prev.plan === "patron" || prev.plan === "lifetime")) {
+      return { alreadyHigher: true, entitlement: curEnt };
+    }
+    const nextRec = {
+      ...(prev || {}),
+      tier: "lifetime",
+      plan: "coffee",
+      planName: "咖啡支持者",
+      key: "HONOR-COFFEE",
+      expiresAt: null,
+      trialUsed: true,
+      dailyPkDate: today,
+      dailyPkCount: prev?.dailyPkCount || 0,
+    };
+    userMemberships.set(userId, nextRec);
+    const pl = players.get(userId);
+    if (pl) {
+      pl.tier = "lifetime";
+      scheduleSave();
+    }
+    scheduleLicenseSave();
+    return { alreadyHigher: false, entitlement: getUserEntitlement(userId) };
+  }
+
+  if (req.method === "POST" && (parsedUrl.pathname === "/api/supporter/honor" || parsedUrl.pathname === "/api/license/trial")) {
     readJsonBody((err, data) => {
       if (err) {
         res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
@@ -770,41 +777,15 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ ok: false, error: "missing_userId" }));
         return;
       }
-      const prev = userMemberships.get(userId);
-      const curEnt = getUserEntitlement(userId);
-      if (curEnt.isPro) {
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: true, message: "您已是 Pro 会员，无需重复开启试用", entitlement: curEnt }));
-        return;
-      }
-      if (prev && prev.trialUsed) {
-        res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: false, error: "trial_already_used", message: "当前账号已使用过 3 天免费试用，请输入 Pro 激活码升级。", entitlement: curEnt }));
-        return;
-      }
-      const spec = PLAN_CATALOG.trial;
-      const expiresAt = Date.now() + spec.durationDays * 24 * 3600 * 1000;
-      const nextRec = {
-        ...(prev || {}),
-        tier: spec.tier,
-        plan: spec.plan,
-        planName: spec.planName,
-        key: "TRIAL-3D",
-        expiresAt,
-        trialUsed: true,
-        dailyPkDate: todayDateKey(),
-        dailyPkCount: prev?.dailyPkCount || 0,
-      };
-      userMemberships.set(userId, nextRec);
-      const pl = players.get(userId);
-      if (pl) {
-        pl.tier = spec.tier;
-        scheduleSave();
-      }
-      scheduleLicenseSave();
-      const entitlement = getUserEntitlement(userId);
+      const result = grantHonorSupporterBadge(userId);
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, message: "已成功开启 3 天 Pro 全功能免费体验！", entitlement }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          message: "感谢你的支持与喜爱！已为你在全球榜单点亮 SUP 咖啡支持者徽章（所有功能均已 100% 永久免费开放）。",
+          entitlement: result.entitlement,
+        })
+      );
     });
     return;
   }
@@ -909,13 +890,13 @@ const server = http.createServer((req, res) => {
       if (taskType === "daily_30m") {
         if (fuel.dailyClaimed) {
           res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ ok: false, error: "already_claimed", message: "今日 12 小时 Pro 能量打卡已完成，明天继续看视频即可再领！", fuel, entitlement: getUserEntitlement(userId) }));
+          res.end(JSON.stringify({ ok: false, error: "already_claimed", message: "今日真看视频打卡已完成，明天继续即可累计连签并领积分！", fuel, entitlement: getUserEntitlement(userId) }));
           return;
         }
         if (fuel.dailyPlaySec < fuel.dailyTargetSec) {
           const remainMin = Math.max(1, Math.ceil((fuel.dailyTargetSec - fuel.dailyPlaySec) / 60));
           res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ ok: false, error: "not_enough_playtime", message: `今日真实播放视频需满 30 分钟才能领取（当前还差约 ${remainMin} 分钟）。`, fuel, entitlement: getUserEntitlement(userId) }));
+          res.end(JSON.stringify({ ok: false, error: "not_enough_playtime", message: `今日真实播放视频需满 30 分钟才能打卡（当前还差约 ${remainMin} 分钟）。`, fuel, entitlement: getUserEntitlement(userId) }));
           return;
         }
         const yday = new Date(Date.now() - 86400000);
@@ -925,19 +906,24 @@ const server = http.createServer((req, res) => {
         rec.streakDays = nextStreak;
         userMemberships.set(userId, rec);
 
-        // Extra +24h bonus on every 3rd consecutive day!
+        // Reward +15 PK ELO (or +30 ELO on 3-day streaks) and light up SUP supporter badge!
+        const eloBonus = nextStreak > 0 && nextStreak % 3 === 0 ? 30 : 15;
+        const pl = players.get(userId);
+        if (pl) {
+          pl.pkElo = Number(pl.pkElo || 1200) + eloBonus;
+          scheduleSave();
+        }
         const bonusHours = nextStreak > 0 && nextStreak % 3 === 0 ? 24 : 12;
         grantFuelProDuration(userId, bonusHours);
+        grantHonorSupporterBadge(userId);
         const entitlement = getUserEntitlement(userId);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(
           JSON.stringify({
             ok: true,
+            eloGranted: eloBonus,
             hoursGranted: bonusHours,
-            message:
-              bonusHours >= 24
-                ? `连续第 ${nextStreak} 天打卡达成！已奖励 +24 小时 Pro 会员时长！`
-                : `打卡成功！已领取 +12 小时 Pro 会员时长（当前连续 ${nextStreak} 天）。`,
+            message: `连续第 ${nextStreak} 天真看视频打卡成功！已奖励 +${eloBonus} PK 积分并点亮榜单 SUP 支持者金标！`,
             fuel: entitlement.fuel,
             entitlement,
           })
@@ -970,7 +956,7 @@ const server = http.createServer((req, res) => {
       if (inviteeRec.referredBy) {
         const entitlement = getUserEntitlement(inviteeId);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: true, alreadyClaimed: true, message: "当前设备已领取过受邀好友 Pro 奖励。", entitlement, fuel: entitlement.fuel }));
+        res.end(JSON.stringify({ ok: true, alreadyClaimed: true, message: "当前设备已领取过邀请勋章与积分奖励。", entitlement, fuel: entitlement.fuel }));
         return;
       }
 
@@ -989,15 +975,21 @@ const server = http.createServer((req, res) => {
         userMemberships.set(inviterId, inviterRec);
       }
 
+      const plInviter = players.get(inviterId);
+      const plInvitee = players.get(inviteeId);
+      if (plInviter) plInviter.pkElo = Number(plInviter.pkElo || 1200) + 30;
+      if (plInvitee) plInvitee.pkElo = Number(plInvitee.pkElo || 1200) + 30;
       grantFuelProDuration(inviteeId, 72);
       grantFuelProDuration(inviterId, 72);
+      grantHonorSupporterBadge(inviteeId);
+      grantHonorSupporterBadge(inviterId);
 
       const entitlement = getUserEntitlement(inviteeId);
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       res.end(
         JSON.stringify({
           ok: true,
-          message: "好友邀请绑定成功！你与邀请人已各自获赠 +3 天 Pro 会员时长！",
+          message: "好友安利成功！你与邀请人已各自获得 +30 PK 积分并点亮榜单 SUP 支持者徽章！",
           entitlement,
           fuel: entitlement.fuel,
         })

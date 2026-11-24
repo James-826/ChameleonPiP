@@ -352,41 +352,41 @@
 
   const PRO_FEATURE_CATALOG = [
     { key: "optical_modes", name: "全部 3 种变色模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
+    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
+    { key: "screen_stealth", name: "腾讯会议 / 飞书 / Zoom / 录屏系统级共享隐身", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
     { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
-    { key: "click_through", name: "鼠标穿透 (⌃⇧M) + 悬停开关 + 灵动刘海 + 老板键", free: "永久免费", pro: "永久免费" },
-    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "每日 30 分钟", pro: "永久不限时" },
-    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕系统级隐身", free: "每日 30 分钟", pro: "永久不限时" },
-    { key: "pk_unlimited", name: "1v1 耐力 PK · 4位暗号同事房 · 百人赛 · 支持者金标", free: "每日 3 局 PK", pro: "永久无限 + 金标" },
+    { key: "pk_unlimited", name: "无限 1v1 耐力 PK + 4位暗号同事房 + 百人淘汰赛", free: "永久免费 · 无限畅玩", pro: "永久免费 · 无限畅玩" },
+    { key: "pro_badge", name: "全球 / 同城排行榜专属 SUP · VIP · MAX 鎏金支持者铭牌", free: "标准段位徽章", pro: "点亮专属支持者金标" },
   ];
 
   const PRICING_PLANS = [
     {
       id: "coffee",
-      name: "一杯美式 · 永久支持者",
+      name: "随心赞赏 · 一杯冰美式",
       priceCny: "¥9.9",
       priceUsd: "$2.99",
-      period: "一次买断 · 永久",
-      tag: "Z-Library 同款 · 请喝咖啡",
-      desc: "永久解除每日 30 分钟限制（AI防窥雷达 + 会议隐身不限时）、无限 PK & 同事暗号房、榜单 SUP 金标（2 台设备）",
+      period: "纯自愿赞赏",
+      tag: "全功能已免费 · 感谢心意",
+      desc: "所有功能均已 100% 永久免费开放。若它让你上班快乐了一点点，请作者喝杯美式并点亮榜单 SUP 金标",
     },
     {
       id: "latte",
-      name: "双杯拿铁 · 永久进阶",
+      name: "铁杆支持 · 双杯拿铁",
       priceCny: "¥19.9",
       priceUsd: "$5.99",
-      period: "一次买断 · 永久",
-      tag: "最受欢迎 · 永久更新",
+      period: "纯自愿赞赏",
+      tag: "最受欢迎 · 助力持续迭代",
       recommended: true,
-      desc: "包含一杯美式全部永久权益 + 支持 3 台设备 + 百人淘汰赛 + 专属 VIP 鎏金徽章 + 后续黑科技永久免费",
+      desc: "全功能永久免费无套路。支持服务器日常开销、点亮专属 VIP 鎏金徽章并优先响应你的新点子",
     },
     {
       id: "patron",
       name: "创始赞助 · 荣誉殿堂",
       priceCny: "¥49",
       priceUsd: "$14.9",
-      period: "荣誉买断 · 永久",
-      tag: "致谢早期赞助人",
-      desc: "支持最多 5 台设备同时激活 + 榜单专属 MAX 鎏金标识 + 官网创始支持者荣誉鸣谢",
+      period: "纯自愿赞赏",
+      tag: "致谢独立开源赞助人",
+      desc: "纯粹的支持与认可，点亮榜单专属 MAX 鎏金标识并列入官网致谢支持者名单",
     },
   ];
 
@@ -408,12 +408,12 @@
       tier: "free",
       isPro: false,
       plan: "free",
-      planName: "Free 免费版",
+      planName: "全功能免费版",
       expiresAt: null,
       trialUsed: false,
-      dailyPkLimit: 3,
+      dailyPkLimit: -1,
       dailyPkUsed: 0,
-      dailyPkRemaining: 3,
+      dailyPkRemaining: 999,
       updatedAt: 0,
     };
   }
@@ -463,21 +463,8 @@
     return false;
   }
 
-  function hasFeature(featureKey, m) {
-    const pro = isProMember(m);
-    if (
-      featureKey === "optical_projector" ||
-      featureKey === "projector" ||
-      featureKey === "emboss" ||
-      featureKey === "cinema" ||
-      featureKey === "optical_modes" ||
-      featureKey === "built_in_web" ||
-      featureKey === "stealth_subtitle" ||
-      featureKey === "click_through"
-    ) {
-      return true;
-    }
-    return pro;
+  function hasFeature() {
+    return true;
   }
 
   async function refreshMembership(userId) {
@@ -493,10 +480,10 @@
     return loadMembership();
   }
 
-  async function startFreeTrial(userId) {
+  async function claimHonorSupporter(userId) {
     const uid = userId || loadProfile().userId;
     try {
-      const res = await fetch(`${getApiBase()}/api/license/trial`, {
+      const res = await fetch(`${getApiBase()}/api/supporter/honor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: uid }),
@@ -505,8 +492,12 @@
       if (data?.entitlement) saveMembership(data.entitlement);
       return data;
     } catch (_) {
-      return { ok: false, message: "网络异常，无法连接鉴权服务器，请稍后再试。" };
+      return { ok: false, message: "网络异常，无法连接服务器，请稍后再试。" };
     }
+  }
+
+  async function startFreeTrial(userId) {
+    return claimHonorSupporter(userId);
   }
 
   async function activateLicenseKey(key, userId) {
@@ -684,6 +675,7 @@
     isProMember,
     hasFeature,
     refreshMembership,
+    claimHonorSupporter,
     startFreeTrial,
     activateLicenseKey,
     fetchFuelStatus,

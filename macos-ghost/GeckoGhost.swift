@@ -587,16 +587,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var totalSlackingSec: Int = UserDefaults.standard.integer(forKey: "chameleonTotalSec")
     private var pausedSecondsCount: Int = 0
 
-    // Black Tech #1: Local Apple Vision Anti-Peek Radar + Z-Library Daily Free 30-Min Shield Quota
+    // Black Tech #1: 100% Free Unlimited On-Device Apple Vision Anti-Peek Radar
     private let antiPeekRadar = VisionAntiPeekRadar()
     private var radarEnabled: Bool = false
     private var radarAlertActive: Bool = false
     private var bossTriggeredByRadar: Bool = false
     private var radarSafeStreakCount: Int = 0
     private var radarLastFaceCount: Int = 0
-    private let freeDailyShieldLimitSec: Int = 1800 // 30 minutes FREE every single day!
-    private var dailyShieldDate: String = ""
-    private var dailyShieldUsedSec: Int = 0
 
     // Black Tech #3: Disguised Code/Terminal Log Subtitle Bar
     private var stealthSubtitleEnabled: Bool = UserDefaults.standard.bool(forKey: "chameleonStealthSubtitle")
@@ -645,7 +642,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
             reason: "ChameleonPiP 60fps Real-Time Video Camouflage"
         )
-        loadDailyShieldQuota()
         configureAntiPeekRadarCallbacks()
         wsHub.onArenaConnected = { [weak self] in
             DispatchQueue.main.async {
@@ -668,40 +664,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
-    private static func todayDateString() -> String {
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        return df.string(from: Date())
-    }
-
-    private func loadDailyShieldQuota() {
-        let today = Self.todayDateString()
-        let savedDate = UserDefaults.standard.string(forKey: "chameleonShieldDate") ?? ""
-        if savedDate == today {
-            dailyShieldDate = today
-            dailyShieldUsedSec = UserDefaults.standard.integer(forKey: "chameleonShieldUsedSec")
-        } else {
-            dailyShieldDate = today
-            dailyShieldUsedSec = 0
-            UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
-            UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
-        }
-    }
-
     private func hasActiveShieldEntitlement() -> Bool {
-        if isProMember { return true }
-        let today = Self.todayDateString()
-        if dailyShieldDate != today {
-            dailyShieldDate = today
-            dailyShieldUsedSec = 0
-            UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
-            UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
-        }
-        return dailyShieldUsedSec < freeDailyShieldLimitSec
+        return true
     }
 
     private func updatePanelSharingType() {
-        panel?.sharingType = (hideFromCapture && hasActiveShieldEntitlement()) ? .none : .readOnly
+        panel?.sharingType = hideFromCapture ? .none : .readOnly
     }
 
     private func configureAntiPeekRadarCallbacks() {
@@ -790,10 +758,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             islandShell?.isRadarActive = false
             islandShell?.isRadarAlert = false
             syncNativeIslandControls()
-            return
-        }
-        guard hasActiveShieldEntitlement() else {
-            openArenaWindow(upgradeReason: "今日 30 分钟免费「AI 背后防偷窥雷达 & 会议共享隐身」体验额度已用完（明天凌晨自动刷新）。请开发者喝杯美式（¥9.9 永久）即可不限时畅用，或去能量补给站免费打卡领时长！")
             return
         }
         antiPeekRadar.start()
@@ -1348,8 +1312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lblBrand?.stringValue = "⚠ 背后有人!"
             lblBrand?.textColor = NSColor(calibratedRed: 0.99, green: 0.45, blue: 0.42, alpha: 1.0)
         } else if radarEnabled {
-            let remMin = max(1, (freeDailyShieldLimitSec - dailyShieldUsedSec + 59) / 60)
-            btnRadar?.title = isProMember ? "防窥 ON" : "防窥 \(remMin)m"
+            btnRadar?.title = "防窥 ON"
             btnRadar?.isAlertTint = false
             btnRadar?.isActiveTint = true
             lblBrand?.stringValue = "AI防窥守护中"
@@ -1424,42 +1387,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lblStreakBadge?.stringValue = isBuiltInWebActive && !builtInVideoIsolated ? "网页直连 · 点播视频自动变色融合" : "待机 · 播放视频开始计时"
         }
 
-        // Z-Library Daily Free 30-Minute Shield Allowance (AI Radar + Screen-Share Stealth)
-        if !isProMember {
-            let today = Self.todayDateString()
-            if dailyShieldDate != today {
-                dailyShieldDate = today
-                dailyShieldUsedSec = 0
-                UserDefaults.standard.set(today, forKey: "chameleonShieldDate")
-                UserDefaults.standard.set(0, forKey: "chameleonShieldUsedSec")
-                updatePanelSharingType()
-            }
-            if radarEnabled || (activeVideoNow && hideFromCapture) {
-                if dailyShieldUsedSec < freeDailyShieldLimitSec {
-                    dailyShieldUsedSec += 1
-                    if dailyShieldUsedSec % 10 == 0 || dailyShieldUsedSec >= freeDailyShieldLimitSec {
-                        UserDefaults.standard.set(dailyShieldUsedSec, forKey: "chameleonShieldUsedSec")
-                    }
-                    if radarEnabled && dailyShieldUsedSec % 30 == 0 && isIslandExpanded {
-                        syncNativeIslandControls()
-                    }
-                    if dailyShieldUsedSec >= freeDailyShieldLimitSec {
-                        updatePanelSharingType()
-                        if radarEnabled {
-                            radarEnabled = false
-                            radarAlertActive = false
-                            bossTriggeredByRadar = false
-                            antiPeekRadar.stop()
-                            islandShell?.isRadarActive = false
-                            islandShell?.isRadarAlert = false
-                            syncNativeIslandControls()
-                            openArenaWindow(upgradeReason: "今日 30 分钟免费「AI 防偷窥雷达 & 会议共享隐身」额度已用完（明天凌晨自动恢复）。请开发者喝杯美式（¥9.9 永久）即可不限时使用！")
-                        }
-                    }
-                }
-            }
-        }
-
         if telemetryTickCount % 2 == 0 {
             broadcastPlaybackStateToArena()
         }
@@ -1468,7 +1395,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private func applyMembershipEntitlement(_ isPro: Bool) {
         isProMember = isPro
         UserDefaults.standard.set(isPro, forKey: "chameleonIsPro")
-        // Z-Library Model: All 3 Chameleon visual modes stay 100% FREE; supporters unlock unlimited daily Radar & Screen-Share Stealth!
         updatePanelSharingType()
         syncNativeIslandControls()
     }
@@ -1487,7 +1413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 backing: .buffered,
                 defer: false
             )
-            win.title = "ChameleonPiP 变色龙 · 全球摸鱼排位、会员中心与线上耐力 PK"
+            win.title = "ChameleonPiP 变色龙 · 全球摸鱼排位、线上耐力 PK 与请喝咖啡赞赏"
             win.appearance = NSAppearance(named: .darkAqua)
             win.backgroundColor = NSColor(calibratedRed: 0.03, green: 0.04, blue: 0.07, alpha: 1.0)
             win.isReleasedWhenClosed = false

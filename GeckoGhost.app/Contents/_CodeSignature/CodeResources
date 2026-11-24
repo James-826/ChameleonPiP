@@ -10,11 +10,11 @@
 		</data>
 		<key>Resources/arena.html</key>
 		<data>
-		WmAAyH91YVsGtYtVBN8dM31HaEY=
+		mm5R5DLsnCFasiMyee1mlYqdmTU=
 		</data>
 		<key>Resources/chameleon-stats.js</key>
 		<data>
-		wIW7YFghZ+ejxsek16b6Z7oMnS4=
+		3xonzhmUErVYDG7eR96uRM9zhbg=
 		</data>
 		<key>Resources/gecko-core.js</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/store-config.js</key>
 		<data>
-		JJwSv+SzgFklA7tIsDQoc/MYycY=
+		aA2YMGz0cC3oqTOXeC041XgxZ4c=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -54,14 +54,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			GyzeKGeP32iH053WMBj6kO3Jq3S8bDebb/H/zLv7CjA=
+			pTGay3LnT6I27uVRIJQlhwtcq5HhfQPh7YRPok4y0nc=
 			</data>
 		</dict>
 		<key>Resources/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			W6uYpqQvWOfXOLOczDMQLDVXVkMt/GowbWAZru3jDQI=
+			2PyoYW4WUmsAHdFD4m4G8cN/jW7eriw/j7Alg7ipARk=
 			</data>
 		</dict>
 		<key>Resources/gecko-core.js</key>
@@ -103,14 +103,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			KlykG3RYpWOE9yF86Cm3k1lkDZJh2z9tXIB/s22jrXU=
+			nChwvZkJndBN2tx4tXyNO0gS4hOBxXb6AfZkQpG54Ck=
 			</data>
 		</dict>
 		<key>extension/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			W6uYpqQvWOfXOLOczDMQLDVXVkMt/GowbWAZru3jDQI=
+			2PyoYW4WUmsAHdFD4m4G8cN/jW7eriw/j7Alg7ipARk=
 			</data>
 		</dict>
 		<key>extension/gecko-core.js</key>

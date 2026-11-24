@@ -10,7 +10,7 @@
   global.CHAMELEON_STORE_CONFIG = {
     brandName: "ChameleonPiP",
     brandNameZh: "变色龙画中画",
-    version: "v5.4.0",
+    version: "v5.5.0",
     siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",
     downloads: {
@@ -19,7 +19,14 @@
       chromeWebStore: "", // Fill after Chrome Web Store approval
       edgeAddons: "",     // Fill after Microsoft Edge Add-ons approval
     },
-    // Z-Library style one-time coffee supporter checkout links (Mianbaoduo / Afdian / Lemon Squeezy)
+    // Drop your WeChat / Alipay appreciation code image into web/ (e.g. "qr-wechat.png", "qr-alipay.png")
+    // and fill the paths below — they will appear automatically on the website & desktop supporter modal!
+    tipQrCodes: {
+      wechat: "",
+      alipay: "",
+      note: "全功能 100% 永久免费无套路 · 若它给你的工位带来了快乐，欢迎随心请作者喝杯咖啡",
+    },
+    // Optional Mianbaoduo / Afdian / BuyMeACoffee links (can leave empty if using direct QR codes above)
     checkoutUrls: {
       coffee: "",
       latte: "",

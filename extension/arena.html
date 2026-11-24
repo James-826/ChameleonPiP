@@ -447,11 +447,11 @@
             <option value="游戏引擎">游戏引擎</option>
             <option value="独立开发">独立开发</option>
           </select>
-          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日真看视频打卡 / 邀请好友免费领无限防窥时长">
-            <span>免费补给站</span>
+          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日真看视频打卡领 PK 积分 / 生态赞助推荐墙">
+            <span>打卡 / 赞助墙</span>
           </button>
           <button type="button" class="btn-pro" id="btnOpenPro">
-            <span>请喝咖啡 · 永久支持</span>
+            <span>请喝咖啡 · 赞赏支持</span>
           </button>
           <a class="btn-ghost" href="index.html">返回体验台</a>
         </div>
@@ -524,7 +524,7 @@
             </div>
             <div class="seg-tabs">
               <button type="button" class="seg-tab active" data-pkmode="duel" id="tabDuel">1v1 实时对战</button>
-              <button type="button" class="seg-tab" data-pkmode="royale" id="tabRoyale">百人淘汰赛 <span class="pro-lock-chip" id="royaleProTag">PRO</span></button>
+              <button type="button" class="seg-tab" data-pkmode="royale" id="tabRoyale">百人淘汰赛</button>
             </div>
           </div>
 
@@ -532,7 +532,7 @@
             <div class="pk-meta-bar">
               <span id="pkBanner">需在变色龙小窗播放视频才开始计时；视频暂停 &gt;10s 或触发老板键判负</span>
               <span style="display:inline-flex;align-items:center;gap:6px">
-                <span class="tag" id="pkQuotaBadge" style="color:#94a3b8">今日免费 3/3 局</span>
+                <span class="tag" id="pkQuotaBadge" style="color:#6ee7b7">全功能免费 · 无限对战</span>
                 <span class="tag" id="pkEloBadge">ELO 1200</span>
               </span>
             </div>
@@ -568,7 +568,7 @@
 
             <div class="pk-actions">
               <button type="button" class="btn btn-primary" id="btnStartPk">随机匹配在线对手</button>
-              <button type="button" class="btn" id="btnRoomPk">输入房间号约战 <span class="pro-lock-chip" id="roomProTag">PRO</span></button>
+              <button type="button" class="btn" id="btnRoomPk">输入房间号约战</button>
               <button type="button" class="btn btn-danger" id="btnStopPk" style="display:none">中断认输</button>
             </div>
 
@@ -628,16 +628,16 @@
       </section>
     </div>
 
-    <!-- Z-Library Style Supporter & License Key Activation Modal -->
+    <!-- Pure Voluntary Appreciation & Honor Supporter Modal -->
     <div class="modal-backdrop" id="proModal" role="dialog" aria-modal="true" aria-labelledby="proModalTitle">
       <div class="modal-card">
         <div class="modal-head">
           <div>
             <div class="modal-title" id="proModalTitle">
-              <span>请开发者喝杯咖啡 · 永久支持者计划</span>
+              <span>全功能 100% 永久免费 · 请开发者喝杯咖啡</span>
               <span id="modalCurrentBadge"></span>
             </div>
-            <div class="modal-sub" id="modalSubText">拒绝月费订阅！3 种变色模式、免插件直连与日志字幕永久免费 · 每天赠送 30 分钟 AI 防偷窥与会议隐身 · 一次请喝咖啡永久不限时</div>
+            <div class="modal-sub" id="modalSubText">无订阅、无限时、无功能锁！变色融合、AI 防偷窥雷达、会议共享隐身与日志字幕均已永久免费开放。若你喜欢这个小工具，欢迎随心赞赏支持持续迭代</div>
           </div>
           <button type="button" class="modal-close" id="btnClosePro" aria-label="关闭">×</button>
         </div>
@@ -645,28 +645,30 @@
         <div class="modal-notice" id="proModalNotice"></div>
 
         <div class="modal-tabs" id="modalTabsBar">
-          <button type="button" class="modal-tab-btn active" data-mtab="plans">请喝咖啡 · 永久买断</button>
-          <button type="button" class="modal-tab-btn" data-mtab="fuel">能量补给站（零付费白嫖时长）</button>
+          <button type="button" class="modal-tab-btn active" data-mtab="plans">随心请喝咖啡</button>
+          <button type="button" class="modal-tab-btn" data-mtab="fuel">摸鱼打卡 &amp; 合作推荐墙</button>
         </div>
 
         <div id="tabPanelPlans" style="display:flex;flex-direction:column;gap:14px">
           <div class="plan-grid" id="planCardsGrid"></div>
 
+          <div class="activate-box" id="qrTipBox"></div>
+
           <div class="compare-table" id="compareTable"></div>
 
           <div class="activate-box">
             <div class="modal-status-bar">
-              <span id="lblMembershipState">当前身份：免费畅用版（每日赠送 30 分钟 AI 防窥 + 会议隐身）</span>
+              <span id="lblMembershipState">当前身份：全功能永久免费版（无任何时长或功能限制）</span>
               <button type="button" class="btn-pro" id="btnStartTrial" style="padding:5px 11px;font-size:11.5px">
-                一键免费体验 3 天无限版
+                我已支持 / 点亮榜单 SUP 金标
               </button>
             </div>
             <div class="activate-row">
-              <input class="inp" id="inpLicenseKey" placeholder="输入支持者激活码，例如 CHM-SUP / CHM-VIP / CHM-MAX-XXXX-XXXX-XXXX" />
-              <button type="button" class="btn btn-primary" id="btnActivateKey" style="flex:0 0 auto;padding:8px 18px">激活兑换</button>
+              <input class="inp" id="inpLicenseKey" placeholder="若有专属 VIP / MAX 荣誉码可在此输入点亮" />
+              <button type="button" class="btn btn-primary" id="btnActivateKey" style="flex:0 0 auto;padding:8px 18px">点亮徽章</button>
             </div>
             <div style="font-size:11px;color:#64748b">
-              类 Z-Library 独立开发者支持模式 · 一次赞赏永久有效 · 激活后 Mac 桌面灵动岛与浏览器扩展秒级同步
+              100% 开源纯粹独立开发者模型 · 无任何强制付费门槛 · 若喜欢可随时赞赏咖啡并点亮排行榜鎏金支持者徽章
             </div>
           </div>
         </div>
@@ -675,19 +677,19 @@
           <div class="fuel-card">
             <div class="fuel-head">
               <div class="fuel-title">
-                <span>1. 每日真看视频 30 分钟打卡</span>
-                <span class="fuel-reward" id="fuelDailyRewardTag">+12 小时 Pro</span>
+                <span>1. 每日真看视频 30 分钟摸鱼打卡</span>
+                <span class="fuel-reward" id="fuelDailyRewardTag">+15 PK 积分 &amp; SUP 徽章</span>
               </div>
               <span class="tag" id="fuelStreakBadge">已连签 0 天</span>
             </div>
             <div class="fuel-desc">
-              仅统计变色龙小窗真实播放视频的有效时长；今日看满 30 分钟即可手动领取 +12 小时 Pro 会员时长（每连续打卡第 3 天额外奖励 +24 小时）。
+              全功能已 100% 永久免费开放！今日用变色龙小窗真看视频满 30 分钟即可打卡，累计连续摸鱼天数、领取 +15 PK 积分（每连签 3 天额外 +30 分）并点亮榜单 SUP 支持者金标。
             </div>
             <div class="progress-line"><div class="progress-fill" id="fuelDailyBar" style="width:0%"></div></div>
             <div class="fuel-row">
               <span style="font-size:11.5px;color:#94a3b8" id="fuelDailyProgressTxt">今日已验证视频时长：0 / 30 分钟</span>
               <button type="button" class="btn btn-primary" id="btnClaimDailyFuel" style="flex:0 0 auto;padding:7px 14px;font-size:12px">
-                领取今日 12h Pro
+                完成今日摸鱼打卡
               </button>
             </div>
           </div>
@@ -695,13 +697,13 @@
           <div class="fuel-card">
             <div class="fuel-head">
               <div class="fuel-title">
-                <span>2. 邀请同事加入约战 / 体验</span>
-                <span class="fuel-reward">双方各得 +3 天 Pro</span>
+                <span>2. 安利同事一起快乐摸鱼</span>
+                <span class="fuel-reward">双方各得 +30 PK 积分 &amp; SUP 徽章</span>
               </div>
               <span class="tag" id="fuelReferralCountTag">已邀请 0 / 10</span>
             </div>
             <div class="fuel-desc">
-              复制下方专属邀请链接发给同事或朋友；对方通过链接打开并连上服务端后，你与好友各自自动获赠 +3 天 Pro 体验时长！
+              复制下方专属邀请链接发给同事或朋友；对方通过链接打开后，你们可以直接用 4 位房间号免费无限约战，双方还各自获赠 +30 天梯积分并点亮榜单金标！
             </div>
             <div class="activate-row">
               <input class="inp" id="inpReferralLink" readonly style="text-transform:none;font-size:11px;color:#a7f3d0" />
@@ -714,9 +716,9 @@
           <div class="fuel-card">
             <div class="fuel-head">
               <div class="fuel-title">
-                <span>3. 生态赞助位 &amp; 合作伙伴推荐墙</span>
+                <span>3. 生态赞助位 &amp; 独立开源社区推荐墙</span>
               </div>
-              <span style="font-size:11px;color:#64748b" id="fuelEarnedTotal">累计通过补给站获得：0h</span>
+              <span style="font-size:11px;color:#64748b" id="fuelEarnedTotal">累计连续打卡记录：0 次</span>
             </div>
             <div class="sponsor-grid" id="sponsorGrid"></div>
           </div>
@@ -724,11 +726,11 @@
       </div>
     </div>
 
-    <script src="store-config.js?v=5.4" onerror="this.remove()"></script>
-    <script src="chameleon-stats.js?v=5.4" onerror="this.remove()"></script>
+    <script src="store-config.js?v=5.5" onerror="this.remove()"></script>
+    <script src="chameleon-stats.js?v=5.5" onerror="this.remove()"></script>
     <script>
       if (!window.ChameleonStats) {
-        document.write('<script src="../extension/chameleon-stats.js?v=5.4"><\/script>');
+        document.write('<script src="../extension/chameleon-stats.js?v=5.5"><\/script>');
       }
     </script>
     <script>
@@ -1071,6 +1073,33 @@
           proModalNotice.textContent = text;
         }
 
+        function renderQrTipBox() {
+          const box = document.getElementById("qrTipBox");
+          if (!box) return;
+          const qr = window.CHAMELEON_STORE_CONFIG?.tipQrCodes || {};
+          const repoUrl = window.CHAMELEON_STORE_CONFIG?.githubRepoUrl || "https://github.com/James-826/ChameleonPiP";
+          if (qr.wechat || qr.alipay) {
+            box.innerHTML = `
+              <div style="font-size:12.5px;font-weight:700;color:#f8fafc">微信 / 支付宝随心请喝咖啡（扫码赞赏，纯自愿无任何功能限制）</div>
+              <div style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:4px 0">
+                ${qr.wechat ? `<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><img src="${qr.wechat}" alt="微信赞赏码" style="width:148px;height:148px;border-radius:10px;background:#fff;padding:6px;object-fit:contain" /><span style="font-size:11px;color:#6ee7b7;font-weight:600">微信赞赏</span></div>` : ""}
+                ${qr.alipay ? `<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><img src="${qr.alipay}" alt="支付宝收款码" style="width:148px;height:148px;border-radius:10px;background:#fff;padding:6px;object-fit:contain" /><span style="font-size:11px;color:#38bdf8;font-weight:600">支付宝赞赏</span></div>` : ""}
+              </div>
+              <div style="font-size:11px;color:#94a3b8;text-align:center">${qr.note || "赞赏后点击下方按钮即可为自己点亮全球榜单 SUP 支持者金标！"}</div>
+            `;
+          } else {
+            box.innerHTML = `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px">
+                  <strong style="font-size:12.5px;color:#6ee7b7">100% 全功能无条件永久免费</strong>
+                  <span style="font-size:11.5px;color:#94a3b8;line-height:1.5">作者微信 / 支付宝赞赏码整理上传中 —— 现在去 GitHub 点一颗 Star 或分享给工位同事，就是对作者最大的支持！</span>
+                </div>
+                <a class="btn btn-primary" href="${repoUrl}" target="_blank" rel="noopener" style="flex:0 0 auto;padding:7px 14px;font-size:12px">前往 GitHub 点亮 Star</a>
+              </div>
+            `;
+          }
+        }
+
         function renderProModalStatic() {
           const checkoutUrls = window.CHAMELEON_STORE_CONFIG?.checkoutUrls || {};
           document.getElementById("planCardsGrid").innerHTML = S.PRICING_PLANS.map(
@@ -1079,10 +1108,10 @@
                 <div class="plan-tag">${p.tag}</div>
                 <div class="plan-name">${p.name}</div>
                 <div class="plan-price">${p.priceCny}<span>${p.period}</span></div>
-                <div class="plan-usd">海外定价 ${p.priceUsd} ${p.period}</div>
+                <div class="plan-usd">海外赞赏 ${p.priceUsd} · 纯自愿心意</div>
                 <div class="plan-desc" style="flex:1">${p.desc}</div>
                 <button type="button" class="btn ${p.recommended ? "btn-primary" : ""}" data-modal-buy="${p.id}" style="margin-top:8px;padding:7px 10px;font-size:11.5px">
-                  ${checkoutUrls[p.id] ? "请喝咖啡 · 立即获取激活码" : "请喝咖啡 · 获取永久码"}
+                  ${checkoutUrls[p.id] ? "前往请喝咖啡" : "赞赏 & 点亮金标"}
                 </button>
               </div>
             `
@@ -1091,20 +1120,25 @@
           document.querySelectorAll("[data-modal-buy]").forEach((btn) => {
             btn.addEventListener("click", () => {
               const url = window.CHAMELEON_STORE_CONFIG?.checkoutUrls?.[btn.dataset.modalBuy];
+              const qr = window.CHAMELEON_STORE_CONFIG?.tipQrCodes || {};
               if (url) {
                 window.open(url, "_blank", "noopener");
+              } else if (qr.wechat || qr.alipay) {
+                document.getElementById("qrTipBox")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                showModalNotice("上方即可扫描微信 / 支付宝赞赏码请作者喝杯咖啡，感谢心意！", true);
               } else {
-                showModalNotice("赞赏收款链接配置中！你可以先每天免费畅用（含 30 分钟 AI 防窥 + 会议隐身），点下方「一键免费体验 3 天无限版」，或去「能量补给站」免费打卡攒时长！", false);
-                document.getElementById("inpLicenseKey")?.focus();
+                showModalNotice("全部功能已 100% 永久免费开放！你可以直接点击下方「我已支持 / 点亮榜单 SUP 金标」立即获赠榜单荣誉铭牌。", true);
               }
             });
           });
 
+          renderQrTipBox();
+
           document.getElementById("compareTable").innerHTML =
-            `<div class="cmp-row head"><span>核心能力（拒绝订阅 · 每天可用）</span><span style="text-align:center">每日免费版</span><span style="text-align:center;color:#fde68a">永久支持者</span></div>` +
+            `<div class="cmp-row head"><span>核心能力（全功能永久免费）</span><span style="text-align:center">免费畅用版</span><span style="text-align:center;color:#fde68a">咖啡支持者</span></div>` +
             S.PRO_FEATURE_CATALOG.map((f) => {
-              const freeCell = f.free === true ? '<span class="cmp-yes">永久免费</span>' : f.free === false ? '<span class="cmp-no">—</span>' : `<span style="text-align:center;color:#6ee7b7;font-weight:600">${f.free}</span>`;
-              const proCell = f.pro === true ? '<span class="cmp-pro">永久解锁</span>' : `<span class="cmp-pro">${f.pro}</span>`;
+              const freeCell = f.free === true ? '<span class="cmp-yes">永久免费</span>' : `<span style="text-align:center;color:#6ee7b7;font-weight:600">${f.free}</span>`;
+              const proCell = f.pro === true ? '<span class="cmp-pro">永久免费</span>' : `<span class="cmp-pro">${f.pro}</span>`;
               return `<div class="cmp-row"><span>${f.name}</span>${freeCell}${proCell}</div>`;
             }).join("");
         }
@@ -1115,55 +1149,39 @@
           const btnPro = document.getElementById("btnOpenPro");
           if (isPro) {
             btnPro.className = "btn-pro active-pro";
-            btnPro.innerHTML = `${S.renderProBadgeSvg(membership.tier, membership.plan)}<span>${membership.planName || "永久支持者"}</span>`;
+            btnPro.innerHTML = `${S.renderProBadgeSvg(membership.tier, membership.plan)}<span>${membership.planName || "咖啡支持者"}</span>`;
           } else {
             btnPro.className = "btn-pro";
-            btnPro.innerHTML = `<span>请喝咖啡 · 永久支持</span>`;
+            btnPro.innerHTML = `<span>请喝咖啡 · 赞赏支持</span>`;
           }
 
           document.getElementById("modalCurrentBadge").innerHTML = isPro
             ? S.renderProBadgeSvg(membership.tier, membership.plan)
-            : '<span class="tag" style="color:#6ee7b7">每日免费可用</span>';
+            : '<span class="tag" style="color:#6ee7b7">全功能永久免费</span>';
 
           const lblState = document.getElementById("lblMembershipState");
           if (isPro) {
-            lblState.innerHTML = `当前身份：<strong style="color:#6ee7b7">${membership.planName}</strong>（${S.formatExpiryDate(membership.expiresAt)}）`;
+            lblState.innerHTML = `当前身份：<strong style="color:#fde68a">${membership.planName}</strong>（感谢你的认可与支持，所有功能永久畅用）`;
           } else {
-            lblState.innerHTML = `当前身份：<strong style="color:#e2e8f0">免费畅用版</strong>（全模式免费 + 每日 30m 免费 AI 防窥与会议隐身）`;
+            lblState.innerHTML = `当前身份：<strong style="color:#6ee7b7">全功能永久免费版</strong>（无任何时长或功能限制）`;
           }
 
           const btnTrial = document.getElementById("btnStartTrial");
           if (isPro) {
             btnTrial.style.display = "none";
-          } else if (membership.trialUsed) {
-            btnTrial.style.display = "inline-flex";
-            btnTrial.disabled = true;
-            btnTrial.style.opacity = "0.45";
-            btnTrial.textContent = "已体验过 3 天无限版";
           } else {
             btnTrial.style.display = "inline-flex";
             btnTrial.disabled = false;
             btnTrial.style.opacity = "1";
-            btnTrial.textContent = "一键免费体验 3 天无限版";
+            btnTrial.textContent = "我已支持 / 点亮榜单 SUP 金标";
           }
 
           const quotaBadge = document.getElementById("pkQuotaBadge");
           if (quotaBadge) {
-            if (isPro) {
-              quotaBadge.textContent = "支持者无限对战";
-              quotaBadge.style.color = "#fde68a";
-              quotaBadge.style.borderColor = "rgba(245,158,11,0.35)";
-            } else {
-              const rem = membership.dailyPkRemaining ?? 3;
-              quotaBadge.textContent = `今日免费 ${rem}/${membership.dailyPkLimit || 3} 局`;
-              quotaBadge.style.color = rem > 0 ? "#94a3b8" : "#fda4af";
-              quotaBadge.style.borderColor = "rgba(255,255,255,0.08)";
-            }
+            quotaBadge.textContent = "全功能免费 · 无限对战";
+            quotaBadge.style.color = "#6ee7b7";
+            quotaBadge.style.borderColor = "rgba(52,211,153,0.3)";
           }
-          const rTag = document.getElementById("roomProTag");
-          const royTag = document.getElementById("royaleProTag");
-          if (rTag) rTag.style.display = isPro ? "none" : "inline-flex";
-          if (royTag) royTag.style.display = isPro ? "none" : "inline-flex";
         }
 
         let cachedFuel = null;
@@ -1244,7 +1262,7 @@
           }
           if (streakBadge) streakBadge.textContent = `已连签 ${f.streakDays || 0} 天`;
           if (refTag) refTag.textContent = `已邀请 ${f.referralsCount || 0} / ${f.referralMax || 10}`;
-          if (earnedTotal) earnedTotal.textContent = `累计通过补给站获得：${f.fuelHoursEarned || 0} 小时 Pro`;
+          if (earnedTotal) earnedTotal.textContent = `累计打卡天数：${f.streakDays || 0} 天 · 推荐好友：${f.referralsCount || 0} 位`;
           if (inpRef) {
             const origin = window.location.protocol.startsWith("http")
               ? window.location.origin
@@ -1254,15 +1272,15 @@
           if (btnClaim) {
             if (f.dailyClaimed) {
               btnClaim.disabled = true;
-              btnClaim.textContent = "今日已领取";
+              btnClaim.textContent = "今日已打卡";
               btnClaim.style.opacity = "0.55";
             } else if (playSec >= targetSec) {
               btnClaim.disabled = false;
-              btnClaim.textContent = "立即领取 12h Pro";
+              btnClaim.textContent = "打卡领 +15 积分";
               btnClaim.style.opacity = "1";
             } else {
               btnClaim.disabled = false;
-              btnClaim.textContent = `还差 ${Math.max(1, targetMin - minsPlayed)} 分钟可领`;
+              btnClaim.textContent = `还差 ${Math.max(1, targetMin - minsPlayed)} 分钟可打卡`;
               btnClaim.style.opacity = "0.75";
             }
           }
@@ -1319,7 +1337,7 @@
           if (!inp) return;
           try {
             await navigator.clipboard.writeText(inp.value);
-            showModalNotice("专属邀请链接已复制！发给同事打开连接后，双方自动获赠 +3 天 Pro。", true);
+            showModalNotice("专属邀请链接已复制！发给同事打开后，双方各加 +30 PK 积分并点亮榜单 SUP 金标。", true);
           } catch (_) {
             inp.select();
             document.execCommand("copy");
@@ -1350,16 +1368,18 @@
         document.getElementById("btnStartTrial").addEventListener("click", async () => {
           const btn = document.getElementById("btnStartTrial");
           btn.disabled = true;
-          btn.textContent = "正在开通试用...";
-          const res = await S.startFreeTrial(profile.userId);
+          btn.textContent = "正在点亮徽章...";
+          const res = await (S.claimHonorSupporter || S.startFreeTrial)(profile.userId);
           if (res?.ok && res.entitlement) {
             membership = S.saveMembership(res.entitlement);
             broadcastMembershipToDesktop(membership);
-            showModalNotice(res.message || "已成功开启 3 天 Pro 全功能体验！", true);
-            addFeed("<strong>[会员开通]</strong> 已开启 3 天 Pro 全功能体验，所有变色龙隐身模式与联机房已解锁！");
+            showModalNotice(res.message || "感谢支持！已为你点亮全球榜单 SUP 咖啡支持者徽章。", true);
+            addFeed("<strong>[支持者徽章]</strong> 感谢支持，已点亮全球榜单 SUP 金标！");
             syncHeartbeatAndFetchLeaderboard();
           } else {
-            showModalNotice(res?.message || "无法开启试用，请稍后重试。", false);
+            btn.disabled = false;
+            btn.textContent = "我已支持 / 点亮榜单 SUP 金标";
+            showModalNotice(res?.message || "连接服务器失败，请稍后重试。", false);
           }
           renderMembershipUi();
           renderAll();
@@ -1369,25 +1389,25 @@
           const inp = document.getElementById("inpLicenseKey");
           const key = inp.value.trim();
           if (!key) {
-            showModalNotice("请先输入激活码（格式：CHM-PRO-XXXX-XXXX-XXXX）。", false);
+            showModalNotice("若有专属 VIP / MAX 荣誉码请先填入（全部核心功能已 100% 永久免费，无需激活即可直接使用）。", false);
             inp.focus();
             return;
           }
           const btn = document.getElementById("btnActivateKey");
           btn.disabled = true;
-          btn.textContent = "校验中...";
+          btn.textContent = "点亮中...";
           const res = await S.activateLicenseKey(key, profile.userId);
           btn.disabled = false;
-          btn.textContent = "激活兑换";
+          btn.textContent = "点亮徽章";
           if (res?.ok && res.entitlement) {
             membership = S.saveMembership(res.entitlement);
             broadcastMembershipToDesktop(membership);
             inp.value = "";
-            showModalNotice(res.message || "激活成功！Pro 会员已生效。", true);
-            addFeed(`<strong>[会员激活]</strong> ${membership.planName} 激活成功！`);
+            showModalNotice(res.message || "感谢支持！专属鎏金支持者徽章已点亮。", true);
+            addFeed(`<strong>[荣誉徽章]</strong> ${membership.planName} 已点亮！`);
             syncHeartbeatAndFetchLeaderboard();
           } else {
-            showModalNotice(res?.message || "激活失败，请检查激活码是否正确。", false);
+            showModalNotice(res?.message || "荣誉码无效，请检查拼写后重试。", false);
           }
           renderMembershipUi();
           renderAll();
@@ -1401,7 +1421,7 @@
         });
 
         if (window.location.hash === "#upgrade") {
-          setTimeout(() => openProModal("全部 3 种变色模式永久免费！请开发者喝杯美式（¥9.9 永久）即可不限时畅享 AI 防偷窥雷达与会议共享隐身。", "plans"), 200);
+          setTimeout(() => openProModal("全部功能均已 100% 永久免费开放！如果你喜欢 ChameleonPiP，欢迎随心请作者喝杯咖啡或点亮支持者金标。", "plans"), 200);
         } else if (window.location.hash === "#fuel") {
           setTimeout(() => openProModal("", "fuel"), 200);
         }
@@ -1409,17 +1429,13 @@
         document.getElementById("btnStartPk").addEventListener("click", () => {
           if (!requireVideoPlayingForPk()) return;
           if (pkMode === "royale") {
-            if (!S.isProMember(membership)) {
-              openProModal("「百人淘汰赛」为 Pro 会员专属玩法，开启 3 天免费体验或输入激活码即可加入！");
-              return;
-            }
             pkActive = true;
             pkMySec = 0;
             royaleAlive = 100;
             document.getElementById("btnStartPk").style.display = "none";
             document.getElementById("btnRoomPk").style.display = "none";
             document.getElementById("btnStopPk").style.display = "inline-block";
-            addFeed("<strong>[百人淘汰赛]</strong> 100 人同场开始潜伏计时。");
+            addFeed("<strong>[百人淘汰赛]</strong> 100 人同场开始潜伏计时（全员永久免费）。");
             return;
           }
           if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
@@ -1432,11 +1448,7 @@
 
         document.getElementById("btnRoomPk").addEventListener("click", () => {
           if (!requireVideoPlayingForPk()) return;
-          const isPro = S.isProMember(membership);
-          const hint = isPro
-            ? "输入 4 位数字房间号（两台设备输入相同房间号即可实时 1v1 对战）："
-            : "输入好友已创建的 4 位房间号即可免费加入（自己创建新房需 Pro 会员）：";
-          const code = prompt(hint, "8848");
+          const code = prompt("输入 4 位数字房间号（全员免费无限开房！两台设备输入同号即可实时 1v1 对战）：", "8848");
           if (!code) return;
           if (arenaWs && arenaWs.readyState === WebSocket.OPEN) {
             arenaWs.send(JSON.stringify({ type: "join_room", roomCode: code.trim() }));
@@ -1502,10 +1514,6 @@
         document.querySelectorAll("[data-pkmode]").forEach((btn) => {
           btn.addEventListener("click", () => {
             if (pkActive) return;
-            if (btn.dataset.pkmode === "royale" && !S.isProMember(membership)) {
-              openProModal("「百人淘汰赛」为 Pro 会员专属模式，点击下方可免费体验 3 天 Pro！");
-              return;
-            }
             pkMode = btn.dataset.pkmode;
             document.querySelectorAll("[data-pkmode]").forEach((b) => b.classList.toggle("active", b === btn));
             document.getElementById("duelView").style.display = pkMode === "duel" ? "grid" : "none";
