@@ -10,11 +10,11 @@
 		</data>
 		<key>Resources/arena.html</key>
 		<data>
-		T78hTBXY1S97BHTfU+5MuVIxw8U=
+		hpv2G/mLrgmtK96oFAf3Ez9Ok7M=
 		</data>
 		<key>Resources/chameleon-stats.js</key>
 		<data>
-		+YYwVeK3UrsUo+JSHYDBwBEPClc=
+		WZmKrtCutoEydogy+vkDyHA38rA=
 		</data>
 		<key>Resources/gecko-core.js</key>
 		<data>
@@ -22,7 +22,7 @@
 		</data>
 		<key>Resources/ghost-view.html</key>
 		<data>
-		EHAVqrCPnKR7b6Z7wHmh0QBJ+9M=
+		OwpHB01coDNr3TR6+Nu0m7Ld2Tc=
 		</data>
 		<key>Resources/icon128.png</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/store-config.js</key>
 		<data>
-		r9axqC+LjPOb4c3n2FLAsUzze9I=
+		nufsPo3aLRtmbj2Nrnhum6KBiek=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -54,14 +54,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			bmvRWY3abz+tn1wUJCy5NILIyrEIy59M0TqV88xHbug=
+			GL19lc0t5JpW+RTL5oEqKGQc3tB3IyFiqo/JxeRXEHU=
 			</data>
 		</dict>
 		<key>Resources/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gG1m5plN81kkCREpZmnnu8WtVHSIIVQgTOQswe/uY00=
+			yLQTa6Sr6+q8wBmTts07z90RnvK4mApq4+rVzK83HNQ=
 			</data>
 		</dict>
 		<key>Resources/gecko-core.js</key>
@@ -75,7 +75,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			rr8r94jG973fBPxhy9xpUeWPQDPT2HZ36rMk8+GiCjY=
+			YLXgNzxqSz8XtiQq1/B8YmutWbB2TUlkGEY4XSXjQ/Y=
 			</data>
 		</dict>
 		<key>Resources/icon128.png</key>
@@ -103,14 +103,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			OYChcWiZxQ/SoAhMcwZLtk7oV7nb/JE14Amz0nihvVk=
+			R4cg65rDfvew5TpSoMU1rMOVrS8g4K4WvXPlcMlgUEg=
 			</data>
 		</dict>
 		<key>extension/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			gG1m5plN81kkCREpZmnnu8WtVHSIIVQgTOQswe/uY00=
+			yLQTa6Sr6+q8wBmTts07z90RnvK4mApq4+rVzK83HNQ=
 			</data>
 		</dict>
 		<key>extension/gecko-core.js</key>

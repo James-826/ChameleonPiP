@@ -351,42 +351,24 @@
   const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
 
   const PRO_FEATURE_CATALOG = [
-    { key: "chameleon_modes", name: "全部 3 种经典变色模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
-    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
-    { key: "screen_stealth", name: "腾讯会议 / 飞书 / Zoom / 录屏系统级共享隐身", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
-    { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
-    { key: "pk_unlimited", name: "无限 1v1 耐力 PK + 4位暗号同事房 + 百人淘汰赛", free: "永久免费 · 无限畅玩", pro: "永久免费 · 无限畅玩" },
-    { key: "pro_badge", name: "全球 / 同城排行榜专属 SUP · VIP · MAX 鎏金支持者铭牌", free: "标准段位徽章", pro: "点亮专属支持者金标" },
+    { key: "chameleon_modes", name: "3 种桌面融合模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
+    { key: "anti_peek_radar", name: "背后有人自动暂停隐藏（本机内存识别）", free: "永久免费", pro: "永久免费" },
+    { key: "screen_stealth", name: "腾讯会议 / 飞书 / Zoom / 录屏共享隐藏", free: "永久免费", pro: "永久免费" },
+    { key: "built_in_web", name: "独立搜片小窗 + 日志样式字幕条", free: "永久免费", pro: "永久免费" },
+    { key: "pk_unlimited", name: "播放时长统计与好友 4 位房间号计时赛", free: "永久免费", pro: "永久免费" },
+    { key: "pro_badge", name: "排行榜咖啡支持者标识", free: "标准徽章", pro: "咖啡支持者金标" },
   ];
 
   const PRICING_PLANS = [
     {
       id: "coffee",
-      name: "随心赞赏 · 一杯冰美式",
+      name: "请喝一杯咖啡",
       priceCny: "¥9.9",
       priceUsd: "$2.99",
-      period: "纯自愿赞赏",
-      tag: "全功能已免费 · 感谢心意",
-      desc: "所有功能均已 100% 永久免费开放。若它让你上班快乐了一点点，请作者喝杯美式并点亮榜单 SUP 金标",
-    },
-    {
-      id: "latte",
-      name: "铁杆支持 · 双杯拿铁",
-      priceCny: "¥19.9",
-      priceUsd: "$5.99",
-      period: "纯自愿赞赏",
-      tag: "最受欢迎 · 助力持续迭代",
+      period: "随心赞赏",
+      tag: "纯自愿心意",
       recommended: true,
-      desc: "全功能永久免费无套路。支持服务器日常开销、点亮专属 VIP 鎏金徽章并优先响应你的新点子",
-    },
-    {
-      id: "patron",
-      name: "创始赞助 · 荣誉殿堂",
-      priceCny: "¥49",
-      priceUsd: "$14.9",
-      period: "纯自愿赞赏",
-      tag: "致谢独立开源赞助人",
-      desc: "纯粹的支持与认可，点亮榜单专属 MAX 鎏金标识并列入官网致谢支持者名单",
+      desc: "所有功能免费开放无限制，如果这个小工具刚好帮到了你，欢迎随心请作者喝杯咖啡。",
     },
   ];
 

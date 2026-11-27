@@ -447,8 +447,8 @@
             <option value="游戏引擎">游戏引擎</option>
             <option value="独立开发">独立开发</option>
           </select>
-          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日真看视频打卡领 PK 积分 / 生态赞助推荐墙">
-            <span>打卡 / 赞助墙</span>
+          <button type="button" class="btn-fuel" id="btnOpenFuel" title="每日观看视频打卡领积分">
+            <span>每日打卡</span>
           </button>
           <button type="button" class="btn-pro" id="btnOpenPro">
             <span>请喝咖啡 · 赞赏支持</span>
@@ -646,11 +646,11 @@
 
         <div class="modal-tabs" id="modalTabsBar">
           <button type="button" class="modal-tab-btn active" data-mtab="plans">随心请喝咖啡</button>
-          <button type="button" class="modal-tab-btn" data-mtab="fuel">摸鱼打卡 &amp; 合作推荐墙</button>
+          <button type="button" class="modal-tab-btn" data-mtab="fuel">每日打卡 &amp; 邀请</button>
         </div>
 
         <div id="tabPanelPlans" style="display:flex;flex-direction:column;gap:14px">
-          <div class="plan-grid" id="planCardsGrid"></div>
+          <div class="plan-grid" id="planCardsGrid" style="grid-template-columns:minmax(0,380px);justify-content:center"></div>
 
           <div class="activate-box" id="qrTipBox"></div>
 
@@ -658,17 +658,17 @@
 
           <div class="activate-box">
             <div class="modal-status-bar">
-              <span id="lblMembershipState">当前身份：全功能永久免费版（无任何时长或功能限制）</span>
+              <span id="lblMembershipState">当前状态：全功能免费开放使用中</span>
               <button type="button" class="btn-pro" id="btnStartTrial" style="padding:5px 11px;font-size:11.5px">
                 我已支持 / 点亮榜单 SUP 金标
               </button>
             </div>
             <div class="activate-row">
-              <input class="inp" id="inpLicenseKey" placeholder="若有专属 VIP / MAX 荣誉码可在此输入点亮" />
+              <input class="inp" id="inpLicenseKey" placeholder="若有咖啡支持者标识码可在此输入（可选）" />
               <button type="button" class="btn btn-primary" id="btnActivateKey" style="flex:0 0 auto;padding:8px 18px">点亮徽章</button>
             </div>
             <div style="font-size:11px;color:#64748b">
-              100% 开源纯粹独立开发者模型 · 无任何强制付费门槛 · 若喜欢可随时赞赏咖啡并点亮排行榜鎏金支持者徽章
+              全部功能免费开源无限制 · 如果觉得顺手，欢迎随心请喝一杯咖啡
             </div>
           </div>
         </div>
@@ -711,16 +711,7 @@
                 复制邀请链接
               </button>
             </div>
-          </div>
-
-          <div class="fuel-card">
-            <div class="fuel-head">
-              <div class="fuel-title">
-                <span>3. 生态赞助位 &amp; 独立开源社区推荐墙</span>
-              </div>
-              <span style="font-size:11px;color:#64748b" id="fuelEarnedTotal">累计连续打卡记录：0 次</span>
-            </div>
-            <div class="sponsor-grid" id="sponsorGrid"></div>
+            <span style="display:none" id="fuelEarnedTotal">累计连续打卡记录：0 次</span>
           </div>
         </div>
       </div>
@@ -1211,31 +1202,14 @@
         }
 
         function renderSponsorWall() {
-          const sponsors = window.CHAMELEON_STORE_CONFIG?.sponsors || [
-            {
-              badge: "官方合作品牌 · 招租中",
-              name: "AI 编程工具 / 效率软件直投位",
-              desc: "直达一线开发与高效办公用户，支持按月赞助或 CPS 合作返佣。",
-              rewardTag: "联系合作：support@chameleonpip.site",
-              url: "mailto:support@chameleonpip.site",
-              ctaText: "商务合作",
-            },
-            {
-              badge: "开源社区",
-              name: "GitHub 仓库点亮 Star",
-              desc: "支持开源迭代并第一时间获取 macOS / 扩展版本更新。",
-              rewardTag: "免费开源透明",
-              url: "https://github.com/James-826/ChameleonPiP",
-              ctaText: "前往支持",
-            },
-          ];
+          const sponsors = window.CHAMELEON_STORE_CONFIG?.sponsors || [];
           const grid = document.getElementById("sponsorGrid");
           if (!grid) return;
           grid.innerHTML = sponsors
             .map(
               (sp) => `
               <div class="sponsor-card">
-                <span style="font-size:10px;font-weight:700;color:#fbbf24">${sp.badge || "合作伙伴"}</span>
+                <span style="font-size:10px;font-weight:700;color:#fbbf24">${sp.badge || "支持"}</span>
                 <strong style="font-size:12.5px;color:#f8fafc">${sp.name}</strong>
                 <span style="font-size:11.5px;color:#94a3b8;line-height:1.45;flex:1">${sp.desc}</span>
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
@@ -1402,7 +1376,7 @@
           const inp = document.getElementById("inpLicenseKey");
           const key = inp.value.trim();
           if (!key) {
-            showModalNotice("若有专属 VIP / MAX 荣誉码请先填入（全部核心功能已 100% 永久免费，无需激活即可直接使用）。", false);
+            showModalNotice("若有咖啡支持者标识码请先填入（全部功能已免费开放，无需激活即可直接使用）。", false);
             inp.focus();
             return;
           }

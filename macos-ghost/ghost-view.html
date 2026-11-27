@@ -1001,16 +1001,16 @@
             ctx.textAlign = "center";
             ctx.lineWidth = 4.2;
             ctx.strokeStyle = "#000";
-            const msg = "60fps 变色龙拟态：拖到红绿或代码背景上，底色原样透出！";
+            const msg = "变色龙融合演示：拖到深色代码或浅色表格上试看效果";
             ctx.strokeText(msg, w / 2, h - 22);
             ctx.fillStyle = "#fff";
             ctx.fillText(msg, w / 2, h - 22);
 
             const demoSubtitles = [
-              "变色龙拟态 60fps 运行中：底层代码、Excel 与红绿色块原样透出",
-              "开启「日志字幕」后，视频对白自动伪装为终端编译日志，静音看剧超隐蔽",
-              "顶部灵动岛支持「AI防窥雷达」：本地检测背后有人靠近自动秒隐",
-              "点击「网页直连」可直接粘贴 B站 / YouTube 链接，免装浏览器插件",
+              "变色龙桌面融合演示：底层代码、Excel 与纯色背景清晰透出",
+              "开启「日志字幕」后，对白会转成终端编译日志滚动显示，不戴耳机也不突兀",
+              "顶部控制栏可开启防窥检测：背后有人靠近时自动暂停并收起小窗",
+              "按 Control+Shift+S 可打开独立搜片窗口，不依赖浏览器也能找视频播放",
             ];
             const subIdx = Math.floor(player.currentTime / 4.5) % demoSubtitles.length;
             if (state.stealthSubtitle) {

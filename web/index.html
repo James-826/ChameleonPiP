@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ChameleonPiP 变色龙画中画 — AI 防偷窥雷达 · 免插件网页直连 · 60fps 屏幕拟态融合</title>
+    <title>ChameleonPiP 变色龙画中画 — 无边框桌面融合画中画小工具</title>
     <meta
       name="description"
-      content="ChameleonPiP 变色龙画中画：Apple Metal 60fps 屏幕拟态融合，3 种变色模式永久免费；内置 Apple Vision 本地 AI 背后防偷窥雷达、免插件网页链接直连播放、代码终端日志伪装字幕条与 MacBook 原生灵动刘海。"
+      content="ChameleonPiP 变色龙画中画：无边框桌面融合画中画小工具，画面可顺着底层代码、表格和文档底色自然透出，内置背后有人自动隐藏、独立搜片小窗、日志样式字幕与 MacBook 刘海控制，完全免费开源。"
     />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -250,10 +250,11 @@
       .dl-specs { font-size: 11.5px; color: var(--dim); display: flex; gap: 12px; flex-wrap: wrap; }
 
       /* Pricing */
-      .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .pricing-grid { display: flex; justify-content: center; }
       .price-card {
+        width: 100%; max-width: 440px;
         background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-        padding: 22px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+        padding: 24px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
       }
       .price-card.pop {
         border-color: rgba(251, 191, 36, 0.55);
@@ -335,51 +336,51 @@
           <span class="ver-pill">v5.5</span>
         </a>
         <div class="nav-links">
-          <a href="#playground" data-zh="变色体验" data-en="Live Demo">变色体验</a>
-          <a href="#features" data-zh="三大黑科技" data-en="Tech">三大黑科技</a>
-          <a href="#arena" data-zh="全球排行" data-en="Arena">全球排行</a>
+          <a href="#playground" data-zh="效果体验" data-en="Live Demo">效果体验</a>
+          <a href="#features" data-zh="功能介绍" data-en="Features">功能介绍</a>
+          <a href="#arena" data-zh="在线榜单" data-en="Arena">在线榜单</a>
           <a href="#download" data-zh="下载安装" data-en="Download">下载安装</a>
-          <a href="#pricing" data-zh="请喝咖啡" data-en="Support">请喝咖啡</a>
+          <a href="#pricing" data-zh="请喝咖啡" data-en="Coffee">请喝咖啡</a>
         </div>
         <div class="nav-cta">
           <button type="button" class="btn btn-sm" id="btnToggleLang">EN</button>
-          <a class="btn btn-sm" href="arena.html" data-zh="进入竞技场" data-en="Open Arena">进入竞技场</a>
+          <a class="btn btn-sm" href="arena.html" data-zh="进入榜单" data-en="Open Arena">进入榜单</a>
           <a class="btn btn-primary btn-sm" href="#download" data-zh="免费下载" data-en="Download Free">免费下载</a>
         </div>
       </div>
     </nav>
 
-    <!-- Hero & Interactive Live Optical Playground -->
+    <!-- Hero & Interactive Live Camouflage Playground -->
     <header class="hero" id="top">
       <div class="wrap">
         <div class="eyebrow">
           <span class="live-dot"></span>
-          <span id="heroOnlineLabel">变色龙 60fps 拟态融合 · 全球实时联机服运行中</span>
+          <span id="heroOnlineLabel">无边框桌面画中画 · 免费开源小工具</span>
         </div>
-        <h1 data-zh-html='像<span class="accent">变色龙</span>一样融进屏幕，<br />背后有人自动秒隐的硬核画中画'
-            data-en-html='Blend Video Like a <span class="accent">Chameleon</span>,<br />With On-Device AI Anti-Peek Radar'>
-          像<span class="accent">变色龙</span>一样融进屏幕，<br />背后有人自动秒隐的硬核画中画
+        <h1 data-zh-html='像<span class="accent">变色龙</span>一样融进屏幕底色，<br />安静不打扰的桌面画中画'
+            data-en-html='Blend Video Into Your <span class="accent">Screen</span>,<br />A Quiet Borderless Picture-in-Picture'>
+          像<span class="accent">变色龙</span>一样融进屏幕底色，<br />安静不打扰的桌面画中画
         </h1>
-        <p class="hero-sub" data-zh="Apple Metal 60fps 屏幕拟态融合 · 内置 Apple Vision 100% 本地 AI 背后防偷窥雷达、免插件粘贴 B站/YouTube 链接直连播放、代码终端日志伪装字幕条与会议共享隐身 —— 全功能 100% 永久免费无限制，无广告、拒绝订阅。"
-           data-en="60fps Apple Metal chameleon camouflage, on-device Apple Vision AI anti-peek radar, extension-free web video player, terminal-log disguised subtitles, and screen-share stealth—100% free &amp; unlimited forever.">
-          Apple Metal 60fps 屏幕拟态融合 · 内置 Apple Vision 100% 本地 AI 背后防偷窥雷达、免插件粘贴 B站/YouTube 链接直连播放、代码终端日志伪装字幕条与会议共享隐身 —— 全功能 100% 永久免费无限制，无广告、拒绝订阅。
+        <p class="hero-sub" data-zh="去掉生硬突兀的视频方框，让画面顺着底下的代码、表格或文档颜色自然透出来；顺手带了背后有人自动收起、独立搜片小窗、日志样式字幕和会议共享隐藏 —— 所有功能免费开放，无广告、无订阅。"
+           data-en="Removes the distracting video frame so playback blends gently into your underlying code, sheets, or docs. Includes auto-hide when someone walks by, built-in video search, log-style subtitles, and screen-share hiding — free and open-source.">
+          去掉生硬突兀的视频方框，让画面顺着底下的代码、表格或文档颜色自然透出来；顺手带了背后有人自动收起、独立搜片小窗、日志样式字幕和会议共享隐藏 —— 所有功能免费开放，无广告、无订阅。
         </p>
 
         <div class="hero-actions">
           <a class="btn btn-primary" href="#download" id="heroBtnMac">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span data-zh="免费下载 macOS 原生端（免插件直连）" data-en="Download Free macOS App (No Extension Needed)">免费下载 macOS 原生端（免插件直连）</span>
+            <span data-zh="免费下载 macOS 版" data-en="Download macOS App">免费下载 macOS 版</span>
           </a>
           <a class="btn btn-gold" href="#pricing">
-            <span data-zh="100% 永久免费 · 请作者喝杯咖啡" data-en="100% Free Forever · Buy Me a Coffee">100% 永久免费 · 请作者喝杯咖啡</span>
+            <span data-zh="请作者喝杯咖啡" data-en="Buy Me a Coffee">请作者喝杯咖啡</span>
           </a>
           <a class="btn" href="arena.html">
-            <span data-zh="查看全球实时排行榜" data-en="Live Global Leaderboard">查看全球实时排行榜</span>
+            <span data-zh="看看实时榜单" data-en="Live Leaderboard">看看实时榜单</span>
           </a>
         </div>
-        <div class="hero-meta" data-zh="支持 macOS 13+ (Apple Silicon &amp; Intel) · 免浏览器插件直连 + Chrome/Edge 可选伴侣 · 100% 本地处理零上传"
-             data-en="macOS 13+ (Apple Silicon &amp; Intel) · Standalone URL Player + Optional Chrome/Edge Companion · 100% Local Privacy">
-          支持 macOS 13+ (Apple Silicon &amp; Intel) · 免浏览器插件直连 + Chrome/Edge 可选伴侣 · 100% 本地处理零上传
+        <div class="hero-meta" data-zh="支持 macOS 13+ · 可独立使用或配合 Chrome / Edge 扩展 · 本地运行不上传画面"
+             data-en="macOS 13+ · Standalone URL Player + Optional Chrome/Edge Companion · Local Processing Only">
+          支持 macOS 13+ · 可独立使用或配合 Chrome / Edge 扩展 · 本地运行不上传画面
         </div>
 
         <!-- Live Interactive Camouflage Playground -->
@@ -420,8 +421,8 @@
               <div>&nbsp;&nbsp;&nbsp;&nbsp;gl_FragColor = vec4(aLight);</div>
               <div>&nbsp;&nbsp;}</div>
               <div>}</div>
-              <div class="c-cm">// 底层代码高亮与语义色完全保留</div>
-              <div><span class="c-kw">const</span> fps = <span class="c-str">"60-120Hz Apple Metal"</span>;</div>
+              <div class="c-cm">// 底层代码高亮与语义色清晰保留</div>
+              <div><span class="c-kw">const</span> mode = <span class="c-str">"chameleon-blend"</span>;</div>
             </div>
 
             <div class="pane-sheet">
@@ -470,9 +471,9 @@
     <section class="block" id="features">
       <div class="wrap">
         <div class="sec-head">
-          <h2 data-zh="三大硬核原生黑科技 · 拒绝浅层套壳" data-en="Three Native macOS Breakthroughs">三大硬核原生黑科技 · 拒绝浅层套壳</h2>
-          <p data-zh="从 Apple Vision 本地 AI 背后防偷窥，到免插件网页直连与代码日志字幕条，全部底层原生打造。" data-en="Native Apple Vision anti-peek radar, extension-free web player, and disguised terminal-log subtitles—built directly on macOS frameworks.">
-            从 Apple Vision 本地 AI 背后防偷窥，到免插件网页直连与代码日志字幕条，全部底层原生打造。
+          <h2 data-zh="日常顺手的几个小功能" data-en="Everyday Practical Features">日常顺手的几个小功能</h2>
+          <p data-zh="围绕写代码、看文档和工位看视频做的细节设计，打开就能直接用。" data-en="Built around everyday coding, doc reading, and desk multitasking.">
+            围绕写代码、看文档和工位看视频做的细节设计，打开就能直接用。
           </p>
         </div>
 
@@ -481,9 +482,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2"/></svg>
             </div>
-            <h3><span data-zh="AI 摄像头背后防偷窥雷达" data-en="On-Device AI Anti-Peek Radar">AI 摄像头背后防偷窥雷达</span> <span class="new-chip">NEW</span></h3>
-            <p data-zh="调用 macOS 原生 Apple Vision 框架在内存中实时计数人脸（零拍照、零上传）。只要背后出现第 2 张人脸，0.05 秒自动触发老板键秒隐静音，人走 3 秒后自动恢复播放。" data-en="Uses native Apple Vision face detection strictly in RAM (zero storage, zero upload). Detects a second person behind you in 50ms to auto-hide &amp; mute, then auto-resumes when clear.">
-              调用 macOS 原生 Apple Vision 框架在内存中实时计数人脸（零拍照、零上传）。只要背后出现第 2 张人脸，0.05 秒自动触发老板键秒隐静音，人走 3 秒后自动恢复播放。
+            <h3><span data-zh="背后有人自动暂停隐藏" data-en="Auto-Hide When Someone Walks By">背后有人自动暂停隐藏</span></h3>
+            <p data-zh="调用 macOS 本机人脸识别在内存中计数人数，不拍照也不上传。发现身后出现第 2 个人影时自动静音隐藏，人走几秒后接着放。" data-en="Uses local macOS memory-only face count (no photos or uploads). Mutes and hides automatically if someone stands behind you, then resumes when clear.">
+              调用 macOS 本机人脸识别在内存中计数人数，不拍照也不上传。发现身后出现第 2 个人影时自动静音隐藏，人走几秒后接着放。
             </p>
           </div>
 
@@ -491,9 +492,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             </div>
-            <h3><span data-zh="免插件！网页链接直接变色播" data-en="Extension-Free Web URL Player">免插件！网页链接直接变色播</span> <span class="new-chip">NEW</span></h3>
-            <p data-zh="不必再费劲配置浏览器扩展！打开 Mac 客户端点击「网页直连」，直接粘贴 B站、YouTube、抖音或 MP4 链接即可在无边框小窗内原生变色播放，灵动岛全控。" data-en="Zero browser extension required. Paste any Bilibili, YouTube, Douyin, or direct MP4 link right into the Mac app for instant borderless camouflage playback.">
-              不必再费劲配置浏览器扩展！打开 Mac 客户端点击「网页直连」，直接粘贴 B站、YouTube、抖音或 MP4 链接即可在无边框小窗内原生变色播放，灵动岛全控。
+            <h3><span data-zh="独立搜片小窗，免插件也能播" data-en="Built-in Video Search Window">独立搜片小窗，免插件也能播</span></h3>
+            <p data-zh="不想额外装扩展时，按 ⌃⇧S 打开内置轻量浏览器就能找视频并直接投进小窗，顺带记住上次搜过的内容和页面进度。" data-en="Don't want a browser extension? Press ⌃⇧S to search inside the lightweight built-in window and send videos straight to your floating player.">
+              不想额外装扩展时，按 ⌃⇧S 打开内置轻量浏览器就能找视频并直接投进小窗，顺带记住上次搜过的内容和页面进度。
             </p>
           </div>
 
@@ -501,9 +502,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
             </div>
-            <h3><span data-zh="代码 / 终端日志伪装字幕条" data-en="Terminal-Log Disguised Subtitles">代码 / 终端日志伪装字幕条</span> <span class="new-chip">NEW</span></h3>
-            <p data-zh="办公室没戴耳机？开启「日志字幕」后，视频实时对白自动伪装成 [INFO] worker::sync 等宽终端编译日志，从工位旁走过宛如正在看服务构建输出。" data-en="Watching muted at your desk? Transforms live video subtitles into realistic monospace compiler logs ([INFO] worker::sync) that blend straight into your IDE.">
-              办公室没戴耳机？开启「日志字幕」后，视频实时对白自动伪装成 [INFO] worker::sync 等宽终端编译日志，从工位旁走过宛如正在看服务构建输出。
+            <h3><span data-zh="终端日志样式字幕" data-en="Log-Style Disguised Subtitles">终端日志样式字幕</span></h3>
+            <p data-zh="工位上不方便开声音或戴耳机时，可开启日志字幕，把视频对白转成 [INFO] worker::sync 形式的终端滚动输出放到旁边看。" data-en="Watching muted at your desk? Display live video subtitles inside a monospace terminal-log window.">
+              工位上不方便开声音或戴耳机时，可开启日志字幕，把视频对白转成 [INFO] worker::sync 形式的终端滚动输出放到旁边看。
             </p>
           </div>
 
@@ -511,9 +512,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             </div>
-            <h3><span data-zh="60fps 变色龙拟态（3 模式全免费）" data-en="60fps Camouflage (All 3 Modes Free)">60fps 变色龙拟态（3 模式全免费）</span></h3>
-            <p data-zh="变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出无偏色，搭配全向等宽边框柔和与鼠标穿透 ⌃⇧M 流畅写代码。" data-en="All 3 crisp shaders (Chameleon, Emboss, Cinema) are 100% free forever. Underlying code, Excel grids, and vivid colors shine straight through with equal all-around feathering and click-through ⌃⇧M.">
-              变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出无偏色，搭配全向等宽边框柔和与鼠标穿透 ⌃⇧M 流畅写代码。
+            <h3><span data-zh="三种桌面融合模式" data-en="Three Blending Modes">三种桌面融合模式</span></h3>
+            <p data-zh="变色融合、浮雕隐身、彩透变色全部免费使用；四周等宽柔边过渡加上 ⌃⇧M 鼠标穿透，开着视频也不影响改底下的代码和表格。" data-en="Chameleon, Emboss, and Cinema modes with even all-around edge feathering and click-through (⌃⇧M) so you can keep editing underneath.">
+              变色融合、浮雕隐身、彩透变色全部免费使用；四周等宽柔边过渡加上 ⌃⇧M 鼠标穿透，开着视频也不影响改底下的代码和表格。
             </p>
           </div>
 
@@ -521,9 +522,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M8 4v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4"/></svg>
             </div>
-            <h3><span data-zh="MacBook 灵动刘海 + 会议共享隐身" data-en="Notch Dynamic Island + Screen Stealth">MacBook 灵动刘海 + 会议共享隐身</span></h3>
-            <p data-zh="与屏幕顶部摄像头刘海原生融合，随时调节进度、AI 防窥与日志字幕；系统级屏蔽腾讯会议、飞书、Zoom 共享屏幕与录屏画面，全天永久免费无限制。" data-en="Fuses natively with your MacBook camera notch and excludes your PiP window from Zoom, Feishu, and screen recordings—100% free with zero time limits.">
-              与屏幕顶部摄像头刘海原生融合，随时调节进度、AI 防窥与日志字幕；系统级屏蔽腾讯会议、飞书、Zoom 共享屏幕与录屏画面，全天永久免费无限制。
+            <h3><span data-zh="MacBook 刘海控制与共享隐藏" data-en="Notch Controls &amp; Screen-Share Hiding">MacBook 刘海控制与共享隐藏</span></h3>
+            <p data-zh="安静停靠在屏幕顶部刘海两侧，点击即可暂停或调节柔边；腾讯会议、飞书、Zoom 共享屏幕或截图时自动隐藏小窗。" data-en="Sits quietly beside the MacBook notch for quick controls, and excludes the floating window from Zoom, Feishu, and screen recordings.">
+              安静停靠在屏幕顶部刘海两侧，点击即可暂停或调节柔边；腾讯会议、飞书、Zoom 共享屏幕或截图时自动隐藏小窗。
             </p>
           </div>
 
@@ -531,9 +532,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
             </div>
-            <h3><span data-zh="全球排行榜 &amp; 1v1 耐力 PK" data-en="Global Arena &amp; 1v1 PK">全球排行榜 &amp; 1v1 耐力 PK</span></h3>
-            <p data-zh="严格验证真实视频播放才计入时长，支持同城、国家、全球实时排位与 4 位暗号同事约战房，所有视频与摄像头推理 100% 本地离线完成。" data-en="Strictly verified against active video playback. Climb city, country, and global rankings or duel friends via 4-digit room codes with 100% local privacy.">
-              严格验证真实视频播放才计入时长，支持同城、国家、全球实时排位与 4 位暗号同事约战房，所有视频与摄像头推理 100% 本地离线完成。
+            <h3><span data-zh="播放计时榜与好友同房" data-en="Timer Leaderboard &amp; Friend Rooms">播放计时榜与好友同房</span></h3>
+            <p data-zh="顺手做的连续观看计时榜，支持按城市查看，也能输 4 位房间号和朋友比谁先按老板键暂停；不需要也可随时忽略。" data-en="An optional streak timer leaderboard and 4-digit friend rooms just for fun—processed locally with zero media uploads.">
+              顺手做的连续观看计时榜，支持按城市查看，也能输 4 位房间号和朋友比谁先按老板键暂停；不需要也可随时忽略。
             </p>
           </div>
         </div>
@@ -547,16 +548,16 @@
           <div style="display:flex;flex-direction:column;gap:14px">
             <div class="eyebrow" style="width:fit-content;margin-bottom:0">
               <span class="live-dot"></span>
-              <span id="arenaLiveCount">实时云端榜单同步中...</span>
+              <span id="arenaLiveCount">实时榜单连接中...</span>
             </div>
-            <h2 style="font-size:26px;font-weight:800;color:#f8fafc;letter-spacing:-0.02em" data-zh="看看此刻同城与全球谁最稳" data-en="Live Global &amp; City Rankings">
-              看看此刻同城与全球谁最稳
+            <h2 style="font-size:26px;font-weight:800;color:#f8fafc;letter-spacing:-0.02em" data-zh="顺手做的实时计时榜" data-en="Live Streak Leaderboard">
+              顺手做的实时计时榜
             </h2>
-            <p style="font-size:13.5px;color:var(--muted)" data-zh="严格验证视频播放状态才计入时长。十阶变色龙矢量徽章体系、同城/国家/全球三榜切换，支持和好友开 4 位暗号房实时耐力 PK。" data-en="Strictly verified against live video playback. Unlock 10 geometric Chameleon rank crests and duel friends with 4-digit private room codes.">
-              严格验证视频播放状态才计入时长。十阶变色龙矢量徽章体系、同城/国家/全球三榜切换，支持和好友开 4 位暗号房实时耐力 PK。
+            <p style="font-size:13.5px;color:var(--muted)" data-zh="播放视频时自动记录连续不间断时长，可按同城或全局查看，也支持用 4 位房间号和同事朋友比拼耐力。" data-en="Tracks uninterrupted playback streaks by city or overall, plus 4-digit room challenges with friends.">
+              播放视频时自动记录连续不间断时长，可按同城或全局查看，也支持用 4 位房间号和同事朋友比拼耐力。
             </p>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
-              <a class="btn btn-primary" href="arena.html" data-zh="打开完整全球排行榜 &amp; PK 厅" data-en="Open Full Leaderboard &amp; PK">打开完整全球排行榜 &amp; PK 厅</a>
+              <a class="btn btn-primary" href="arena.html" data-zh="打开榜单与房间" data-en="Open Leaderboard">打开榜单与房间</a>
             </div>
           </div>
 
@@ -571,19 +572,19 @@
     <section class="block" id="download">
       <div class="wrap">
         <div class="sec-head">
-          <h2 data-zh="30 秒完成安装，立刻开启变色龙隐身" data-en="Install in 30 Seconds">30 秒完成安装，立刻开启变色龙隐身</h2>
-          <p data-zh="推荐使用「macOS 桌面端 + Chrome/Edge 扩展」组合以获得 60fps 全桌面变色融合与穿透体验；也支持仅安装浏览器扩展页内使用。" data-en="Pair the native macOS desktop app with the Chrome/Edge extension for full-desktop 60fps chameleon camouflage, or use the extension standalone.">
-            推荐使用「macOS 桌面端 + Chrome/Edge 扩展」组合以获得 60fps 全桌面变色融合与穿透体验；也支持仅安装浏览器扩展页内使用。
+          <h2 data-zh="下载安装，几步就能用起来" data-en="Quick Setup in Two Steps">下载安装，几步就能用起来</h2>
+          <p data-zh="推荐使用「macOS 桌面端 + 浏览器扩展」组合，方便在全桌面任意窗口上方悬浮观看；Mac 端也可独立使用。" data-en="Pair the macOS app with the Chrome/Edge extension to cast browser videos, or launch the Mac app standalone.">
+            推荐使用「macOS 桌面端 + 浏览器扩展」组合，方便在全桌面任意窗口上方悬浮观看；Mac 端也可独立使用。
           </p>
         </div>
 
         <div class="dl-grid">
           <div class="dl-card featured">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.5（推荐 · 免插件搜片直连）</span>
+              <span class="ver-pill" style="width:fit-content">macOS 桌面端 · v5.5（推荐 · 可独立搜片直连）</span>
               <h3 data-zh="ChameleonPiP macOS 桌面端（ChameleonPiP.app）" data-en="ChameleonPiP for macOS (ChameleonPiP.app)">ChameleonPiP macOS 桌面端（ChameleonPiP.app）</h3>
-              <p data-zh="原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、独立隐蔽搜片浏览器、视频硬字幕 OCR 终端日志条、刘海灵动岛与会议共享隐身。" data-en="Native Swift + Apple Metal + Apple Vision app featuring AI anti-peek radar, stealth search browser, video OCR terminal-log subtitles, Notch Dynamic Island, and screen-share stealth.">
-                原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、独立隐蔽搜片浏览器、视频硬字幕 OCR 终端日志条、刘海灵动岛与会议共享隐身。
+              <p data-zh="包含无边框桌面变色小窗、顶部刘海控制、独立搜片窗口、背后有人自动收起、日志字幕与会议共享隐藏。" data-en="Includes the borderless adaptive floating player, notch bar controls, built-in video search, auto-hide privacy detection, log subtitles, and screen-share exclusion.">
+                包含无边框桌面变色小窗、顶部刘海控制、独立搜片窗口、背后有人自动收起、日志字幕与会议共享隐藏。
               </p>
               <div class="dl-specs">
                 <span>macOS 13.0+</span><span>Apple Silicon &amp; Intel</span><span>解压即用（~3 MB）</span>
@@ -593,21 +594,21 @@
               <a class="btn btn-primary" id="btnDlMac" href="#" target="_blank" rel="noopener" data-zh="下载 macOS 客户端 (.zip)" data-en="Download macOS App (.zip)">下载 macOS 客户端 (.zip)</a>
             </div>
             <div class="install-steps">
-              <div class="install-steps-title" data-zh="2 步 10 秒运行说明" data-en="2-Step Setup (10 Seconds)">2 步 10 秒运行说明</div>
-              <div class="step-row"><span class="step-num">1</span><span data-zh="解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。" data-en="Unzip and drag ChameleonPiP.app into Applications, then open it (the Dynamic Island appears beside your notch).">解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。</span></div>
+              <div class="install-steps-title" data-zh="2 步运行说明" data-en="2-Step Setup">2 步运行说明</div>
+              <div class="step-row"><span class="step-num">1</span><span data-zh="解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（顶部刘海两侧会出现快捷控制按钮）。" data-en="Unzip, drag ChameleonPiP.app to Applications, and open it (controls appear beside the notch).">解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（顶部刘海两侧会出现快捷控制按钮）。</span></div>
               <div class="step-row"><span class="step-num">2</span><span data-zh="首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。" data-en="If macOS Gatekeeper prompts on first launch: Right-click the app -> Open, or allow it in System Settings -> Privacy &amp; Security.">首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。</span></div>
             </div>
           </div>
 
           <div class="dl-card">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 可选伴侣扩展 · v5.5</span>
+              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 浏览器扩展 · v5.5</span>
               <h3 data-zh="ChameleonPiP 浏览器视频投送扩展" data-en="ChameleonPiP Browser Extension">ChameleonPiP 浏览器视频投送扩展</h3>
-              <p data-zh="支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。" data-en="Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press ⌃⇧G to cast at 60fps with instant tab-level mute and subtitle sync.">
-                支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。
+              <p data-zh="支持 B站、YouTube、抖音与各类 HTML5 网页视频，按 ⌃⇧G 投送到桌面小窗，带标签页一键静音与字幕同步。" data-en="Works on YouTube, Bilibili, and HTML5 videos. Press ⌃⇧G to send playback to the desktop window with tab-level mute and subtitle sync.">
+                支持 B站、YouTube、抖音与各类 HTML5 网页视频，按 ⌃⇧G 投送到桌面小窗，带标签页一键静音与字幕同步。
               </p>
               <div class="dl-specs">
-                <span>Chrome 116+ / Edge / Arc / Brave</span><span>Manifest V3</span><span>无需商店 15 秒安装</span>
+                <span>Chrome 116+ / Edge / Arc / Brave</span><span>Manifest V3</span><span>解压加载即用</span>
               </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -615,7 +616,7 @@
               <a class="btn" id="btnChromeStore" href="#" target="_blank" rel="noopener" style="display:none" data-zh="Chrome 应用商店安装" data-en="Chrome Web Store">Chrome 应用商店安装</a>
             </div>
             <div class="install-steps">
-              <div class="install-steps-title" data-zh="无需等待商店 · 15 秒拖入安装" data-en="Install Offline in 15 Seconds">无需等待商店 · 15 秒拖入安装</div>
+              <div class="install-steps-title" data-zh="离线安装步骤" data-en="Install Unpacked Extension">离线安装步骤</div>
               <div class="step-row"><span class="step-num">1</span><span data-zh="下载上方 .zip 扩展包并解压成一个文件夹（请保留该文件夹不要删除）。" data-en="Download and unzip the extension archive into a folder.">下载上方 .zip 扩展包并解压成一个文件夹（请保留该文件夹不要删除）。</span></div>
               <div class="step-row">
                 <span class="step-num">2</span>
@@ -625,103 +626,40 @@
                   <button type="button" class="copy-pill" data-copy="edge://extensions/">复制 edge://extensions/</button>
                 </span>
               </div>
-              <div class="step-row"><span class="step-num">3</span><span data-zh="把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），按 ⌃⇧G 即可投送任意视频！" data-en="Drag the unzipped folder onto the extensions page (or click Load Unpacked), then press ⌃⇧G on any video!">把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），按 ⌃⇧G 即可投送任意视频！</span></div>
+              <div class="step-row"><span class="step-num">3</span><span data-zh="把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），在视频页面按 ⌃⇧G 即可使用。" data-en="Drag the unzipped folder onto the extensions page (or click Load Unpacked), then press ⌃⇧G on any video.">把解压后的文件夹直接拖进扩展页面（或点「加载已解压的扩展程序」），在视频页面按 ⌃⇧G 即可使用。</span></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 100% Free Unlimited + Pure Voluntary Appreciation Section -->
+    <!-- Free Open-Source + Single Voluntary Coffee Section -->
     <section class="block" id="pricing">
       <div class="wrap">
         <div class="sec-head">
-          <h2 data-zh="全功能 100% 永久免费，喜欢再随心请喝杯咖啡" data-en="100% Free &amp; Unlimited Forever · Optional Coffee Tip">全功能 100% 永久免费，喜欢再随心请喝杯咖啡</h2>
-          <p data-zh="无订阅、无限时、无任何功能付费墙！包括 AI 防偷窥雷达、腾讯会议/飞书共享隐身与全部 3 种变色模式在内的所有能力均永久免费开放；自愿请喝咖啡将用于维护排行榜服务器并点亮榜单支持者徽章。" data-en="Zero subscriptions, zero daily quotas, and zero feature locks. Every capability is free forever; optional coffee tips help cover cloud arena server costs and light up a supporter badge.">
-            无订阅、无限时、无任何功能付费墙！包括 AI 防偷窥雷达、腾讯会议/飞书共享隐身与全部 3 种变色模式在内的所有能力均永久免费开放；自愿请喝咖啡将用于维护排行榜服务器并点亮榜单支持者徽章。
+          <h2 data-zh="所有功能免费开放，喜欢的话请杯咖啡就好" data-en="Free &amp; Open-Source · Buy Me a Coffee">所有功能免费开放，喜欢的话请杯咖啡就好</h2>
+          <p data-zh="平时自己写代码用的小工具，没有任何付费墙或功能限制。如果它刚好也帮到了你，点颗 Star 或随心请杯咖啡就很开心了。" data-en="Built as a personal coding-time side tool with zero paywalls or feature locks. If you find it handy, a GitHub Star or an optional coffee means a lot.">
+            平时自己写代码用的小工具，没有任何付费墙或功能限制。如果它刚好也帮到了你，点颗 Star 或随心请杯咖啡就很开心了。
           </p>
         </div>
 
         <div class="pricing-grid">
-          <!-- Complete Unlimited Free -->
           <div class="price-card pop">
             <div>
-              <div class="p-tag" style="color:#6ee7b7" data-zh="全部功能 · 零限制" data-en="EVERYTHING FREE · UNLIMITED">全部功能 · 零限制</div>
-              <div class="p-name">完整无限制版</div>
-              <div class="p-val">¥0<span> / 永久免费</span></div>
-              <div class="p-usd">$0 forever · 无时长限额</div>
-              <ul class="p-list">
-                <li><span class="p-check">✓</span><span>3 种变色模式 + 免插件直连 + 日志字幕</span></li>
-                <li><span class="p-check">✓</span><span>AI 摄像头防偷窥雷达（全天不限时）</span></li>
-                <li><span class="p-check">✓</span><span>腾讯会议/飞书/录屏隐身（全天不限时）</span></li>
-                <li><span class="p-check">✓</span><span>无限 1v1 PK + 4 位暗号房 + 百人赛</span></li>
-              </ul>
-            </div>
-            <a class="btn btn-primary" href="#download" data-zh="立即免费下载" data-en="Download Free">立即免费下载</a>
-          </div>
-
-          <!-- Coffee 9.9 -->
-          <div class="price-card">
-            <div>
-              <div class="p-tag" data-zh="纯自愿心意" data-en="VOLUNTARY TIP">纯自愿心意</div>
-              <div class="p-name">一杯冰美式 · 随心赞赏</div>
+              <div class="p-tag" data-zh="纯自愿支持" data-en="OPTIONAL COFFEE">纯自愿支持</div>
+              <div class="p-name" data-zh="请作者喝杯咖啡" data-en="Buy Me a Coffee">请作者喝杯咖啡</div>
               <div class="p-val">¥9.9<span> 随心</span></div>
-              <div class="p-usd">纯自愿打赏 · 海外 $2.99 tip</div>
+              <div class="p-usd">全部功能永久免费 · 海外 $2.99 tip</div>
               <ul class="p-list">
-                <li><span class="p-check">✓</span><span>纯粹喜欢这个工具给作者一点鼓励</span></li>
-                <li><span class="p-check">✓</span><span>全球榜单点亮专属 SUP 支持者金标</span></li>
-                <li><span class="p-check">✓</span><span>分担实时排行榜云服务器费用</span></li>
-                <li><span class="p-check">✓</span><span>不买一样可以用全部完整功能</span></li>
+                <li><span class="p-check">✓</span><span data-zh="所有功能完全免费开源，不赞赏也一样正常使用" data-en="All features are free and open-source with zero limits">所有功能完全免费开源，不赞赏也一样正常使用</span></li>
+                <li><span class="p-check">✓</span><span data-zh="随心分担一点小服务器费用，欢迎去 GitHub 点颗 Star" data-en="Helps cover small server costs—or leave a GitHub Star for free">随心分担一点小服务器费用，欢迎去 GitHub 点颗 Star</span></li>
               </ul>
             </div>
-            <button type="button" class="btn btn-gold" data-buy="coffee" data-zh="请喝一杯美式 (¥9.9)" data-en="Buy an Americano ($2.99)">请喝一杯美式 (¥9.9)</button>
-          </div>
-
-          <!-- Latte 19.9 -->
-          <div class="price-card">
-            <div>
-              <div class="p-tag" data-zh="铁杆支持 · 谢谢老板" data-en="CORE SUPPORTER">铁杆支持 · 谢谢老板</div>
-              <div class="p-name">双杯拿铁 · 铁杆支持</div>
-              <div class="p-val">¥19.9<span> 随心</span></div>
-              <div class="p-usd">纯自愿打赏 · 海外 $5.99 tip</div>
-              <ul class="p-list">
-                <li><span class="p-check">✓</span><span>支持项目保持开源高频迭代优化</span></li>
-                <li><span class="p-check">✓</span><span>全球榜单点亮专属 VIP 鎏金铭牌</span></li>
-                <li><span class="p-check">✓</span><span>支持多设备同步同一支持者荣誉身份</span></li>
-                <li><span class="p-check">✓</span><span>GitHub Issue 新功能想法优先排期</span></li>
-              </ul>
-            </div>
-            <button type="button" class="btn btn-gold" data-buy="latte" data-zh="请喝双杯拿铁 (¥19.9)" data-en="Buy Two Lattes ($5.99)">请喝双杯拿铁 (¥19.9)</button>
-          </div>
-
-          <!-- Patron 49 -->
-          <div class="price-card">
-            <div>
-              <div class="p-tag" data-zh="独立开源赞助" data-en="PATRON">独立开源赞助</div>
-              <div class="p-name">创始赞助 · 荣誉殿堂</div>
-              <div class="p-val">¥49<span> 荣誉</span></div>
-              <div class="p-usd">纯自愿赞赏 · 海外 $14.9 tip</div>
-              <ul class="p-list">
-                <li><span class="p-check">✓</span><span>全功能永久开源免费的精神股东</span></li>
-                <li><span class="p-check">✓</span><span>全球榜单专属 MAX 鎏金荣耀标识</span></li>
-                <li><span class="p-check">✓</span><span>列入官网创始支持者致谢墙名单</span></li>
-                <li><span class="p-check">✓</span><span>支持独立开发者持续打磨新黑科技</span></li>
-              </ul>
-            </div>
-            <button type="button" class="btn btn-gold" data-buy="patron" data-zh="请喝赞助咖啡 (¥49)" data-en="Become Patron ($14.9)">请喝赞助咖啡 (¥49)</button>
-          </div>
-        </div>
-
-        <div class="fuel-banner">
-          <div style="display:flex;flex-direction:column;gap:4px;max-width:660px">
-            <div style="font-size:15.5px;font-weight:700;color:#f8fafc" data-zh="不花一分钱也能支持：GitHub 点 Star · 每日摸鱼打卡 · 独立开发赞助墙" data-en="Support Without Paying a Dime: GitHub Star · Daily Check-in · Sponsor Wall">
-              不花一分钱也能支持：GitHub 点 Star · 每日摸鱼打卡 · 独立开发赞助墙
-            </div>
-            <div style="font-size:12.5px;color:#94a3b8" data-zh="前往竞技场每日真看视频 30 分钟打卡领 +15 积分并直接点亮 SUP 金标；也欢迎优秀 AI 编程与效率工具联系放置生态合作位。" data-en="Complete the 30-min verified video check-in in the Arena for +15 PK ELO and a SUP supporter badge, or feature your indie dev tool on our sponsor wall.">
-              前往竞技场每日真看视频 30 分钟打卡领 +15 积分并直接点亮 SUP 金标；也欢迎优秀 AI 编程与效率工具联系放置生态合作位。
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="button" class="btn btn-gold" style="flex:1" data-buy="coffee" data-zh="请喝一杯咖啡 (¥9.9)" data-en="Buy Me a Coffee ($2.99)">请喝一杯咖啡 (¥9.9)</button>
+              <a class="btn" href="https://github.com/James-826/ChameleonPiP" target="_blank" rel="noopener" data-zh="去 GitHub 点颗 Star" data-en="Star on GitHub">去 GitHub 点颗 Star</a>
             </div>
           </div>
-          <a class="btn btn-primary" href="arena.html#upgrade" data-zh="去赞赏 / 点亮支持者金标" data-en="Open Appreciation Center">去赞赏 / 点亮支持者金标</a>
         </div>
 
         <div class="checkout-toast" id="checkoutToast"></div>
@@ -827,9 +765,9 @@
         const btnDemoLogSub = document.getElementById("btnDemoLogSub");
         if (btnDemoLogSub && demoLogSub) {
           const demoLines = [
-            "字幕已伪装为终端编译日志，静音看剧看番零违和",
-            "Apple Vision 本地 AI 雷达守护中：背后出现 2 人自动秒隐",
-            "免装浏览器插件：直接粘贴 B站 / YouTube 链接即可原生变色播",
+            "字幕已转为终端日志样式，静音看视频不突兀",
+            "本地人脸计数检测开启中：背后出现其他人自动收起",
+            "不方便开浏览器时，可按 Control+Shift+S 直接搜片播",
           ];
           let lineIdx = 0;
           btnDemoLogSub.addEventListener("click", () => {
@@ -985,7 +923,7 @@
           sctx.textAlign = "center";
           sctx.lineWidth = 3.5;
           sctx.strokeStyle = "#000";
-          const txt = "ChameleonPiP 60fps · 拖动我试试三模式！";
+          const txt = "ChameleonPiP · 拖动我试试三种模式";
           sctx.strokeText(txt, w / 2, h - 18);
           sctx.fillStyle = "#fff";
           sctx.fillText(txt, w / 2, h - 18);
@@ -1044,8 +982,8 @@
             .then((data) => {
               if (!data || !Array.isArray(data.items)) return;
               const online = data.onlineCount || 1;
-              document.getElementById("heroOnlineLabel").textContent = `变色龙 60fps 拟态融合 · 全球此刻 ${online} 位变色龙实时在线`;
-              document.getElementById("arenaLiveCount").textContent = `实时云端联机服 · ${online} 人在线潜伏`;
+              document.getElementById("heroOnlineLabel").textContent = `无边框桌面画中画 · 当前 ${online} 人在线使用中`;
+              document.getElementById("arenaLiveCount").textContent = `实时榜单 · 当前 ${online} 人在线`;
               const top5 = data.items.slice(0, 5);
               document.getElementById("liveTopList").innerHTML = top5
                 .map((r, i) => {

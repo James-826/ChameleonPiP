@@ -14,8 +14,8 @@
     siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",
     downloads: {
-      macAppZip: "https://chameleonpip.site/downloads/ChameleonPiP-macOS-App-v5.5.zip?v=5.5.2",
-      chromeExtZip: "https://chameleonpip.site/downloads/ChameleonPiP-Chrome-Extension-v5.5.zip?v=5.5.2",
+      macAppZip: "https://chameleonpip.site/downloads/ChameleonPiP-macOS-App-v5.5.zip?v=5.5.3",
+      chromeExtZip: "https://chameleonpip.site/downloads/ChameleonPiP-Chrome-Extension-v5.5.zip?v=5.5.3",
       chromeWebStore: "", // Fill after Chrome Web Store approval
       edgeAddons: "",     // Fill after Microsoft Edge Add-ons approval
     },
@@ -24,39 +24,14 @@
     tipQrCodes: {
       wechat: "",
       alipay: "",
-      note: "全功能 100% 永久免费无套路 · 若它给你的工位带来了快乐，欢迎随心请作者喝杯咖啡",
+      note: "全部功能免费开放，如果这个小工具刚好帮到了你，欢迎随心请杯咖啡。",
     },
     // Optional Mianbaoduo / Afdian / BuyMeACoffee links (can leave empty if using direct QR codes above)
     checkoutUrls: {
       coffee: "",
-      latte: "",
-      patron: "",
-      monthly: "",
-      yearly: "",
-      lifetime: "",
     },
-    // Configurable sponsor & CPS affiliate cards for Chameleon Fuel Supply Station
-    // Replace or append real sponsor/affiliate links anytime (zero code edits needed)
-    sponsors: [
-      {
-        id: "sponsor-slot-1",
-        badge: "官方合作品牌 · 招租中",
-        name: "AI 编程助手 / 独立开发工具直投位",
-        desc: "直达一线开发与高效办公用户，支持按月固定赞助或 CPS 合作推广返佣兑换 Pro 会员。",
-        rewardTag: "合作联系：support@chameleonpip.site",
-        url: "mailto:support@chameleonpip.site?subject=ChameleonPiP%20Sponsor%20Inquiry",
-        ctaText: "商务合作",
-      },
-      {
-        id: "sponsor-github",
-        badge: "开源社区支持",
-        name: "GitHub 开源仓库 · 关注与 Star 支持",
-        desc: "前往 GitHub 给 ChameleonPiP 点亮 Star 或提交功能建议，关注最新版本与桌面端更新。",
-        rewardTag: "开源透明 · 持续迭代",
-        url: "https://github.com/James-826/ChameleonPiP",
-        ctaText: "前往支持",
-      },
-    ],
+    // Keep sponsorship clean: only voluntary coffee appreciation
+    sponsors: [],
     supportEmail: "support@chameleonpip.site",
   };
 })(typeof window !== "undefined" ? window : globalThis);
