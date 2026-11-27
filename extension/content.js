@@ -66,12 +66,27 @@
   if (chrome?.storage?.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes.geckoState?.newValue) {
+        const prevState = state;
         const prevBoss = state.bossMode;
         state = { ...Core.DEFAULT_STATE, ...changes.geckoState.newValue };
         if (prevBoss !== state.bossMode) {
           handleBossModeTransition(state.bossMode);
         }
         applyStateToParasite();
+        if (directOnlyMode && directStreamActive && directBridgeReady && directBridgeFrame?.contentWindow) {
+          const diff = {};
+          for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles", "stealthSubtitle", "hoverReveal"]) {
+            if (state[k] !== prevState[k]) diff[k] = state[k];
+          }
+          if (Object.keys(diff).length > 0) {
+            try {
+              directBridgeFrame.contentWindow.postMessage(
+                { type: "GECKO_BRIDGE_STATE_PATCH", patch: diff },
+                directBridgeOrigin
+              );
+            } catch (_) {}
+          }
+        }
       }
     });
   }
@@ -324,12 +339,42 @@
       </div>
     `;
     const bar = shadow.getElementById("hoverBar");
-    shadow.getElementById("btnDesktopGhost").addEventListener("click", (e) => {
+    const btnDesktop = shadow.getElementById("btnDesktopGhost");
+    const desktopLabel = btnDesktop.querySelector("span:last-child");
+    btnDesktop.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       bar.classList.remove("visible");
-      wakeMacGhostViaScheme();
-      showToast("已唤醒桌面画中画 · 请按 Control+Shift+G（或点浏览器右上角图标）开启画面投送");
+
+      if (directStreamActive) {
+        chrome.runtime.sendMessage({ type: "GECKO_STOP_TAB_STREAM" }).catch(() => {});
+        stopDirectVideoStream(false, true);
+        if (desktopLabel) desktopLabel.textContent = "桌面壁虎画中画";
+        showToast("已停止桌面壁虎画中画投送");
+        return;
+      }
+
+      if (parasiteOpen) {
+        closeParasiteOverlay();
+      }
+      saveState({ displayTarget: "ghost", bossMode: false });
+
+      const targetVid = hoverCandidateVideo || findBestVideo();
+      const res = startDirectVideoStream(targetVid, { directOnly: true });
+      if (!res?.ok) {
+        wakeMacGhostViaScheme();
+        showToast("当前视频源需浏览器授权 · 请按 Control+Shift+G 开启桌面画中画");
+        return;
+      }
+
+      chrome.runtime.sendMessage({ type: "GECKO_REGISTER_DIRECT_PAGE_STREAM" }).catch(() => {});
+      if (desktopLabel) desktopLabel.textContent = "停止桌面投送";
+      setTimeout(() => {
+        if (directStreamActive && !directBridgeReady) {
+          wakeMacGhostViaScheme();
+        }
+      }, 350);
+      showToast("已一键投送至 Mac 桌面无边框画中画");
     });
     shadow.getElementById("btnPageFloat").addEventListener("click", (e) => {
       e.preventDefault();
@@ -338,6 +383,13 @@
       openParasiteOverlay({ video: hoverCandidateVideo || findBestVideo() });
     });
     document.documentElement.appendChild(hoverHost);
+  }
+
+  function refreshHoverButtonLabel() {
+    const lbl = hoverHost?.shadowRoot?.querySelector("#btnDesktopGhost span:last-child");
+    if (lbl) {
+      lbl.textContent = directStreamActive ? "停止桌面投送" : "桌面壁虎画中画";
+    }
   }
 
   function hideHoverBadge() {
@@ -1298,6 +1350,69 @@
   let directLastObsTime = -1;
   let directFrameSeq = 0;
   let directLastSentSeq = 0;
+  let directOnlyMode = false;
+  let directMetaTimer = null;
+  let loopbackPcA = null;
+  let loopbackPcB = null;
+
+  function startLoopbackRtcKeepAlive() {
+    if (loopbackPcA || typeof RTCPeerConnection !== "function") return;
+    try {
+      const pcA = new RTCPeerConnection({ iceServers: [] });
+      const pcB = new RTCPeerConnection({ iceServers: [] });
+      loopbackPcA = pcA;
+      loopbackPcB = pcB;
+      pcA.createDataChannel("chameleon-keepalive");
+      pcA.onicecandidate = (e) => {
+        if (e.candidate && pcB.signalingState !== "closed") {
+          pcB.addIceCandidate(e.candidate).catch(() => {});
+        }
+      };
+      pcB.onicecandidate = (e) => {
+        if (e.candidate && pcA.signalingState !== "closed") {
+          pcA.addIceCandidate(e.candidate).catch(() => {});
+        }
+      };
+      pcA
+        .createOffer()
+        .then((offer) => pcA.setLocalDescription(offer))
+        .then(() => pcB.setRemoteDescription(pcA.localDescription))
+        .then(() => pcB.createAnswer())
+        .then((ans) => pcB.setLocalDescription(ans))
+        .then(() => pcA.setRemoteDescription(pcB.localDescription))
+        .catch(() => {});
+    } catch (_) {}
+  }
+
+  function stopLoopbackRtcKeepAlive() {
+    try { loopbackPcA?.close(); } catch (_) {}
+    try { loopbackPcB?.close(); } catch (_) {}
+    loopbackPcA = null;
+    loopbackPcB = null;
+  }
+
+  function pushDirectMetaNow() {
+    if (!directOnlyMode || !directStreamActive || !directBridgeReady || !directBridgeFrame?.contentWindow) return;
+    const crop = getNormalizedVideoCrop();
+    if (!crop) return;
+    try {
+      directBridgeFrame.contentWindow.postMessage(
+        {
+          type: "GECKO_BRIDGE_META",
+          meta: {
+            aspect: crop.aspect || 16 / 9,
+            subtitle: crop.subtitle || "",
+            player: crop.player || null,
+            state: {
+              mirrorSubtitles: Boolean(state.mirrorSubtitles),
+              stealthSubtitle: Boolean(state.stealthSubtitle),
+            },
+          },
+        },
+        directBridgeOrigin
+      );
+    } catch (_) {}
+  }
 
   function releaseDirectFrameSafe(frame) {
     if (frame && typeof frame.close === "function") {
@@ -1312,6 +1427,9 @@
     const msg = ev.data;
     if (msg && msg.type === "GECKO_BRIDGE_WS_STATE") {
       directBridgeReady = Boolean(msg.open);
+      if (directBridgeReady && directOnlyMode) {
+        pushDirectMetaNow();
+      }
     }
   }
   window.addEventListener("message", onBridgeWindowMessage);
@@ -1552,28 +1670,37 @@
     return true;
   }
 
-  function startDirectVideoStream() {
+  function startDirectVideoStream(preferredVideo = null, options = {}) {
+    const asDirectOnly = Boolean(options?.directOnly);
     if (document.documentElement) {
       document.documentElement.dataset.chameleonStreamAwake = "1";
     }
     if (typeof MediaStreamTrackProcessor !== "function") {
       return { ok: false, reason: "no_track_processor" };
     }
-    const v = findBestVideo();
+    const v = (preferredVideo && preferredVideo.isConnected ? preferredVideo : null) || findBestVideo();
     if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight || v.mediaKeys) {
       return { ok: false, reason: "unsupported" };
     }
 
-    stopDirectVideoStream(false);
+    stopDirectVideoStream(false, false);
     if (document.documentElement) {
       document.documentElement.dataset.chameleonStreamAwake = "1";
     }
     directStreamActive = true;
+    directOnlyMode = asDirectOnly;
+    startLoopbackRtcKeepAlive();
     ensureStreamBridgeFrame();
 
     if (!bindDirectCaptureToVideo(v)) {
-      stopDirectVideoStream(true);
+      stopDirectVideoStream(!asDirectOnly, false);
       return { ok: false, reason: "capture_failed" };
+    }
+
+    refreshHoverButtonLabel();
+    if (directOnlyMode) {
+      pushDirectMetaNow();
+      directMetaTimer = setInterval(pushDirectMetaNow, 450);
     }
 
     directWatchdogTimer = setInterval(() => {
@@ -1585,12 +1712,12 @@
       const best = findBestVideo();
       if (best && best !== directVideoEl && best.readyState >= 2 && best.videoWidth > 0 && !best.mediaKeys) {
         if (!bindDirectCaptureToVideo(best)) {
-          stopDirectVideoStream(true);
+          stopDirectVideoStream(!directOnlyMode, directOnlyMode);
         }
         return;
       }
       if (!directVideoEl || !directVideoEl.isConnected || directVideoEl.mediaKeys) {
-        stopDirectVideoStream(true);
+        stopDirectVideoStream(!directOnlyMode, directOnlyMode);
         return;
       }
       if (!directVideoEl.paused && !directVideoEl.ended && directVideoEl.readyState >= 2 && directBridgeReady) {
@@ -1603,7 +1730,7 @@
           ((directFramesSent === 0 && now - directBindStartedAt > 1800) ||
             (directFramesSent > 0 && now - directLastFrameAt > 2600))
         ) {
-          stopDirectVideoStream(true);
+          stopDirectVideoStream(!directOnlyMode, directOnlyMode);
         }
       } else if (directVideoEl) {
         directLastObsTime = directVideoEl.currentTime || 0;
@@ -1614,29 +1741,45 @@
     return { ok: true };
   }
 
-  function stopDirectVideoStream(notifyFallback = false) {
+  function stopDirectVideoStream(notifyFallback = false, notifySessionEnd = false) {
+    const wasDirectOnly = directOnlyMode;
     directStreamActive = false;
+    directOnlyMode = false;
+    if (directMetaTimer) {
+      clearInterval(directMetaTimer);
+      directMetaTimer = null;
+    }
     if (directWatchdogTimer) {
       clearInterval(directWatchdogTimer);
       directWatchdogTimer = null;
     }
+    stopLoopbackRtcKeepAlive();
     cleanupDirectCaptureReaderOnly();
     directVideoEl = null;
     directBridgeReady = false;
+    refreshHoverButtonLabel();
+    if (notifySessionEnd || wasDirectOnly) {
+      if (document.documentElement) {
+        delete document.documentElement.dataset.chameleonStreamAwake;
+      }
+    }
     if (directBridgeFrame) {
       try {
-        directBridgeFrame.contentWindow?.postMessage({ type: "GECKO_BRIDGE_STOP" }, directBridgeOrigin);
+        directBridgeFrame.contentWindow?.postMessage(
+          { type: "GECKO_BRIDGE_STOP", notifySessionEnd: Boolean(notifySessionEnd) },
+          directBridgeOrigin
+        );
       } catch (_) {}
       directBridgeFrame.remove();
       directBridgeFrame = null;
     }
-    if (notifyFallback && chrome?.runtime?.sendMessage) {
+    if (notifyFallback && !wasDirectOnly && chrome?.runtime?.sendMessage) {
       chrome.runtime.sendMessage({ type: "GECKO_DIRECT_STREAM_STATUS", active: false }).catch(() => {});
     }
   }
 
   window.__GECKO_PIP_CLEANUP__ = () => {
-    stopDirectVideoStream(false);
+    stopDirectVideoStream(false, false);
     closeParasiteOverlay();
     window.removeEventListener("message", onBridgeWindowMessage);
   };
@@ -1658,14 +1801,14 @@
         return false;
       }
       if (msg.type === "GECKO_START_DIRECT_STREAM") {
-        sendResponse(startDirectVideoStream());
+        sendResponse(startDirectVideoStream(null, { directOnly: false }));
         return false;
       }
       if (msg.type === "GECKO_STOP_DIRECT_STREAM") {
         if (document.documentElement) {
           delete document.documentElement.dataset.chameleonStreamAwake;
         }
-        stopDirectVideoStream(false);
+        stopDirectVideoStream(false, Boolean(msg.notifySessionEnd));
         sendResponse({ ok: true });
         return false;
       }

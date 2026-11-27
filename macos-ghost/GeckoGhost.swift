@@ -373,7 +373,7 @@ final class VisionAntiPeekRadar: NSObject, AVCaptureVideoDataOutputSampleBufferD
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard isActive else { return }
         let now = CACurrentMediaTime()
-        guard now - lastAnalyzeTime >= 0.40 else { return }
+        guard now - lastAnalyzeTime >= 0.30 else { return }
         lastAnalyzeTime = now
 
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -381,7 +381,7 @@ final class VisionAntiPeekRadar: NSObject, AVCaptureVideoDataOutputSampleBufferD
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
         do {
             try handler.perform([req])
-            let faces = (req.results ?? []).filter { $0.boundingBox.width >= 0.045 && $0.boundingBox.height >= 0.045 }
+            let faces = (req.results ?? []).filter { $0.boundingBox.width >= 0.028 && $0.boundingBox.height >= 0.028 }
             let count = faces.count
             DispatchQueue.main.async { [weak self] in
                 self?.onFaceCount?(count)
@@ -408,9 +408,12 @@ final class LocalWebSocketHub {
     private var ghostViewIds: Set<ObjectIdentifier> = []
     private var arenaViewIds: Set<ObjectIdentifier> = []
     private var producerIds: Set<ObjectIdentifier> = []
-    // Zero-lag 1-frame mailbox: drops stale intermediate frames so video NEVER lags behind audio!
+    private var offscreenIds: Set<ObjectIdentifier> = []
+    // Credit-gated 1-frame mailbox: prevents TCP/WebKit IPC queue buildup across hours of streaming
     private var sendingBinary: Set<ObjectIdentifier> = []
     private var pendingBinary: [ObjectIdentifier: Data] = [:]
+    private var ghostCredits: [ObjectIdentifier: Int] = [:]
+    private var ghostLastSendTime: [ObjectIdentifier: CFAbsoluteTime] = [:]
     var onArenaConnected: (() -> Void)?
 
     func start(port: UInt16 = 51937) {
@@ -456,8 +459,11 @@ final class LocalWebSocketHub {
         ghostViewIds.remove(id)
         arenaViewIds.remove(id)
         producerIds.remove(id)
+        offscreenIds.remove(id)
         sendingBinary.remove(id)
         pendingBinary.removeValue(forKey: id)
+        ghostCredits.removeValue(forKey: id)
+        ghostLastSendTime.removeValue(forKey: id)
     }
 
     func sendTextToArena(_ json: String) {
@@ -480,11 +486,24 @@ final class LocalWebSocketHub {
                 let opcode = wsMeta?.opcode ?? .binary
 
                 if opcode == .text, let text = String(data: data, encoding: .utf8) {
-                    if text.contains("\"role\":\"ghostView\"") {
+                    if text == "ack" {
+                        self.ghostCredits[id] = min(2, (self.ghostCredits[id] ?? 0) + 1)
+                        if !self.sendingBinary.contains(id),
+                           (self.ghostCredits[id] ?? 0) > 0,
+                           let next = self.pendingBinary.removeValue(forKey: id),
+                           let liveConn = self.connections[id] {
+                            self.ghostCredits[id] = max(0, (self.ghostCredits[id] ?? 1) - 1)
+                            self.dispatchBinaryNow(next, to: id, conn: liveConn)
+                        }
+                    } else if text.contains("\"role\":\"ghostView\"") {
                         self.ghostViewIds.insert(id)
+                        self.ghostCredits[id] = 2
+                        self.ghostLastSendTime[id] = CFAbsoluteTimeGetCurrent()
                     } else if text.contains("\"role\":\"arenaView\"") {
                         self.arenaViewIds.insert(id)
                         self.onArenaConnected?()
+                    } else if text.contains("\"role\":\"offscreenController\"") {
+                        self.offscreenIds.insert(id)
                     } else if text.contains("\"role\":\"streamProducer\"") {
                         self.producerIds.insert(id)
                     } else if self.arenaViewIds.contains(id) {
@@ -519,13 +538,24 @@ final class LocalWebSocketHub {
         }
     }
 
-    private func sendLatestBinary(_ data: Data, to cid: ObjectIdentifier, conn: NWConnection) {
-        if sendingBinary.contains(cid) {
-            // Overwrite any queued frame with the newest frame (zero latency buildup!)
+    private func enqueueOrSendBinary(_ data: Data, to cid: ObjectIdentifier, conn: NWConnection) {
+        let now = CFAbsoluteTimeGetCurrent()
+        // Deadlock recovery guard: restore credit if a client missed ACKs for >450ms
+        if (ghostCredits[cid] ?? 0) <= 0 && now - (ghostLastSendTime[cid] ?? 0) > 0.45 && !sendingBinary.contains(cid) {
+            ghostCredits[cid] = 2
+        }
+        if (ghostCredits[cid] ?? 0) <= 0 || sendingBinary.contains(cid) {
+            // Overwrite stale frame in Swift RAM (zero kernel TCP or WebKit IPC backlog!)
             pendingBinary[cid] = data
             return
         }
+        ghostCredits[cid] = max(0, (ghostCredits[cid] ?? 1) - 1)
+        dispatchBinaryNow(data, to: cid, conn: conn)
+    }
+
+    private func dispatchBinaryNow(_ data: Data, to cid: ObjectIdentifier, conn: NWConnection) {
         sendingBinary.insert(cid)
+        ghostLastSendTime[cid] = CFAbsoluteTimeGetCurrent()
         let meta = NWProtocolWebSocket.Metadata(opcode: .binary)
         let ctx = NWConnection.ContentContext(identifier: "wsBin", metadata: [meta])
         conn.send(content: data, contentContext: ctx, isComplete: true, completion: .contentProcessed { [weak self] err in
@@ -535,8 +565,11 @@ final class LocalWebSocketHub {
                 self.cleanup(cid)
                 return
             }
-            if let next = self.pendingBinary.removeValue(forKey: cid), let liveConn = self.connections[cid] {
-                self.sendLatestBinary(next, to: cid, conn: liveConn)
+            if (self.ghostCredits[cid] ?? 0) > 0,
+               let next = self.pendingBinary.removeValue(forKey: cid),
+               let liveConn = self.connections[cid] {
+                self.ghostCredits[cid] = max(0, (self.ghostCredits[cid] ?? 1) - 1)
+                self.dispatchBinaryNow(next, to: cid, conn: liveConn)
             }
         })
     }
@@ -545,18 +578,31 @@ final class LocalWebSocketHub {
         if opcode == .binary {
             for (cid, c) in connections where cid != sender {
                 if ghostViewIds.contains(cid) == toGhostViews {
-                    sendLatestBinary(data, to: cid, conn: c)
+                    enqueueOrSendBinary(data, to: cid, conn: c)
                 }
             }
             return
         }
         let meta = NWProtocolWebSocket.Metadata(opcode: opcode)
         let ctx = NWConnection.ContentContext(identifier: "wsFrame", metadata: [meta])
-        for (cid, c) in connections where cid != sender {
-            let match = toGhostViews
-                ? ghostViewIds.contains(cid)
-                : (!ghostViewIds.contains(cid) && !producerIds.contains(cid) && !arenaViewIds.contains(cid))
-            if match {
+        if toGhostViews {
+            for cid in ghostViewIds where cid != sender {
+                connections[cid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+            }
+            return
+        }
+
+        // Control cmds & statePatch from ghostView: strictly route to offscreenController OR direct streamProducer
+        if !offscreenIds.isEmpty {
+            for cid in offscreenIds where cid != sender {
+                connections[cid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+            }
+        } else if !producerIds.isEmpty {
+            for cid in producerIds where cid != sender {
+                connections[cid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+            }
+        } else {
+            for (cid, c) in connections where cid != sender && !ghostViewIds.contains(cid) && !arenaViewIds.contains(cid) {
                 c.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
             }
         }
@@ -570,6 +616,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var isBuiltInWebActive: Bool = false
     private var builtInVideoIsolated: Bool = false
     private var currentBuiltInUrl: String = ""
+    private var isStealthTerminalOpen: Bool = true
+    private var cachedBiliCookie: String = ""
 
     // Pure-AppKit Compact Dynamic Island (316 x 240pt — fast, compact, 100% native, never blank!)
     private var islandPanel: GhostPanel!
@@ -706,6 +754,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
         antiPeekRadar.onFaceCount = { [weak self] count in
             guard let self = self, self.radarEnabled else { return }
+            let prevCount = self.radarLastFaceCount
             self.radarLastFaceCount = count
             if count >= 2 {
                 self.radarSafeStreakCount = 0
@@ -718,21 +767,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     self.radarAlertActive = true
                     self.islandShell?.isRadarAlert = true
                     self.syncNativeIslandControls()
+                } else if prevCount != count {
+                    self.syncNativeIslandControls()
                 }
             } else {
                 if self.bossTriggeredByRadar && self.bossMode {
                     self.radarSafeStreakCount += 1
-                    // ~2.8 seconds continuously clear (7 checks * 0.4s) -> auto-recover!
-                    if self.radarSafeStreakCount >= 7 {
+                    // ~2.4 seconds continuously clear (8 checks * 0.3s) -> auto-recover!
+                    if self.radarSafeStreakCount >= 8 {
                         self.bossTriggeredByRadar = false
                         self.radarAlertActive = false
                         self.radarSafeStreakCount = 0
                         self.islandShell?.isRadarAlert = false
                         self.setBoss(false)
+                    } else if prevCount != count {
+                        self.syncNativeIslandControls()
                     }
                 } else if self.radarAlertActive {
                     self.radarAlertActive = false
                     self.islandShell?.isRadarAlert = false
+                    self.syncNativeIslandControls()
+                } else if prevCount != count {
                     self.syncNativeIslandControls()
                 }
             }
@@ -886,6 +941,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                         self.startNativeDrag(offset: loc)
                         return nil
                     }
+                    return event
+                }
+
+                // In Stealth Terminal Search/Feed Hub, allow interactive typing, category switching & scrolling!
+                if self.isStealthTerminalOpen && !self.isBuiltInWebActive {
+                    let termPad: CGFloat = 10
+                    let nearL = loc.x <= termPad
+                    let nearR = loc.x >= b.width - termPad
+                    let nearB = loc.y <= termPad
+                    let nearT = loc.y >= b.height - termPad
+                    var dir = ""
+                    if nearT { dir += "n" } else if nearB { dir += "s" }
+                    if nearL { dir += "w" } else if nearR { dir += "e" }
+                    if !dir.isEmpty {
+                        self.startNativeResize(dir: dir)
+                        return nil
+                    }
+                    if loc.y >= b.height - 32 && loc.x < b.width - 150 {
+                        self.startNativeDrag(offset: loc)
+                        return nil
+                    }
+                    self.panel.makeKey()
                     return event
                 }
 
@@ -1171,10 +1248,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnRadar = IslandPillButton(frame: NSRect(x: 14, y: 168, width: 72, height: 25), title: "AI防窥")
         btnRadar.onClick = { [weak self] in self?.toggleAntiPeekRadar() }
 
-        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "网页直连")
+        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "终端搜片")
         btnWebUrl.onClick = { [weak self] in
-            guard let self = self else { return }
-            self.openWebVideoUrlPrompt()
+            self?.openStealthTerminalPanel()
         }
 
         btnStealthSub = IslandPillButton(frame: NSRect(x: 160, y: 168, width: 64, height: 25), title: "日志字幕")
@@ -1317,18 +1393,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnVis.isActiveTint = isVisible
         btnVis.title = isVisible ? "显示" : "已隐"
 
-        // Black Tech #1, #2, #3 button states
+        // Black Tech #1, #2, #3 button states (with live verifiable AI face-count telemetry!)
         if radarAlertActive {
-            btnRadar?.title = "⚠有人!"
+            btnRadar?.title = "⚠\(radarLastFaceCount)人!"
             btnRadar?.isAlertTint = true
             btnRadar?.isActiveTint = false
-            lblBrand?.stringValue = "⚠ 背后有人!"
+            lblBrand?.stringValue = "⚠ 背后\(radarLastFaceCount)人!"
             lblBrand?.textColor = NSColor(calibratedRed: 0.99, green: 0.45, blue: 0.42, alpha: 1.0)
         } else if radarEnabled {
-            btnRadar?.title = "防窥 ON"
+            btnRadar?.title = "防窥·\(radarLastFaceCount)人"
             btnRadar?.isAlertTint = false
             btnRadar?.isActiveTint = true
-            lblBrand?.stringValue = "AI防窥守护中"
+            lblBrand?.stringValue = "AI防窥(\(radarLastFaceCount)人)"
             lblBrand?.textColor = NSColor(calibratedRed: 0.43, green: 0.90, blue: 0.72, alpha: 0.95)
         } else {
             btnRadar?.title = "AI防窥"
@@ -1338,8 +1414,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lblBrand?.textColor = NSColor(calibratedWhite: 1.0, alpha: 0.82)
         }
 
-        btnWebUrl?.isActiveTint = isBuiltInWebActive
-        btnWebUrl?.title = isBuiltInWebActive ? "切换网页" : "网页直连"
+        btnWebUrl?.isActiveTint = isBuiltInWebActive || isStealthTerminalOpen
+        btnWebUrl?.title = isBuiltInWebActive ? "切源/搜片" : "终端搜片"
         btnStealthSub?.isActiveTint = stealthSubtitleEnabled
         btnStealthSub?.title = stealthSubtitleEnabled ? "日志 ON" : "日志字幕"
 
@@ -1348,6 +1424,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lblStreakBadge?.stringValue = "检测到背后 \(radarLastFaceCount) 人 · 已秒隐静音"
         } else if activeVideoNow || currentStreakSec > 0 {
             lblStreakBadge?.stringValue = "连续 \(Self.fmtTime(Double(currentStreakSec))) · \(Self.chameleonRankTitle(for: totalSlackingSec))"
+        } else if radarEnabled {
+            lblStreakBadge?.stringValue = "AI防窥已就绪 · 实时检测 \(radarLastFaceCount) 人 (≥2人秒隐)"
         } else if isBuiltInWebActive && !builtInVideoIsolated {
             lblStreakBadge?.stringValue = "网页直连 · 点播视频自动变色融合"
         } else {
@@ -1397,7 +1475,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 }
             }
         } else if isIslandExpanded && !radarAlertActive {
-            lblStreakBadge?.stringValue = isBuiltInWebActive && !builtInVideoIsolated ? "网页直连 · 点播视频自动变色融合" : "待机 · 播放视频开始计时"
+            if radarEnabled {
+                lblStreakBadge?.stringValue = "AI防窥已就绪 · 实时检测 \(radarLastFaceCount) 人 (≥2人秒隐)"
+            } else {
+                lblStreakBadge?.stringValue = isBuiltInWebActive && !builtInVideoIsolated ? "网页直连 · 点播视频自动变色融合" : "待机 · 播放视频开始计时"
+            }
         }
 
         if telemetryTickCount % 2 == 0 {
@@ -1540,6 +1622,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         NSApp.activate(ignoringOtherApps: true)
         if openPanel.runModal() == .OK, let url = openPanel.url {
             exitBuiltInWebMode()
+            isStealthTerminalOpen = false
             let escaped = url.absoluteString.replacingOccurrences(of: "'", with: "%27")
             webView.evaluateJavaScript("window.GeckoNativeBridge?.loadLocalVideo('\(escaped)');", completionHandler: nil)
         }
@@ -1693,6 +1776,195 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         syncNativeIslandControls()
     }
 
+    // MARK: - Stealth Terminal Video Search & Trending Hub
+    private func openStealthTerminalPanel() {
+        setIslandExpanded(false)
+        isVisible = true
+        if bossMode { setBoss(false) }
+        exitBuiltInWebMode()
+        isStealthTerminalOpen = true
+        ensurePanelMinSizeForTerminal()
+        panel.makeKeyAndOrderFront(nil)
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.openStealthTerminal();", completionHandler: nil)
+        syncNativeIslandControls()
+    }
+
+    private func ensurePanelMinSizeForTerminal() {
+        var f = panel.frame
+        let nw = max(f.width, 436)
+        let nh = max(f.height, 266)
+        if nw != f.width || nh != f.height {
+            f.origin.y -= (nh - f.height) * 0.5
+            f.origin.x -= (nw - f.width) * 0.5
+            if let vis = (panel.screen ?? NSScreen.main)?.visibleFrame {
+                f.origin.x = max(vis.minX + 8, min(vis.maxX - nw - 8, f.origin.x))
+                f.origin.y = max(vis.minY + 8, min(vis.maxY - nh - 8, f.origin.y))
+            }
+            f.size = NSSize(width: nw, height: nh)
+            panel.setFrame(f, display: true, animate: true)
+        }
+    }
+
+    private static func stripHtmlEntities(_ raw: String) -> String {
+        var s = raw.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        let entities: [(String, String)] = [
+            ("&quot;", "\""), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
+            ("&#39;", "'"), ("&apos;", "'"), ("&nbsp;", " ")
+        ]
+        for (k, v) in entities { s = s.replacingOccurrences(of: k, with: v) }
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func formatDurationValue(_ raw: Any?) -> String {
+        if let sec = raw as? Int {
+            let m = max(0, sec) / 60
+            let s = max(0, sec) % 60
+            return String(format: "%02d:%02d", m, s)
+        }
+        if let dStr = raw as? String, !dStr.isEmpty {
+            return dStr
+        }
+        return "--:--"
+    }
+
+    private static func formatViewCount(_ count: Int) -> String {
+        if count >= 10000 {
+            return String(format: "%.1f万", Double(count) / 10000.0)
+        }
+        return "\(max(0, count))"
+    }
+
+    private func pushStealthFeedToWebView(reqId: String, items: [[String: String]], error: String?) {
+        var payload: [String: Any] = ["reqId": reqId, "items": items]
+        if let err = error { payload["error"] = err }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let json = String(data: data, encoding: .utf8) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript("window.GeckoNativeBridge?.onStealthFeedResult(\(json));", completionHandler: nil)
+        }
+    }
+
+    private func ensureBiliCookie(forceRefresh: Bool = false, completion: @escaping (String) -> Void) {
+        if !forceRefresh, !cachedBiliCookie.isEmpty {
+            completion(cachedBiliCookie)
+            return
+        }
+        guard let url = URL(string: "https://www.bilibili.com/") else { completion(""); return }
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, _ in
+            var cookiePairs: [String] = []
+            if let http = resp as? HTTPURLResponse,
+               let headers = http.allHeaderFields as? [String: String],
+               let respUrl = http.url {
+                let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: respUrl)
+                cookiePairs = cookies.map { "\($0.name)=\($0.value)" }
+            }
+            let joined = cookiePairs.joined(separator: "; ")
+            if !joined.isEmpty {
+                self?.cachedBiliCookie = joined
+            }
+            completion(joined)
+        }.resume()
+    }
+
+    private func fetchStealthFeed(source: String, query: String, reqId: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyword: String
+        if !trimmed.isEmpty {
+            keyword = trimmed
+        } else {
+            switch source {
+            case "tech": keyword = "科技 AI 硬核评测"
+            case "standup": keyword = "脱口秀 单口喜剧 下饭"
+            case "film": keyword = "高分电影 深度解说"
+            case "lofi": keyword = "Lofi 雨声 白噪音 编程"
+            default: keyword = ""
+            }
+        }
+
+        let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+        if keyword.isEmpty {
+            guard let url = URL(string: "https://api.bilibili.com/x/web-interface/popular?ps=24&pn=1") else {
+                pushStealthFeedToWebView(reqId: reqId, items: [], error: "invalid_url")
+                return
+            }
+            var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+            req.setValue(ua, forHTTPHeaderField: "User-Agent")
+            req.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
+            URLSession.shared.dataTask(with: req) { [weak self] data, _, err in
+                guard let self = self else { return }
+                guard err == nil, let data = data,
+                      let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let dObj = root["data"] as? [String: Any],
+                      let list = dObj["list"] as? [[String: Any]] else {
+                    self.pushStealthFeedToWebView(reqId: reqId, items: [], error: err?.localizedDescription ?? "network_error")
+                    return
+                }
+                let items: [[String: String]] = list.compactMap { row in
+                    guard let bvid = row["bvid"] as? String, !bvid.isEmpty else { return nil }
+                    let rawTitle = (row["title"] as? String) ?? "Untitled"
+                    let owner = (row["owner"] as? [String: Any])?["name"] as? String ?? "B站UP"
+                    let views = (row["stat"] as? [String: Any])?["view"] as? Int ?? 0
+                    return [
+                        "bvid": bvid,
+                        "title": Self.stripHtmlEntities(rawTitle),
+                        "author": Self.stripHtmlEntities(owner),
+                        "duration": Self.formatDurationValue(row["duration"]),
+                        "views": Self.formatViewCount(views),
+                        "url": "https://www.bilibili.com/video/\(bvid)"
+                    ]
+                }
+                self.pushStealthFeedToWebView(reqId: reqId, items: items, error: nil)
+            }.resume()
+            return
+        }
+
+        let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword
+        let searchUrlStr = "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=\(encoded)&page=1&page_size=22"
+        func runSearch(retryAfterRefresh: Bool) {
+            ensureBiliCookie(forceRefresh: retryAfterRefresh) { [weak self] cookie in
+                guard let self = self, let url = URL(string: searchUrlStr) else { return }
+                var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+                req.setValue(ua, forHTTPHeaderField: "User-Agent")
+                req.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
+                if !cookie.isEmpty { req.setValue(cookie, forHTTPHeaderField: "Cookie") }
+                URLSession.shared.dataTask(with: req) { [weak self] data, _, err in
+                    guard let self = self else { return }
+                    guard err == nil, let data = data,
+                          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        self.pushStealthFeedToWebView(reqId: reqId, items: [], error: err?.localizedDescription ?? "network_error")
+                        return
+                    }
+                    let code = (root["code"] as? Int) ?? -1
+                    if code != 0 && !retryAfterRefresh {
+                        self.cachedBiliCookie = ""
+                        runSearch(retryAfterRefresh: true)
+                        return
+                    }
+                    let list = (root["data"] as? [String: Any])?["result"] as? [[String: Any]] ?? []
+                    let items: [[String: String]] = list.compactMap { row in
+                        guard let bvid = row["bvid"] as? String, !bvid.isEmpty else { return nil }
+                        let rawTitle = (row["title"] as? String) ?? "Untitled"
+                        let author = (row["author"] as? String) ?? "B站UP"
+                        let views = (row["play"] as? Int) ?? 0
+                        return [
+                            "bvid": bvid,
+                            "title": Self.stripHtmlEntities(rawTitle),
+                            "author": Self.stripHtmlEntities(author),
+                            "duration": Self.formatDurationValue(row["duration"]),
+                            "views": Self.formatViewCount(views),
+                            "url": "https://www.bilibili.com/video/\(bvid)"
+                        ]
+                    }
+                    self.pushStealthFeedToWebView(reqId: reqId, items: items, error: nil)
+                }.resume()
+            }
+        }
+        runSearch(retryAfterRefresh: false)
+    }
+
     private static func builtInIsolatorScript() -> String {
         return """
         (function() {
@@ -1717,6 +1989,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
           styleEl.textContent = `
             html.chm-iso, html.chm-iso body { background: transparent !important; overflow: hidden !important; }
             html.chm-iso body > *:not(#chm-builtin-hud):not(#chm-builtin-sub):not(svg):not(.chm-iso-ancestor) { opacity: 0 !important; pointer-events: none !important; }
+            .bili-mini-mask, .login-panel-popover, .lt-row, .bili-Layout-header, ytd-consent-bump-v2-lightbox { display: none !important; }
             video.chm-iso-vid {
               position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
               max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important;
@@ -1760,13 +2033,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
           const hud = document.createElement('div');
           hud.id = 'chm-builtin-hud';
-          hud.innerHTML = `<button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭网页</button>`;
+          hud.innerHTML = `<button id="chmBtnTerm">终端选片</button><button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭网页</button>`;
           document.body.appendChild(hud);
 
           const subEl = document.createElement('div');
           subEl.id = 'chm-builtin-sub';
           document.body.appendChild(subEl);
 
+          const btnTerm = hud.querySelector('#chmBtnTerm');
           const btnIso = hud.querySelector('#chmBtnIso');
           const btnExit = hud.querySelector('#chmBtnExit');
 
@@ -1830,6 +2104,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             post({ action: 'builtInVideoStatus', isolated });
           }
 
+          btnTerm?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            post({ action: 'openStealthTerminal' });
+          });
           btnIso.addEventListener('click', (e) => {
             e.stopPropagation();
             autoIsolateWanted = !isolated;
@@ -1881,10 +2159,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             }
           }
 
+          let autoPlayAttempted = false;
+          const isDirectWatchUrl = location.href.includes('/video/') || location.href.includes('youtube.com/watch');
+
           setInterval(() => {
             const v = findBestVideo();
             if (v && v !== targetVideo) targetVideo = v;
-            if (v && autoIsolateWanted && !isolated && !v.paused && v.readyState >= 2) {
+            if (v && isDirectWatchUrl && !autoPlayAttempted && v.paused && v.readyState >= 1 && !state.bossMode) {
+              autoPlayAttempted = true;
+              v.play().catch(() => {});
+            }
+            if (v && autoIsolateWanted && !isolated && v.readyState >= 2 && (!v.paused || isDirectWatchUrl)) {
               setIsolated(true);
             }
             if (isolated && targetVideo) applyFilter();
@@ -1957,7 +2242,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "setBoss":
             if let v = dict["value"] as? Bool { setBoss(v) }
         case "openWebVideoUrl":
-            openWebVideoUrlPrompt()
+            openStealthTerminalPanel()
+        case "openStealthTerminal":
+            openStealthTerminalPanel()
+        case "stealthTerminalState":
+            let open = (dict["open"] as? Bool) ?? false
+            isStealthTerminalOpen = open
+            if open {
+                ensurePanelMinSizeForTerminal()
+            }
+            syncNativeIslandControls()
+        case "focusSearchInput":
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
+        case "fetchStealthFeed":
+            let source = (dict["source"] as? String) ?? "hot"
+            let query = (dict["query"] as? String) ?? ""
+            let reqId = (dict["reqId"] as? String) ?? ""
+            fetchStealthFeed(source: source, query: query, reqId: reqId)
+        case "openDirectUrl":
+            if let rawUrl = dict["url"] as? String, !rawUrl.isEmpty {
+                isStealthTerminalOpen = false
+                loadBuiltInWebUrl(rawUrl)
+            }
         case "exitBuiltInWeb":
             exitBuiltInWebMode()
         case "builtInVideoStatus":
@@ -1966,6 +2273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 syncNativeIslandControls()
             }
         case "chromeStreamStarted":
+            isStealthTerminalOpen = false
             if isBuiltInWebActive {
                 exitBuiltInWebMode()
             }

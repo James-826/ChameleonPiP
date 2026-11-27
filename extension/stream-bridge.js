@@ -39,16 +39,38 @@
         try {
           ws.send(JSON.stringify({ type: "register", role: "streamProducer" }));
         } catch (_) {}
+        try {
+          chrome.runtime.sendMessage({ type: "GECKO_GHOST_WS_STATUS", connected: true }).catch(() => {});
+        } catch (_) {}
         notifyParentWsState(true);
       };
 
-      ws.onmessage = () => {
-        // Control cmds & statePatch are handled exclusively by offscreen.js to avoid duplicates.
+      ws.onmessage = (ev) => {
+        if (typeof ev.data !== "string") return;
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "cmd") {
+            chrome.runtime.sendMessage({
+              type: "GECKO_REMOTE_VIDEO_CMD",
+              action: msg.action,
+              delta: msg.delta,
+              value: msg.value,
+            }).catch(() => {});
+          } else if (msg.type === "statePatch" && msg.patch) {
+            chrome.runtime.sendMessage({
+              type: "GECKO_REMOTE_STATE_PATCH",
+              patch: msg.patch,
+            }).catch(() => {});
+          }
+        } catch (_) {}
       };
 
       ws.onclose = () => {
         ws = null;
         notifyParentWsState(false);
+        try {
+          chrome.runtime.sendMessage({ type: "GECKO_GHOST_WS_STATUS", connected: false }).catch(() => {});
+        } catch (_) {}
         if (reportedDirectActive) reportDirectStatus(false);
         if (active) {
           clearTimeout(reconnectTimer);
@@ -81,7 +103,7 @@
     if (msg.type === "GECKO_BRIDGE_FRAME") {
       if (!active) return;
       if (!ws || ws.readyState === WebSocket.CLOSED) connectWs();
-      if (msg.buf instanceof ArrayBuffer && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 24 * 1024) {
+      if (msg.buf instanceof ArrayBuffer && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 18 * 1024) {
         try {
           ws.send(msg.buf);
           if (!reportedDirectActive) reportDirectStatus(true);
@@ -99,12 +121,24 @@
       return;
     }
 
+    if (msg.type === "GECKO_BRIDGE_STATE_PATCH" && msg.patch) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: "statePatch", patch: msg.patch }));
+        } catch (_) {}
+      }
+      return;
+    }
+
     if (msg.type === "GECKO_BRIDGE_STOP") {
       active = false;
       clearTimeout(reconnectTimer);
       reportDirectStatus(false);
       notifyParentWsState(false);
       if (ws) {
+        if (msg.notifySessionEnd && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ type: "streamStopped" })); } catch (_) {}
+        }
         try { ws.close(); } catch (_) {}
         ws = null;
       }

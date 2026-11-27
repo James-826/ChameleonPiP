@@ -54,6 +54,9 @@
 
       ws.onopen = () => {
         wsConnected = true;
+        try {
+          ws.send(JSON.stringify({ type: "register", role: "offscreenController" }));
+        } catch (_) {}
         chrome.runtime.sendMessage({
           type: "GECKO_GHOST_WS_STATUS",
           connected: true,
@@ -271,7 +274,7 @@
       if (!blob || !streamingActive || mySeq < lastSentSeq) return;
       lastSentSeq = mySeq;
 
-      if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 24 * 1024) {
+      if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 18 * 1024) {
         try {
           const buf = await blob.arrayBuffer();
           if (!directBypassActive && mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
@@ -339,7 +342,7 @@
           closeFrameSafe(videoFrame);
           continue;
         }
-        if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 24 * 1024) {
+        if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 18 * 1024) {
           closeFrameSafe(videoFrame);
           continue;
         }
@@ -371,7 +374,7 @@
     if (!wsConnected && !hasCrossTabViewers) return;
     if (currentState?.bossMode) return;
     if (directBypassActive && !hasCrossTabViewers) return;
-    if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 24 * 1024) return;
+    if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 18 * 1024) return;
 
     const now = performance.now();
     if (!force && now - lastCaptureTs < 9.5) return;

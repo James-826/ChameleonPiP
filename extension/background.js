@@ -244,7 +244,9 @@ async function stopTabStream() {
   streamingTabId = null;
   ghostWsConnected = false;
   if (prevTabId) {
-    chrome.tabs.sendMessage(prevTabId, { type: "GECKO_STOP_DIRECT_STREAM" }).catch(() => {});
+    chrome.tabs
+      .sendMessage(prevTabId, { type: "GECKO_STOP_DIRECT_STREAM", notifySessionEnd: true })
+      .catch(() => {});
     setTabStreamKeepAwake(prevTabId, false);
   }
   try {
@@ -406,6 +408,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "GECKO_START_TAB_STREAM") {
     startTabStream(msg.tabId, msg.streamId).then((res) => sendResponse(res));
+    return true;
+  }
+
+  if (msg.type === "GECKO_REGISTER_DIRECT_PAGE_STREAM") {
+    const tid = sender.tab?.id;
+    if (!tid) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    (async () => {
+      if (streamingTabId && streamingTabId !== tid) {
+        stopCropPolling();
+        chrome.tabs
+          .sendMessage(streamingTabId, { type: "GECKO_STOP_DIRECT_STREAM", notifySessionEnd: false })
+          .catch(() => {});
+        setTabStreamKeepAwake(streamingTabId, false);
+        chrome.runtime.sendMessage({ type: "GECKO_OFFSCREEN_STOP" }).catch(() => {});
+      }
+      streamingTabId = tid;
+      await chrome.scripting
+        .executeScript({ target: { tabId: tid }, world: "MAIN", files: ["page-hooks.js"] })
+        .catch(() => {});
+      await setTabStreamKeepAwake(tid, true);
+      sendResponse({ ok: true, streamingTabId });
+    })();
     return true;
   }
 
