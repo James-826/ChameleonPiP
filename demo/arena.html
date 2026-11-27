@@ -933,12 +933,19 @@
           }
         }
 
-        // Listen to local GeckoGhost desktop window (ws://127.0.0.1:51937) for real video playback & Boss Key events
+        // Listen to local GeckoGhost desktop window (primary non-ephemeral 27182 + legacy 51937)
+        const BRIDGE_WS_URLS = ["ws://127.0.0.1:27182", "ws://127.0.0.1:51937"];
+        let bridgeUrlIdx = 0;
+
         function connectLocalDesktopBridge() {
           try {
-            const ws = new WebSocket("ws://127.0.0.1:51937");
+            const url = BRIDGE_WS_URLS[bridgeUrlIdx % BRIDGE_WS_URLS.length];
+            let opened = false;
+            const ws = new WebSocket(url);
             localBridgeWs = ws;
             ws.onopen = () => {
+              opened = true;
+              bridgeUrlIdx = 0;
               ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
               broadcastMembershipToDesktop(membership);
             };
@@ -972,11 +979,17 @@
               } catch (_) {}
             };
             ws.onclose = () => {
+              localBridgeWs = null;
               videoPlaying = false;
-              setTimeout(connectLocalDesktopBridge, 2000);
+              if (!opened) bridgeUrlIdx = (bridgeUrlIdx + 1) % BRIDGE_WS_URLS.length;
+              setTimeout(connectLocalDesktopBridge, opened ? 2000 : 350);
+            };
+            ws.onerror = () => {
+              try { ws.close(); } catch (_) {}
             };
           } catch (_) {
-            setTimeout(connectLocalDesktopBridge, 2500);
+            bridgeUrlIdx = (bridgeUrlIdx + 1) % BRIDGE_WS_URLS.length;
+            setTimeout(connectLocalDesktopBridge, 2000);
           }
         }
         connectLocalDesktopBridge();

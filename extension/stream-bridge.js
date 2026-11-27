@@ -1,7 +1,8 @@
 (function () {
   "use strict";
 
-  const GHOST_WS_URL = "ws://127.0.0.1:51937";
+  const GHOST_WS_URLS = ["ws://127.0.0.1:27182", "ws://127.0.0.1:51937"];
+  let wsUrlIdx = 0;
   let ws = null;
   let reconnectTimer = null;
   let active = true;
@@ -28,7 +29,9 @@
       return;
     }
     try {
-      ws = new WebSocket(GHOST_WS_URL);
+      const targetUrl = GHOST_WS_URLS[wsUrlIdx % GHOST_WS_URLS.length];
+      let opened = false;
+      ws = new WebSocket(targetUrl);
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
@@ -36,6 +39,8 @@
           try { ws.close(); } catch (_) {}
           return;
         }
+        opened = true;
+        wsUrlIdx = 0;
         try {
           ws.send(JSON.stringify({ type: "register", role: "streamProducer" }));
         } catch (_) {}
@@ -67,6 +72,7 @@
 
       ws.onclose = () => {
         ws = null;
+        if (!opened) wsUrlIdx = (wsUrlIdx + 1) % GHOST_WS_URLS.length;
         notifyParentWsState(false);
         try {
           chrome.runtime.sendMessage({ type: "GECKO_GHOST_WS_STATUS", connected: false }).catch(() => {});
@@ -74,7 +80,7 @@
         if (reportedDirectActive) reportDirectStatus(false);
         if (active) {
           clearTimeout(reconnectTimer);
-          reconnectTimer = setTimeout(connectWs, 800);
+          reconnectTimer = setTimeout(connectWs, opened ? 800 : 350);
         }
       };
 
@@ -82,10 +88,11 @@
         try { ws?.close(); } catch (_) {}
       };
     } catch (_) {
+      wsUrlIdx = (wsUrlIdx + 1) % GHOST_WS_URLS.length;
       notifyParentWsState(false);
       if (active) {
         clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(connectWs, 900);
+        reconnectTimer = setTimeout(connectWs, 500);
       }
     }
   }

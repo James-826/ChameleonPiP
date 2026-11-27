@@ -161,6 +161,7 @@ function startLocalWebSocketHub(port = 51937) {
     socket.on("error", () => clients.delete(client));
   });
 
+  server.on("error", () => {});
   server.listen(port, "127.0.0.1");
 }
 
@@ -282,7 +283,7 @@ function setupTray() {
     img = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
   }
   tray = new Tray(img);
-  tray.setToolTip("GeckoPiP 光学投影画中画");
+  tray.setToolTip("ChameleonPiP 变色龙投影画中画");
 
   tray.on("click", () => toggleMenuPopover());
   tray.on("right-click", () => {
@@ -524,6 +525,7 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
+  startLocalWebSocketHub(27182);
   startLocalWebSocketHub(51937);
   createGhostWindow();
   createMenuPopoverWindow();

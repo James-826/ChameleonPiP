@@ -276,20 +276,43 @@
     return 1.0;
   }
 
+  function ensureGlobalSvgDefsSlot(doc) {
+    let slot = doc.getElementById("gecko-global-defs-slot");
+    if (!slot && doc.documentElement) {
+      const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.id = "gecko-global-svg-defs";
+      svg.setAttribute("aria-hidden", "true");
+      svg.style.cssText =
+        "position:fixed;top:-9999px;left:-9999px;width:0;height:0;pointer-events:none;opacity:0;";
+      slot = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      slot.id = "gecko-global-defs-slot";
+      svg.appendChild(slot);
+      doc.documentElement.appendChild(svg);
+    }
+    return slot;
+  }
+
   function applySvgFilterToMedia(svgDefsEl, mediaEl, state, options = {}) {
     if (!svgDefsEl || !mediaEl) return;
     const inner = buildFilterPrimitives(state, options);
+    const doc = svgDefsEl.ownerDocument || document;
+    const rootNode = svgDefsEl.getRootNode ? svgDefsEl.getRootNode() : doc;
+    const isShadow = rootNode !== doc && Boolean(doc.documentElement);
 
     // Fast-path: do NOT tear down or recompile GPU shader if filter primitives haven't changed!
+    const hasFilterNode = Boolean(
+      mediaEl.__geckoFilterId &&
+        svgDefsEl.firstChild &&
+        (!isShadow || doc.getElementById(mediaEl.__geckoFilterId))
+    );
     if (
       mediaEl.__geckoFilterKey === inner &&
       mediaEl.__geckoFilterDefs === svgDefsEl &&
-      svgDefsEl.firstChild
+      hasFilterNode
     ) {
       return;
     }
 
-    const doc = svgDefsEl.ownerDocument || document;
     const nextId = `gecko-f-${(++filterSeq) % 100000}`;
     const xml = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="${nextId}" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">${inner}</filter></svg>`;
 
@@ -302,8 +325,21 @@
       svgDefsEl.removeChild(svgDefsEl.firstChild);
     }
     svgDefsEl.appendChild(imported);
+
+    // Chromium/Blink resolves CSS `filter: url(#id)` inside Shadow DOM against Light DOM `document`
+    if (isShadow) {
+      const globalSlot = ensureGlobalSvgDefsSlot(doc);
+      if (globalSlot) {
+        while (globalSlot.firstChild) {
+          globalSlot.removeChild(globalSlot.firstChild);
+        }
+        globalSlot.appendChild(imported.cloneNode(true));
+      }
+    }
+
     mediaEl.__geckoFilterKey = inner;
     mediaEl.__geckoFilterDefs = svgDefsEl;
+    mediaEl.__geckoFilterId = nextId;
     mediaEl.style.setProperty("filter", `url(#${nextId})`, "important");
   }
 

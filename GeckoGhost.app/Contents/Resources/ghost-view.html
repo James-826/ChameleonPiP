@@ -1023,29 +1023,29 @@
         }
 
         async function decodeAndDrawRaw(raw) {
-          if (typeof ImageDecoder === "function" && raw instanceof ArrayBuffer) {
-            const dec = new ImageDecoder({ data: raw, type: "image/jpeg" });
+          const blob = raw instanceof Blob ? raw : new Blob([raw], { type: "image/jpeg" });
+          if (typeof createImageBitmap === "function") {
             try {
-              const decoded = await dec.decode();
-              const vw = decoded.image.displayWidth || decoded.image.codedWidth || 448;
-              const vh = decoded.image.displayHeight || decoded.image.codedHeight || 252;
-              if (glProjector) {
-                glProjector.uploadAndDraw(decoded.image, vw, vh, state);
-              } else if (fallbackCtx) {
-                if (streamCanvas.width !== vw || streamCanvas.height !== vh) {
-                  streamCanvas.width = vw;
-                  streamCanvas.height = vh;
+              const bmp = await createImageBitmap(blob);
+              try {
+                const vw = bmp.width || 448;
+                const vh = bmp.height || 252;
+                if (glProjector) {
+                  glProjector.uploadAndDraw(bmp, vw, vh, state);
+                } else if (fallbackCtx) {
+                  if (streamCanvas.width !== vw || streamCanvas.height !== vh) {
+                    streamCanvas.width = vw;
+                    streamCanvas.height = vh;
+                  }
+                  fallbackCtx.drawImage(bmp, 0, 0);
                 }
-                fallbackCtx.drawImage(decoded.image, 0, 0);
+                return;
+              } finally {
+                try { bmp.close(); } catch (_) {}
               }
-              decoded.image.close();
-              return;
-            } finally {
-              try { dec.close(); } catch (_) {}
-            }
+            } catch (_) {}
           }
 
-          const blob = raw instanceof Blob ? raw : new Blob([raw], { type: "image/jpeg" });
           const objUrl = URL.createObjectURL(blob);
           try {
             decodeImg.src = objUrl;
@@ -1086,15 +1086,22 @@
           }, 350);
 
           decodeAndDrawRaw(raw)
-            .catch(() => {})
+            .catch((err) => console.warn("[ChameleonPiP] frame decode err:", err))
             .finally(() => finishOne());
         }
 
+        const GHOST_WS_PORTS = [27182, 51937];
+        let ghostPortIdx = 0;
+
         function connectHub() {
           try {
-            ws = new WebSocket("ws://127.0.0.1:51937");
+            const port = GHOST_WS_PORTS[ghostPortIdx % GHOST_WS_PORTS.length];
+            let opened = false;
+            ws = new WebSocket(`ws://127.0.0.1:${port}`);
             ws.binaryType = "arraybuffer";
             ws.onopen = () => {
+              opened = true;
+              ghostPortIdx = 0;
               ws.send(JSON.stringify({ type: "register", role: "ghostView" }));
               pushVideoPlaybackState(true);
             };
@@ -1181,9 +1188,16 @@
                 } catch (_) {}
               }
             };
-            ws.onclose = () => setTimeout(connectHub, 1000);
+            ws.onclose = () => {
+              if (!opened) ghostPortIdx = (ghostPortIdx + 1) % GHOST_WS_PORTS.length;
+              setTimeout(connectHub, opened ? 800 : 250);
+            };
+            ws.onerror = () => {
+              try { ws.close(); } catch (_) {}
+            };
           } catch (_) {
-            setTimeout(connectHub, 1200);
+            ghostPortIdx = (ghostPortIdx + 1) % GHOST_WS_PORTS.length;
+            setTimeout(connectHub, 500);
           }
         }
         connectHub();

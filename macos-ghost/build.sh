@@ -111,4 +111,22 @@ if [ -x "$LSREG" ]; then
   "$LSREG" -f "$APP_BUNDLE" >/dev/null 2>&1 || true
 fi
 
-echo "✅ Built & registered geckoghost:// scheme: $APP_BUNDLE"
+if [ -w "/Applications" ]; then
+  rm -rf "/Applications/GeckoGhost.app"
+  cp -R "$APP_BUNDLE" "/Applications/GeckoGhost.app"
+  codesign --force --deep --sign - "/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  if [ -x "$LSREG" ]; then
+    "$LSREG" -f "/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  fi
+  echo "✅ Built & installed to /Applications/GeckoGhost.app (+ LaunchServices geckoghost://)"
+elif [ -d "$HOME/Applications" ] || mkdir -p "$HOME/Applications" 2>/dev/null; then
+  rm -rf "$HOME/Applications/GeckoGhost.app"
+  cp -R "$APP_BUNDLE" "$HOME/Applications/GeckoGhost.app"
+  codesign --force --deep --sign - "$HOME/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  if [ -x "$LSREG" ]; then
+    "$LSREG" -f "$HOME/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  fi
+  echo "✅ Built & installed to ~/Applications/GeckoGhost.app (+ LaunchServices geckoghost://)"
+else
+  echo "✅ Built & registered geckoghost:// scheme: $APP_BUNDLE"
+fi

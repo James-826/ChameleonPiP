@@ -12,6 +12,22 @@ chrome.storage.local.get(["geckoState"], (res) => {
   if (res?.geckoState) cachedGeckoState = res.geckoState;
 });
 
+async function reinjectOpenHttpTabs() {
+  try {
+    const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+    for (const t of tabs) {
+      if (t?.id) {
+        ensureTabContentScripts(t.id).catch(() => {});
+      }
+    }
+  } catch (_) {}
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  reinjectOpenHttpTabs();
+});
+reinjectOpenHttpTabs();
+
 async function ensureOffscreenDocument() {
   if (!offscreenBootstrappedThisRun) {
     offscreenBootstrappedThisRun = true;
@@ -188,6 +204,27 @@ async function setTabStreamKeepAwake(tabId, enabled) {
   } catch (_) {}
 }
 
+async function startDirectStreamForTab(tabId) {
+  if (!tabId) return { ok: false, reason: "no_tab" };
+  if (streamingTabId && streamingTabId !== tabId) {
+    stopCropPolling();
+    chrome.tabs.sendMessage(streamingTabId, { type: "GECKO_STOP_DIRECT_STREAM", notifySessionEnd: false }).catch(() => {});
+    setTabStreamKeepAwake(streamingTabId, false);
+    chrome.runtime.sendMessage({ type: "GECKO_OFFSCREEN_STOP" }).catch(() => {});
+  }
+  await ensureTabContentScripts(tabId);
+  await setTabStreamKeepAwake(tabId, true);
+  const res = await chrome.tabs
+    .sendMessage(tabId, { type: "GECKO_START_DIRECT_STREAM", directOnly: true })
+    .catch(() => null);
+  if (res?.ok) {
+    streamingTabId = tabId;
+    return { ok: true, streamingTabId, mode: "direct" };
+  }
+  setTabStreamKeepAwake(tabId, false);
+  return { ok: false, reason: res?.reason || "direct_failed" };
+}
+
 async function startTabStream(tabId, preIssuedStreamId) {
   if (streamingTabId && streamingTabId !== tabId) {
     chrome.tabs.sendMessage(streamingTabId, { type: "GECKO_STOP_DIRECT_STREAM" }).catch(() => {});
@@ -206,11 +243,8 @@ async function startTabStream(tabId, preIssuedStreamId) {
     }));
 
   if (!streamId) {
-    return {
-      ok: false,
-      reason: "stream_id_failed",
-      error: chrome.runtime.lastError?.message || "无法获取标签页画面流，请点击浏览器右上角变色龙图标启动",
-    };
+    // Fallback cleanly to zero-permission direct <video>.captureStream() pipeline!
+    return await startDirectStreamForTab(tabId);
   }
 
   await setTabStreamKeepAwake(tabId, true);
@@ -408,6 +442,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "GECKO_START_TAB_STREAM") {
     startTabStream(msg.tabId, msg.streamId).then((res) => sendResponse(res));
+    return true;
+  }
+
+  if (msg.type === "GECKO_START_DIRECT_FROM_POPUP") {
+    startDirectStreamForTab(msg.tabId).then((res) => sendResponse(res));
     return true;
   }
 

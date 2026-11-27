@@ -112,42 +112,39 @@
     }, 3400);
   }
 
-  window.addEventListener(
-    "keydown",
-    (e) => {
-      if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey) {
-        if (e.code === "KeyB" && parasiteOpen) {
-          e.preventDefault();
-          saveState({ bossMode: !state.bossMode });
-          return;
-        }
-        if (e.code === "KeyM" && parasiteOpen) {
-          e.preventDefault();
-          parasiteClickThrough = !parasiteClickThrough;
-          showToast(
-            parasiteClickThrough
-              ? "已开启鼠标穿透 · 再按 Control+Shift+M 恢复播放器控制"
-              : "已恢复鼠标控制"
-          );
-          applyStateToParasite();
-          return;
-        }
+  function onGeckoKeyDown(e) {
+    if (e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey) {
+      if (e.code === "KeyB" && parasiteOpen) {
+        e.preventDefault();
+        saveState({ bossMode: !state.bossMode });
+        return;
       }
+      if (e.code === "KeyM" && parasiteOpen) {
+        e.preventDefault();
+        parasiteClickThrough = !parasiteClickThrough;
+        showToast(
+          parasiteClickThrough
+            ? "已开启鼠标穿透 · 再按 Control+Shift+M 恢复播放器控制"
+            : "已恢复鼠标控制"
+        );
+        applyStateToParasite();
+        return;
+      }
+    }
 
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && state.typingLurk) {
-        if (!isTyping) {
-          isTyping = true;
-          applyStateToParasite();
-        }
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => {
-          isTyping = false;
-          applyStateToParasite();
-        }, 1400);
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && state.typingLurk) {
+      if (!isTyping) {
+        isTyping = true;
+        applyStateToParasite();
       }
-    },
-    true
-  );
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
+        isTyping = false;
+        applyStateToParasite();
+      }, 1400);
+    }
+  }
+  window.addEventListener("keydown", onGeckoKeyDown, true);
 
   // ---------------------------------------------------------------------------
   // Video Discovery & Full Player Telemetry
@@ -376,6 +373,11 @@
       e.stopPropagation();
       bar.classList.remove("visible");
 
+      if (!chrome?.runtime?.id) {
+        showToast("扩展刚更新重载，请刷新一下当前网页即可恢复");
+        return;
+      }
+
       if (directStreamActive) {
         chrome.runtime.sendMessage({ type: "GECKO_STOP_TAB_STREAM" }).catch(() => {});
         stopDirectVideoStream(false, true);
@@ -426,42 +428,40 @@
     hoverHost?.shadowRoot?.getElementById("hoverBar")?.classList.remove("visible");
   }
 
-  window.addEventListener(
-    "mousemove",
-    (e) => {
-      if (parasiteOpen) return;
-      let matched = null;
-      for (const v of collectAllVideos()) {
-        if (v.ownerDocument !== document) continue;
-        const r = v.getBoundingClientRect();
-        if (
-          r.width >= 200 &&
-          r.height >= 120 &&
-          e.clientX >= r.left &&
-          e.clientX <= r.right &&
-          e.clientY >= r.top &&
-          e.clientY <= r.bottom
-        ) {
-          matched = { video: v, rect: r };
-          break;
-        }
+  function onHoverMouseMove(e) {
+    if (parasiteOpen) return;
+    let matched = null;
+    for (const v of collectAllVideos()) {
+      if (v.ownerDocument !== document) continue;
+      const r = v.getBoundingClientRect();
+      if (
+        r.width >= 200 &&
+        r.height >= 120 &&
+        e.clientX >= r.left &&
+        e.clientX <= r.right &&
+        e.clientY >= r.top &&
+        e.clientY <= r.bottom
+      ) {
+        matched = { video: v, rect: r };
+        break;
       }
-      if (!matched) {
-        if (hoverHost && e.composedPath?.().includes(hoverHost)) return;
-        hideHoverBadge();
-        return;
-      }
-      ensureHoverBadge();
-      hoverCandidateVideo = matched.video;
-      const bar = hoverHost.shadowRoot.getElementById("hoverBar");
-      bar.style.top = `${Math.max(10, matched.rect.top + 12)}px`;
-      bar.style.left = `${Math.max(10, matched.rect.right - 210)}px`;
-      bar.classList.add("visible");
-      clearTimeout(hideHoverTimer);
-      hideHoverTimer = setTimeout(hideHoverBadge, 2400);
-    },
-    { passive: true }
-  );
+    }
+    if (!matched) {
+      if (hoverHost && e.composedPath?.().includes(hoverHost)) return;
+      hideHoverBadge();
+      return;
+    }
+    ensureHoverBadge();
+    refreshHoverButtonLabel();
+    hoverCandidateVideo = matched.video;
+    const bar = hoverHost.shadowRoot.getElementById("hoverBar");
+    bar.style.top = `${Math.max(10, matched.rect.top + 12)}px`;
+    bar.style.left = `${Math.max(10, matched.rect.right - 210)}px`;
+    bar.classList.add("visible");
+    clearTimeout(hideHoverTimer);
+    hideHoverTimer = setTimeout(hideHoverBadge, 2400);
+  }
+  window.addEventListener("mousemove", onHoverMouseMove, { passive: true });
 
   // ---------------------------------------------------------------------------
   // Apple/Arc-Grade Glass Borderless PiP Player (In-Page & Cross-Tab)
@@ -528,6 +528,11 @@
           cursor: grab;
         }
         .p-media {
+          display: block !important;
+          visibility: visible !important;
+          position: relative !important;
+          inset: 0 !important;
+          transform: none !important;
           width: 100% !important;
           height: 100% !important;
           object-fit: cover !important;
@@ -1060,7 +1065,7 @@
         .mb { appearance: none; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #cbd5e1; border-radius: 5px; padding: 4px 2px; font-size: 10.5px; cursor: pointer; }
         .mb:hover { border-color: #34d399; color: #fff; }
       </style>
-      <button class="top-pill" id="tbTrigger">🦎 壁虎控制栏 ▾</button>
+      <button class="top-pill" id="tbTrigger">变色龙控制栏 ▾</button>
       <div class="pop" id="tbPop">
         <div class="row2">
           <button class="t-btn" id="tbBoss">老板键隐藏</button>
@@ -1813,6 +1818,8 @@
     stopDirectVideoStream(false, false);
     closeParasiteOverlay();
     window.removeEventListener("message", onBridgeWindowMessage);
+    window.removeEventListener("keydown", onGeckoKeyDown, true);
+    window.removeEventListener("mousemove", onHoverMouseMove, { passive: true });
   };
 
   if (chrome?.runtime?.onMessage) {
@@ -1832,7 +1839,19 @@
         return false;
       }
       if (msg.type === "GECKO_START_DIRECT_STREAM") {
-        sendResponse(startDirectVideoStream(null, { directOnly: false }));
+        const asDirectOnly = Boolean(msg.directOnly);
+        if (asDirectOnly && parasiteOpen) {
+          closeParasiteOverlay();
+        }
+        const res = startDirectVideoStream(null, { directOnly: asDirectOnly });
+        if (res?.ok && asDirectOnly) {
+          setTimeout(() => {
+            if (directStreamActive && !directBridgeReady) {
+              wakeMacGhostViaScheme();
+            }
+          }, 350);
+        }
+        sendResponse(res);
         return false;
       }
       if (msg.type === "GECKO_STOP_DIRECT_STREAM") {

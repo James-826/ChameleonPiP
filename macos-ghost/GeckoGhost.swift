@@ -402,7 +402,7 @@ final class UrlPresetTarget: NSObject {
 }
 
 final class LocalWebSocketHub {
-    private var listener: NWListener?
+    private var listeners: [NWListener] = []
     private let queue = DispatchQueue(label: "com.geckopip.wshub", qos: .userInteractive)
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var ghostViewIds: Set<ObjectIdentifier> = []
@@ -416,27 +416,34 @@ final class LocalWebSocketHub {
     private var ghostLastSendTime: [ObjectIdentifier: CFAbsoluteTime] = [:]
     var onArenaConnected: (() -> Void)?
 
-    func start(port: UInt16 = 51937) {
-        let params = NWParameters.tcp
-        params.allowLocalEndpointReuse = true
-        if let tcpOpts = params.defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options {
-            tcpOpts.noDelay = true
-        }
-        let wsOptions = NWProtocolWebSocket.Options()
-        wsOptions.autoReplyPing = true
-        wsOptions.maximumMessageSize = 4 * 1024 * 1024
-        params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
+    func start(ports: [UInt16] = [27182, 51937]) {
+        for port in ports {
+            let params = NWParameters.tcp
+            params.allowLocalEndpointReuse = true
+            if let tcpOpts = params.defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options {
+                tcpOpts.noDelay = true
+            }
+            let wsOptions = NWProtocolWebSocket.Options()
+            wsOptions.autoReplyPing = true
+            wsOptions.maximumMessageSize = 4 * 1024 * 1024
+            params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
 
-        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return }
-        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: NWEndpoint.Host("127.0.0.1"), port: nwPort)
+            guard let nwPort = NWEndpoint.Port(rawValue: port) else { continue }
+            params.requiredLocalEndpoint = NWEndpoint.hostPort(host: NWEndpoint.Host("127.0.0.1"), port: nwPort)
 
-        do {
-            let l = try NWListener(using: params)
-            l.newConnectionHandler = { [weak self] conn in self?.handleNewConnection(conn) }
-            l.start(queue: queue)
-            self.listener = l
-        } catch {
-            NSLog("[GeckoGhost] WS listener error: \(error)")
+            do {
+                let l = try NWListener(using: params)
+                l.stateUpdateHandler = { state in
+                    if case .failed(let err) = state {
+                        NSLog("[GeckoGhost] WS listener failed on port \(port): \(err)")
+                    }
+                }
+                l.newConnectionHandler = { [weak self] conn in self?.handleNewConnection(conn) }
+                l.start(queue: queue)
+                self.listeners.append(l)
+            } catch {
+                NSLog("[GeckoGhost] WS listener error on port \(port): \(error)")
+            }
         }
     }
 
@@ -706,6 +713,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var hotKeyRefs: [EventHotKeyRef?] = []
     private var appNapActivity: NSObjectProtocol?
 
+    // Native macOS Menu Bar Status Item (allows standalone launch/control anytime without Chrome!)
+    private var statusItem: NSStatusItem?
+    private var menuShowHideItem: NSMenuItem?
+    private var menuSearchItem: NSMenuItem?
+    private var menuLogSubItem: NSMenuItem?
+    private var menuRadarItem: NSMenuItem?
+    private var menuBossItem: NSMenuItem?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStandardMainMenu()
@@ -719,9 +734,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 self?.broadcastPlaybackStateToArena()
             }
         }
-        wsHub.start(port: 51937)
+        wsHub.start(ports: [27182, 51937])
         setupGhostPanel()
         setupDynamicNotchIsland()
+        setupMenuBarStatusItem()
         registerGlobalHotKeys()
         setupGlobalTypingSensor()
         startAutoSceneLoop()
@@ -733,6 +749,149 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         ) { [weak self] _ in
             self?.layoutDynamicIsland(animated: false)
         }
+    }
+
+    private func makeMenuBarTemplateIcon() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let img = NSImage(size: size)
+        img.lockFocus()
+        NSColor.black.setStroke()
+        NSColor.black.setFill()
+
+        // Outer borderless PiP frame with chameleon inner eye lens
+        let outer = NSBezierPath(roundedRect: NSRect(x: 2.0, y: 3.2, width: 14.0, height: 11.6), xRadius: 3.0, yRadius: 3.0)
+        outer.lineWidth = 1.45
+        outer.stroke()
+
+        let eyeRing = NSBezierPath(ovalIn: NSRect(x: 6.2, y: 6.2, width: 5.6, height: 5.6))
+        eyeRing.lineWidth = 1.25
+        eyeRing.stroke()
+
+        let pupil = NSBezierPath(ovalIn: NSRect(x: 8.1, y: 8.1, width: 1.8, height: 1.8))
+        pupil.fill()
+
+        img.unlockFocus()
+        img.isTemplate = true
+        return img
+    }
+
+    private func setupMenuBarStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let btn = item.button {
+            btn.image = makeMenuBarTemplateIcon()
+            btn.imagePosition = .imageOnly
+            btn.toolTip = "变色龙画中画 ChameleonPiP"
+        }
+
+        let menu = NSMenu()
+        let miShow = NSMenuItem(title: "隐藏变色龙小窗 (⌃⇧G)", action: #selector(toggleGhostPanelFromMenu), keyEquivalent: "")
+        miShow.target = self
+        menu.addItem(miShow)
+
+        let miSearch = NSMenuItem(title: "打开独立搜片浏览器 (⌃⇧S)", action: #selector(openSearchFromMenu), keyEquivalent: "")
+        miSearch.target = self
+        menu.addItem(miSearch)
+
+        let miUrl = NSMenuItem(title: "粘贴网址直连播放...", action: #selector(openUrlPromptFromMenu), keyEquivalent: "")
+        miUrl.target = self
+        menu.addItem(miUrl)
+
+        let miLocal = NSMenuItem(title: "打开本地 MP4 视频...", action: #selector(openLocalFileFromMenu), keyEquivalent: "")
+        miLocal.target = self
+        menu.addItem(miLocal)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let miLog = NSMenuItem(title: "代码日志伪装字幕", action: #selector(toggleStealthSubFromMenu), keyEquivalent: "")
+        miLog.target = self
+        menu.addItem(miLog)
+
+        let miRadar = NSMenuItem(title: "AI 背后防偷窥雷达", action: #selector(toggleRadarFromMenu), keyEquivalent: "")
+        miRadar.target = self
+        menu.addItem(miRadar)
+
+        let miBoss = NSMenuItem(title: "老板键一键秒隐 (⌃⇧B)", action: #selector(toggleBossFromMenu), keyEquivalent: "")
+        miBoss.target = self
+        menu.addItem(miBoss)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let miArena = NSMenuItem(title: "全球排行榜 & 支持者中心", action: #selector(openArenaFromMenu), keyEquivalent: "")
+        miArena.target = self
+        menu.addItem(miArena)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let miQuit = NSMenuItem(title: "退出变色龙画中画", action: #selector(quitAppFromMenu), keyEquivalent: "q")
+        miQuit.target = self
+        menu.addItem(miQuit)
+
+        item.menu = menu
+        self.statusItem = item
+        self.menuShowHideItem = miShow
+        self.menuSearchItem = miSearch
+        self.menuLogSubItem = miLog
+        self.menuRadarItem = miRadar
+        self.menuBossItem = miBoss
+        syncMenuBarItems()
+    }
+
+    private func syncMenuBarItems() {
+        menuShowHideItem?.title = isVisible ? "隐藏变色龙小窗 (⌃⇧G)" : "显示变色龙小窗 (⌃⇧G)"
+        menuSearchItem?.title = (searchWindow?.isVisible ?? false) ? "收起独立搜片浏览器 (⌃⇧S)" : "打开独立搜片浏览器 (⌃⇧S)"
+        menuLogSubItem?.state = stealthSubtitleEnabled ? .on : .off
+        menuRadarItem?.state = radarEnabled ? .on : .off
+        menuRadarItem?.title = radarEnabled ? "AI 背后防偷窥雷达（检测 \(radarLastFaceCount) 人）" : "AI 背后防偷窥雷达"
+        menuBossItem?.state = bossMode ? .on : .off
+    }
+
+    @objc private func toggleGhostPanelFromMenu() {
+        isVisible.toggle()
+        if isVisible {
+            if bossMode { setBoss(false) }
+            panel?.orderFrontRegardless()
+        } else {
+            panel?.orderOut(nil)
+        }
+        broadcastPlaybackStateToArena()
+        syncNativeIslandControls()
+    }
+
+    @objc private func openSearchFromMenu() {
+        if searchWindow?.isVisible == true {
+            searchWindow?.orderOut(nil)
+            syncNativeIslandControls()
+        } else {
+            openSearchBrowserWindow()
+        }
+    }
+
+    @objc private func openUrlPromptFromMenu() {
+        openWebVideoUrlPrompt()
+    }
+
+    @objc private func openLocalFileFromMenu() {
+        openLocalVideoFile()
+    }
+
+    @objc private func toggleStealthSubFromMenu() {
+        setStealthSubtitle(!stealthSubtitleEnabled)
+    }
+
+    @objc private func toggleRadarFromMenu() {
+        toggleAntiPeekRadar()
+    }
+
+    @objc private func toggleBossFromMenu() {
+        setBoss(!bossMode)
+    }
+
+    @objc private func openArenaFromMenu() {
+        openArenaWindow()
+    }
+
+    @objc private func quitAppFromMenu() {
+        NSApp.terminate(nil)
     }
 
     private func hasActiveShieldEntitlement() -> Bool {
@@ -859,10 +1018,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         antiPeekRadar.start()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        isVisible = true
+        if bossMode { setBoss(false) }
+        panel?.orderFrontRegardless()
+        if !hasActiveVideoPlaying && !(searchWindow?.isVisible ?? false) {
+            openSearchBrowserWindow()
+        }
+        syncNativeIslandControls()
+        return true
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         isVisible = true
         if bossMode { setBoss(false) }
         panel?.orderFrontRegardless()
+        if urls.contains(where: { $0.host == "search" || $0.path.contains("search") }) {
+            openSearchBrowserWindow()
+        }
         syncNativeIslandControls()
     }
 
@@ -1370,6 +1543,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     private func syncNativeIslandControls() {
+        syncMenuBarItems()
         guard controlsContainer != nil else { return }
         let dur = playerDuration > 0 ? playerDuration : 180
         let cur = max(0, min(dur, playerCurTime))
@@ -2842,6 +3016,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if isBuiltInWebActive {
                 exitBuiltInWebMode()
             }
+            if !isVisible {
+                isVisible = true
+            }
+            if bossMode {
+                setBoss(false)
+            }
+            panel?.orderFrontRegardless()
+            syncNativeIslandControls()
         case "stateChanged":
             if let st = dict["state"] as? [String: Any] {
                 if let m = st["mode"] as? String { currentMode = m }

@@ -5,7 +5,9 @@
   const Stats = window.ChameleonStats;
   let state = { ...Core.DEFAULT_STATE };
   let membership = Stats ? Stats.loadMembership() : { tier: "free", isPro: false };
+  const GHOST_WS_PORTS = [27182, 51937];
   let activeTabId = null;
+  let videoTabId = null;
   let streamingTabId = null;
   let ghostWsConnected = false;
   let parasiteOpen = false;
@@ -16,6 +18,7 @@
     btnBossToggle: document.getElementById("btnBossToggle"),
     btnMacGhost: document.getElementById("btnMacGhost"),
     btnInPageParasite: document.getElementById("btnInPageParasite"),
+    btnOpenDesktopSearch: document.getElementById("btnOpenDesktopSearch"),
     chkAutoSense: document.getElementById("chkAutoSense"),
     rngStealth: document.getElementById("rngStealth"),
     valStealth: document.getElementById("valStealth"),
@@ -28,7 +31,7 @@
     chkStealthSubtitle: document.getElementById("chkStealthSubtitle"),
   };
 
-  function checkGhostAlive(timeoutMs = 350) {
+  function probeGhostPort(port, timeoutMs) {
     return new Promise((resolve) => {
       let settled = false;
       const done = (ok) => {
@@ -38,7 +41,7 @@
         }
       };
       try {
-        const ws = new WebSocket("ws://127.0.0.1:51937");
+        const ws = new WebSocket(`ws://127.0.0.1:${port}`);
         const timer = setTimeout(() => {
           try { ws.close(); } catch (_) {}
           done(false);
@@ -58,11 +61,27 @@
     });
   }
 
-  function wakeMacGhostApp() {
-    if (!activeTabId) return;
-    chrome.tabs
-      .sendMessage(activeTabId, { type: "GECKO_WAKE_MAC_APP" })
-      .catch(() => {});
+  async function checkGhostAlive(timeoutMs = 350) {
+    for (const p of GHOST_WS_PORTS) {
+      if (await probeGhostPort(p, timeoutMs)) return true;
+    }
+    return false;
+  }
+
+  function wakeMacGhostApp(action = "wakeup") {
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "display:none;width:0;height:0;border:0;";
+      iframe.src = `geckoghost://${action}`;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 1200);
+    } catch (_) {}
+    const tid = videoTabId || activeTabId;
+    if (tid) {
+      chrome.tabs
+        .sendMessage(tid, { type: "GECKO_WAKE_MAC_APP" })
+        .catch(() => {});
+    }
   }
 
   async function ensureContentScriptAndQuery(tabId) {
@@ -131,14 +150,25 @@
   }
 
   function syncMembershipToDesktopApp(mem) {
-    try {
-      const ws = new WebSocket("ws://127.0.0.1:51937");
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
-        ws.send(JSON.stringify({ type: "membershipUpdated", membership: mem }));
-        setTimeout(() => ws.close(), 120);
-      };
-    } catch (_) {}
+    const tryPort = (idx) => {
+      if (idx >= GHOST_WS_PORTS.length) return;
+      try {
+        let opened = false;
+        const ws = new WebSocket(`ws://127.0.0.1:${GHOST_WS_PORTS[idx]}`);
+        ws.onopen = () => {
+          opened = true;
+          ws.send(JSON.stringify({ type: "register", role: "arenaView" }));
+          ws.send(JSON.stringify({ type: "membershipUpdated", membership: mem }));
+          setTimeout(() => ws.close(), 120);
+        };
+        ws.onerror = () => {
+          if (!opened) tryPort(idx + 1);
+        };
+      } catch (_) {
+        tryPort(idx + 1);
+      }
+    };
+    tryPort(0);
   }
 
   async function init() {
@@ -169,8 +199,32 @@
       if (info) {
         hasVideo = Boolean(info.hasVideo);
         parasiteOpen = Boolean(info.parasiteOpen);
+        if (hasVideo) videoTabId = activeTabId;
       }
     }
+
+    if (!videoTabId) {
+      try {
+        const allTabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+        allTabs.sort((a, b) => Number(Boolean(b.audible)) - Number(Boolean(a.audible)));
+        for (const t of allTabs) {
+          if (!t.id || t.id === activeTabId) continue;
+          const info = await ensureContentScriptAndQuery(t.id);
+          if (info?.hasVideo) {
+            videoTabId = t.id;
+            hasVideo = true;
+            if (!parasiteOpen) parasiteOpen = Boolean(info.parasiteOpen);
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!videoTabId && streamingTabId) {
+      videoTabId = streamingTabId;
+      hasVideo = true;
+    }
+
     render();
   }
 
@@ -235,59 +289,108 @@
       render();
       return;
     }
-    if (!activeTabId) return;
+
+    const targetId = videoTabId || activeTabId;
+    let alive = await checkGhostAlive(250);
+    if (!alive) {
+      els.statusText.textContent = "正在唤醒桌面端变色龙客户端…";
+      wakeMacGhostApp(hasVideo && targetId ? "wakeup" : "search");
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        alive = await checkGhostAlive(250);
+        if (alive) break;
+      }
+      ghostWsConnected = alive;
+    }
+
+    if (!hasVideo || !targetId) {
+      if (alive) wakeMacGhostApp("search");
+      els.statusText.textContent = "已打开桌面独立端 · 可直接搜片或打开视频页";
+      return;
+    }
 
     // Close in-page parasite if open so there aren't two windows at once!
     if (parasiteOpen) {
-      await chrome.tabs.sendMessage(activeTabId, { type: "GECKO_CLOSE_PIP" }).catch(() => {});
+      await chrome.tabs.sendMessage(targetId, { type: "GECKO_CLOSE_PIP" }).catch(() => {});
       parasiteOpen = false;
     }
 
     updateState({ displayTarget: "ghost", bossMode: false });
 
-    const alive = await checkGhostAlive(300);
-    if (!alive) {
-      wakeMacGhostApp();
+    const tryDirectFallback = async () => {
+      const directRes = await chrome.runtime.sendMessage({
+        type: "GECKO_START_DIRECT_FROM_POPUP",
+        tabId: targetId,
+      });
+      if (directRes?.ok) {
+        streamingTabId = targetId;
+        setTimeout(async () => {
+          ghostWsConnected = await checkGhostAlive(400);
+          render();
+          if (ghostWsConnected) window.close();
+        }, 450);
+        return true;
+      }
+      els.statusText.textContent = "未获取到视频流：请确认视频正在播放后重试";
+      return false;
+    };
+
+    if (targetId !== activeTabId) {
+      await tryDirectFallback();
+      return;
     }
 
-    chrome.tabCapture.getMediaStreamId({ targetTabId: activeTabId }, async (streamId) => {
+    chrome.tabCapture.getMediaStreamId({ targetTabId: targetId }, async (streamId) => {
       if (chrome.runtime.lastError || !streamId) {
-        els.statusText.textContent =
-          "捕获失败：" + (chrome.runtime.lastError?.message || "请刷新当前视频页重试");
+        await tryDirectFallback();
         return;
       }
       const res = await chrome.runtime.sendMessage({
         type: "GECKO_START_TAB_STREAM",
-        tabId: activeTabId,
+        tabId: targetId,
         streamId,
       });
       if (res?.ok) {
-        streamingTabId = activeTabId;
+        streamingTabId = targetId;
         setTimeout(async () => {
-          ghostWsConnected = await checkGhostAlive(500);
+          ghostWsConnected = await checkGhostAlive(400);
           render();
           if (ghostWsConnected) window.close();
-        }, 650);
+        }, 550);
+      } else {
+        await tryDirectFallback();
       }
     });
   });
 
   // Secondary Action: In-Page Only Floating
   els.btnInPageParasite.addEventListener("click", async () => {
-    if (!activeTabId) return;
+    const targetId = hasVideo && videoTabId ? videoTabId : activeTabId;
+    if (!targetId) return;
     if (streamingTabId && !parasiteOpen) {
       await chrome.runtime.sendMessage({ type: "GECKO_STOP_TAB_STREAM" });
       streamingTabId = null;
     }
+    await ensureContentScriptAndQuery(targetId);
+    if (targetId !== activeTabId) {
+      await chrome.tabs.update(targetId, { active: true }).catch(() => {});
+    }
     updateState({ displayTarget: "parasite", bossMode: false });
-    const res = await chrome.tabs.sendMessage(activeTabId, {
-      type: "GECKO_TOGGLE_PARASITE",
-    });
+    const res = await chrome.tabs
+      .sendMessage(targetId, { type: "GECKO_TOGGLE_PARASITE" })
+      .catch(() => null);
     if (res?.ok) {
       parasiteOpen = Boolean(res.open);
       render();
       if (parasiteOpen) window.close();
+    } else {
+      els.statusText.textContent = "当前页面未检测到可悬浮视频";
     }
+  });
+
+  els.btnOpenDesktopSearch?.addEventListener("click", () => {
+    wakeMacGhostApp("search");
+    setTimeout(() => window.close(), 350);
   });
 
   els.btnBossToggle.addEventListener("click", () => {
@@ -396,7 +499,7 @@
   let popScrubbing = false;
 
   function getTargetVideoTabId() {
-    return streamingTabId || activeTabId;
+    return streamingTabId || videoTabId || activeTabId;
   }
 
   async function sendCmdToTabVideo(cmd) {

@@ -1,7 +1,8 @@
 (function () {
   "use strict";
 
-  const GHOST_WS_URL = "ws://127.0.0.1:51937";
+  const GHOST_WS_URLS = ["ws://127.0.0.1:27182", "ws://127.0.0.1:51937"];
+  let wsUrlIdx = 0;
   const capVideo = document.getElementById("capVideo");
   const cropCanvas = document.getElementById("cropCanvas");
   const supportsOffscreen = typeof OffscreenCanvas !== "undefined";
@@ -49,10 +50,14 @@
     }
 
     try {
-      ws = new WebSocket(GHOST_WS_URL);
+      const targetUrl = GHOST_WS_URLS[wsUrlIdx % GHOST_WS_URLS.length];
+      let opened = false;
+      ws = new WebSocket(targetUrl);
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
+        opened = true;
+        wsUrlIdx = 0;
         wsConnected = true;
         try {
           ws.send(JSON.stringify({ type: "register", role: "offscreenController" }));
@@ -89,23 +94,26 @@
 
       ws.onclose = () => {
         wsConnected = false;
+        ws = null;
+        if (!opened) wsUrlIdx = (wsUrlIdx + 1) % GHOST_WS_URLS.length;
         chrome.runtime.sendMessage({
           type: "GECKO_GHOST_WS_STATUS",
           connected: false,
         }).catch(() => {});
         if (streamingActive) {
           clearTimeout(wsReconnectTimer);
-          wsReconnectTimer = setTimeout(connectGhostWs, 1200);
+          wsReconnectTimer = setTimeout(connectGhostWs, opened ? 900 : 350);
         }
       };
 
       ws.onerror = () => {
-        try { ws.close(); } catch (_) {}
+        try { ws?.close(); } catch (_) {}
       };
     } catch (_) {
+      wsUrlIdx = (wsUrlIdx + 1) % GHOST_WS_URLS.length;
       if (streamingActive) {
         clearTimeout(wsReconnectTimer);
-        wsReconnectTimer = setTimeout(connectGhostWs, 1500);
+        wsReconnectTimer = setTimeout(connectGhostWs, 800);
       }
     }
   }
