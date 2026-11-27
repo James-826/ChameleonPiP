@@ -7,6 +7,18 @@
   let reconnectTimer = null;
   let active = true;
   let reportedDirectActive = false;
+  let workerFramePort = null;
+
+  function sendFrameBufferNow(buf) {
+    if (!active) return;
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectWs();
+    if (buf instanceof ArrayBuffer && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 8 * 1024) {
+      try {
+        ws.send(buf);
+        if (!reportedDirectActive) reportDirectStatus(true);
+      } catch (_) {}
+    }
+  }
 
   function notifyParentWsState(open) {
     try {
@@ -101,6 +113,16 @@
     const msg = ev.data;
     if (!msg || typeof msg !== "object") return;
 
+    if (msg.type === "GECKO_BRIDGE_BIND_PORT" && ev.ports && ev.ports[0]) {
+      if (workerFramePort) {
+        try { workerFramePort.close(); } catch (_) {}
+      }
+      workerFramePort = ev.ports[0];
+      workerFramePort.onmessage = (pev) => sendFrameBufferNow(pev.data);
+      workerFramePort.start?.();
+      return;
+    }
+
     if (msg.type === "GECKO_BRIDGE_START") {
       active = true;
       connectWs();
@@ -108,14 +130,7 @@
     }
 
     if (msg.type === "GECKO_BRIDGE_FRAME") {
-      if (!active) return;
-      if (!ws || ws.readyState === WebSocket.CLOSED) connectWs();
-      if (msg.buf instanceof ArrayBuffer && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 18 * 1024) {
-        try {
-          ws.send(msg.buf);
-          if (!reportedDirectActive) reportDirectStatus(true);
-        } catch (_) {}
-      }
+      sendFrameBufferNow(msg.buf);
       return;
     }
 
@@ -142,6 +157,10 @@
       clearTimeout(reconnectTimer);
       reportDirectStatus(false);
       notifyParentWsState(false);
+      if (workerFramePort) {
+        try { workerFramePort.close(); } catch (_) {}
+        workerFramePort = null;
+      }
       if (ws) {
         if (msg.notifySessionEnd && ws.readyState === WebSocket.OPEN) {
           try { ws.send(JSON.stringify({ type: "streamStopped" })); } catch (_) {}
@@ -153,4 +172,7 @@
   });
 
   connectWs();
+  try {
+    window.parent?.postMessage({ type: "GECKO_BRIDGE_LOADED" }, "*");
+  } catch (_) {}
 })();

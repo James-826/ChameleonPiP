@@ -264,8 +264,8 @@ async function startTabStream(tabId, preIssuedStreamId) {
   if (res?.ok) {
     streamingTabId = tabId;
     startCropPolling();
-    // Kick off direct hardware <video>.captureStream() fast-path concurrently!
-    chrome.tabs.sendMessage(tabId, { type: "GECKO_START_DIRECT_STREAM" }).catch(() => {});
+    // Keep Chrome's unthrottled offscreen tabCapture active even if the user switches tabs!
+    chrome.tabs.sendMessage(tabId, { type: "GECKO_STOP_DIRECT_STREAM", notifySessionEnd: false }).catch(() => {});
   } else {
     setTabStreamKeepAwake(tabId, false);
   }

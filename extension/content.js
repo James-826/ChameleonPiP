@@ -725,9 +725,9 @@
 
         <div class="hud-top" style="z-index:65;padding-top:10px">
           <div class="pill-group">
-            <button class="seg-btn" data-mode="projector">变色</button>
-            <button class="seg-btn" data-mode="emboss">斑纹</button>
-            <button class="seg-btn" data-mode="cinema">应激</button>
+            <button class="seg-btn" data-mode="projector">拟态</button>
+            <button class="seg-btn" data-mode="emboss">浮雕</button>
+            <button class="seg-btn" data-mode="cinema">彩透</button>
           </div>
           <div style="display:flex;gap:4px">
             <button class="icon-btn" data-size="260" style="width:auto;padding:0 6px;font-size:10px" title="小窗">S</button>
@@ -1102,9 +1102,9 @@
           <button class="t-btn" id="tbThrough">鼠标穿透</button>
         </div>
         <div class="seg4">
-          <button class="sb" data-mode="projector">变色</button>
-          <button class="sb" data-mode="emboss">斑纹</button>
-          <button class="sb" data-mode="cinema">应激</button>
+          <button class="sb" data-mode="projector">拟态</button>
+          <button class="sb" data-mode="emboss">浮雕</button>
+          <button class="sb" data-mode="cinema">彩透</button>
         </div>
         <div class="sl">
           <div><span>变色融合浓度</span><strong id="tbValStealth">58%</strong></div>
@@ -1398,9 +1398,12 @@
   let directStreamActive = false;
   let directBridgeFrame = null;
   let directBridgeReady = false;
+  let directBridgeLoaded = false;
+  let pendingBridgePort = null;
   let directBridgeOrigin = "*";
   let directMediaStream = null;
   let directFrameReader = null;
+  let directCaptureWorker = null;
   let directPendingFrame = null;
   let directEncodingBusy = false;
   let directEncodeCanvas = null;
@@ -1419,8 +1422,34 @@
   let directMetaTimer = null;
   let loopbackPcA = null;
   let loopbackPcB = null;
+  let loopbackAudioCtx = null;
+  let loopbackOscNode = null;
+  let loopbackAudioEl = null;
+  let loopbackLockRelease = null;
+
+  function flushPendingBridgePort() {
+    if (!directBridgeLoaded || !pendingBridgePort || !directBridgeFrame?.contentWindow) return;
+    const p = pendingBridgePort;
+    pendingBridgePort = null;
+    try {
+      directBridgeFrame.contentWindow.postMessage({ type: "GECKO_BRIDGE_BIND_PORT" }, directBridgeOrigin, [p]);
+    } catch (_) {
+      try { p.close(); } catch (_2) {}
+    }
+  }
 
   function startLoopbackRtcKeepAlive() {
+    if (!loopbackLockRelease && navigator.locks?.request) {
+      try {
+        navigator.locks
+          .request("chameleon_pip_awake_" + Math.random().toString(36).slice(2), () => {
+            return new Promise((resolve) => {
+              loopbackLockRelease = resolve;
+            });
+          })
+          .catch(() => {});
+      } catch (_) {}
+    }
     if (loopbackPcA || typeof RTCPeerConnection !== "function") return;
     try {
       const pcA = new RTCPeerConnection({ iceServers: [] });
@@ -1428,6 +1457,39 @@
       loopbackPcA = pcA;
       loopbackPcB = pcB;
       pcA.createDataChannel("chameleon-keepalive");
+
+      // Attach a silent WebAudio track over WebRTC so Chromium marks this tab as active real-time audio and never throttles video!
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          const actx = new Ctx();
+          loopbackAudioCtx = actx;
+          const dest = actx.createMediaStreamDestination();
+          const src = typeof actx.createConstantSource === "function" ? actx.createConstantSource() : null;
+          if (src) {
+            src.offset.value = 0.00001;
+            src.connect(dest);
+            src.start();
+            loopbackOscNode = src;
+          }
+          const track = dest.stream.getAudioTracks()[0];
+          if (track) pcA.addTrack(track, dest.stream);
+          if (actx.state === "suspended") actx.resume().catch(() => {});
+        }
+      } catch (_) {}
+
+      pcB.ontrack = (ev) => {
+        try {
+          if (!loopbackAudioEl && ev.streams && ev.streams[0]) {
+            const a = new Audio();
+            a.volume = 0.0001;
+            a.srcObject = ev.streams[0];
+            a.play().catch(() => {});
+            loopbackAudioEl = a;
+          }
+        } catch (_) {}
+      };
+
       pcA.onicecandidate = (e) => {
         if (e.candidate && pcB.signalingState !== "closed") {
           pcB.addIceCandidate(e.candidate).catch(() => {});
@@ -1450,6 +1512,18 @@
   }
 
   function stopLoopbackRtcKeepAlive() {
+    if (loopbackLockRelease) {
+      try { loopbackLockRelease(); } catch (_) {}
+      loopbackLockRelease = null;
+    }
+    try { loopbackOscNode?.stop?.(); } catch (_) {}
+    try { loopbackAudioCtx?.close?.(); } catch (_) {}
+    if (loopbackAudioEl) {
+      try { loopbackAudioEl.pause(); loopbackAudioEl.srcObject = null; } catch (_) {}
+    }
+    loopbackOscNode = null;
+    loopbackAudioCtx = null;
+    loopbackAudioEl = null;
     try { loopbackPcA?.close(); } catch (_) {}
     try { loopbackPcB?.close(); } catch (_) {}
     loopbackPcA = null;
@@ -1490,8 +1564,15 @@
   function onBridgeWindowMessage(ev) {
     if (!directBridgeFrame || ev.source !== directBridgeFrame.contentWindow) return;
     const msg = ev.data;
+    if (msg && msg.type === "GECKO_BRIDGE_LOADED") {
+      directBridgeLoaded = true;
+      flushPendingBridgePort();
+      return;
+    }
     if (msg && msg.type === "GECKO_BRIDGE_WS_STATE") {
+      directBridgeLoaded = true;
       directBridgeReady = Boolean(msg.open);
+      flushPendingBridgePort();
       if (directBridgeReady && directOnlyMode) {
         pushDirectMetaNow();
       }
@@ -1551,9 +1632,12 @@
     frame.src = bridgeUrl;
     frame.setAttribute("aria-hidden", "true");
     frame.style.cssText =
-      "display:none !important;width:0 !important;height:0 !important;border:0 !important;position:fixed !important;top:-99px !important;left:-99px !important;pointer-events:none !important;";
+      "position:fixed !important;right:0 !important;bottom:0 !important;width:2px !important;height:2px !important;opacity:0.002 !important;border:0 !important;pointer-events:none !important;z-index:-2147483647 !important;";
     directBridgeReady = false;
+    directBridgeLoaded = false;
     frame.addEventListener("load", () => {
+      directBridgeLoaded = true;
+      flushPendingBridgePort();
       try {
         frame.contentWindow?.postMessage({ type: "GECKO_BRIDGE_START" }, directBridgeOrigin);
       } catch (_) {}
@@ -1564,6 +1648,15 @@
   }
 
   function cleanupDirectCaptureReaderOnly() {
+    if (directCaptureWorker) {
+      try { directCaptureWorker.postMessage({ type: "stop" }); } catch (_) {}
+      try { directCaptureWorker.terminate(); } catch (_) {}
+      directCaptureWorker = null;
+    }
+    if (pendingBridgePort) {
+      try { pendingBridgePort.close(); } catch (_) {}
+      pendingBridgePort = null;
+    }
     if (directPendingFrame) {
       releaseDirectFrameSafe(directPendingFrame);
       directPendingFrame = null;
@@ -1595,8 +1688,8 @@
       }
       directLastFrameTs = performance.now();
       const aspect = vw / Math.max(1, vh);
-      const targetW = aspect < 0.85 ? 272 : 464;
-      const targetH = Math.max(136, Math.round(targetW / aspect));
+      const targetW = aspect < 0.85 ? 268 : 420;
+      const targetH = Math.max(135, Math.round(targetW / aspect));
 
       const ctx = ensureDirectEncodeSurface(targetW, targetH);
       if (!ctx) {
@@ -1609,7 +1702,7 @@
       releaseDirectFrameSafe(frame);
 
       const mySeq = ++directFrameSeq;
-      const blob = await encodeDirectSurfaceToBlob(0.72);
+      const blob = await encodeDirectSurfaceToBlob(0.68);
       if (!blob || !directStreamActive || mySeq < directLastSentSeq) return;
       directLastSentSeq = mySeq;
 
@@ -1694,12 +1787,111 @@
 
     directVideoEl = v;
     directMediaStream = stream;
-    const localReader = processor.readable.getReader();
-    directFrameReader = localReader;
     directFramesSent = 0;
     directBindStartedAt = performance.now();
     directLastFrameAt = directBindStartedAt;
     directLastObsTime = v.currentTime || 0;
+
+    // Fast unthrottled Dedicated Web Worker pipeline (runs completely off the tab main thread!)
+    if (typeof Worker === "function" && typeof OffscreenCanvas === "function" && typeof MessageChannel === "function") {
+      try {
+        const workerCode = `
+          let running = true, busy = false, pending = null, reader = null, canvas = null, ctx = null, port = null, seq = 0, sent = 0, lastTs = 0;
+          function rel(f) { if (f && typeof f.close === 'function') { try { f.close(); } catch (_) {} } }
+          async function pumpOne(f) {
+            busy = true;
+            try {
+              const vw = f.displayWidth || f.codedWidth || 0;
+              const vh = f.displayHeight || f.codedHeight || 0;
+              if (!vw || !vh) { rel(f); return; }
+              lastTs = performance.now();
+              const asp = vw / Math.max(1, vh);
+              const tw = asp < 0.85 ? 268 : 420;
+              const th = Math.max(135, Math.round(tw / asp));
+              if (!canvas) {
+                canvas = new OffscreenCanvas(tw, th);
+                ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+              } else if (canvas.width !== tw || canvas.height !== th) {
+                canvas.width = tw; canvas.height = th;
+              }
+              ctx.drawImage(f, 0, 0, tw, th);
+              rel(f);
+              const mySeq = ++seq;
+              const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.68 });
+              if (!running || !blob || !port) return;
+              const buf = await blob.arrayBuffer();
+              if (running && mySeq === seq && port) {
+                port.postMessage(buf, [buf]);
+                sent += 1;
+                if (sent <= 3 || sent % 10 === 0) self.postMessage({ type: 'tick', sent });
+              }
+            } catch (_) {
+              rel(f);
+            } finally {
+              busy = false;
+              if (running && pending) {
+                const nxt = pending; pending = null; pumpOne(nxt);
+              }
+            }
+          }
+          self.onmessage = async (e) => {
+            const d = e.data || {};
+            if (d.type === 'stop') {
+              running = false; rel(pending); pending = null;
+              try { reader?.cancel?.().catch(() => {}); } catch (_) {}
+              try { port?.close?.(); } catch (_) {}
+              return;
+            }
+            if (d.type === 'init' && d.readable && d.port) {
+              port = d.port;
+              reader = d.readable.getReader();
+              try {
+                while (running) {
+                  const { value: vf, done } = await reader.read();
+                  if (done || !vf) { rel(vf); break; }
+                  const now = performance.now();
+                  if (!busy && now - lastTs < 8) { rel(vf); continue; }
+                  if (busy) { rel(pending); pending = vf; continue; }
+                  pumpOne(vf);
+                }
+              } catch (_) {}
+            }
+          };
+        `;
+        const wBlob = new Blob([workerCode], { type: "application/javascript" });
+        const wUrl = URL.createObjectURL(wBlob);
+        const worker = new Worker(wUrl);
+        URL.revokeObjectURL(wUrl);
+        const ch = new MessageChannel();
+        directCaptureWorker = worker;
+        pendingBridgePort = ch.port2;
+        flushPendingBridgePort();
+        worker.onmessage = (ev) => {
+          if (ev.data?.type === "tick" && directStreamActive) {
+            directFramesSent += 1;
+            directLastFrameAt = performance.now();
+          }
+        };
+        worker.postMessage(
+          { type: "init", readable: processor.readable, port: ch.port1 },
+          [processor.readable, ch.port1]
+        );
+        return true;
+      } catch (_) {
+        // CSP blocked blob Worker -> fall through cleanly to main-thread reader!
+        if (directCaptureWorker) {
+          try { directCaptureWorker.terminate(); } catch (_2) {}
+          directCaptureWorker = null;
+        }
+        if (pendingBridgePort) {
+          try { pendingBridgePort.close(); } catch (_2) {}
+          pendingBridgePort = null;
+        }
+      }
+    }
+
+    const localReader = processor.readable.getReader();
+    directFrameReader = localReader;
 
     (async () => {
       try {

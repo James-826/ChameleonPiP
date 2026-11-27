@@ -237,16 +237,16 @@
   ];
 
   const FALLBACK_RIVALS = [
-    { userId: "seed-sh-1", nickname: "Lin_Chameleon", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "变色 55%", bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, live: true },
-    { userId: "seed-sz-1", nickname: "Nanshan_Coder", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "斑纹 62%", bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, live: true },
-    { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "变色 48%", bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, live: true },
-    { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "应激 42%", bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, live: true },
-    { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "变色 60%", bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, live: true },
-    { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "斑纹 58%", bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, live: true },
-    { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "变色 38%", bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, live: false },
-    { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "斑纹 50%", bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, live: true },
-    { userId: "seed-sh-2", nickname: "Caohejing_Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "变色 58%", bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, live: true },
-    { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "斑纹 45%", bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, live: true },
+    { userId: "seed-sh-1", nickname: "Lin_Chameleon", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "拟态 55%", bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, live: true },
+    { userId: "seed-sz-1", nickname: "Nanshan_Coder", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "浮雕 62%", bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, live: true },
+    { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "拟态 48%", bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, live: true },
+    { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "彩透 42%", bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, live: true },
+    { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "拟态 60%", bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, live: true },
+    { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "浮雕 58%", bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, live: true },
+    { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "拟态 38%", bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, live: false },
+    { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "浮雕 50%", bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, live: true },
+    { userId: "seed-sh-2", nickname: "Caohejing_Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "拟态 58%", bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, live: true },
+    { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "浮雕 45%", bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, live: true },
   ];
 
   function todayKey() {
@@ -351,7 +351,7 @@
   const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
 
   const PRO_FEATURE_CATALOG = [
-    { key: "chameleon_modes", name: "全部 3 种活体变色模式（环境变色 / 迷彩斑纹 / 应激隐身）", free: "永久免费", pro: "永久免费" },
+    { key: "chameleon_modes", name: "全部 3 种经典变色模式（变色融合 / 浮雕隐身 / 彩透变色）", free: "永久免费", pro: "永久免费" },
     { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
     { key: "screen_stealth", name: "腾讯会议 / 飞书 / Zoom / 录屏系统级共享隐身", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
     { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
@@ -607,7 +607,7 @@
         country: r.country,
         regionCode: r.regionCode || "CN",
         industry: r.industry || "互联网",
-        mode: r.mode || "变色 58%",
+        mode: r.mode || "拟态 58%",
         streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
         today: r.todaySeconds || 0,
         pkElo: r.pkElo || 1200,
@@ -635,7 +635,7 @@
       country: profile.country,
       regionCode: profile.regionCode || "CN",
       industry: profile.industry || "互联网",
-      mode: "变色 58%",
+      mode: "拟态 58%",
       bestStreakSeconds: meBest,
       todaySeconds: profile.todaySeconds || 0,
       totalSeconds: profile.totalSeconds || 0,

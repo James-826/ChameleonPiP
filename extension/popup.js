@@ -461,7 +461,7 @@
     updateState({ autoSense: els.chkAutoSense.checked });
   });
 
-  // All 3 Chameleon visual modes (环境变色 / 迷彩斑纹 / 应激隐身) are 100% FREE forever!
+  // All 3 Chameleon visual modes (变色融合 / 浮雕隐身 / 彩透变色) are 100% FREE forever!
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       updateState({ mode: tab.dataset.mode });

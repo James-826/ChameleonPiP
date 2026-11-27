@@ -263,10 +263,10 @@
       const sh = Math.max(16, Math.min(vh - sy, Math.round(cropBox.nh * vh)));
 
       const aspect = sw / Math.max(1, sh);
-      const warmingUp = now - streamStartedAt < 1800;
-      const targetW = aspect < 0.85 ? 268 : warmingUp ? 384 : 448;
+      const warmingUp = now - streamStartedAt < 1200;
+      const targetW = aspect < 0.85 ? 268 : warmingUp ? 360 : 420;
       const targetH = Math.max(135, Math.round(targetW / aspect));
-      const quality = warmingUp ? 0.64 : 0.72;
+      const quality = warmingUp ? 0.62 : 0.68;
 
       if (encodeCanvas.width !== targetW || encodeCanvas.height !== targetH) {
         encodeCanvas.width = targetW;
@@ -282,7 +282,7 @@
       if (!blob || !streamingActive || mySeq < lastSentSeq) return;
       lastSentSeq = mySeq;
 
-      if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 18 * 1024) {
+      if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 8 * 1024) {
         try {
           const buf = await blob.arrayBuffer();
           if (!directBypassActive && mySeq >= lastSentSeq && ws && ws.readyState === WebSocket.OPEN) {
@@ -350,7 +350,7 @@
           closeFrameSafe(videoFrame);
           continue;
         }
-        if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 18 * 1024) {
+        if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 8 * 1024) {
           closeFrameSafe(videoFrame);
           continue;
         }
@@ -382,7 +382,7 @@
     if (!wsConnected && !hasCrossTabViewers) return;
     if (currentState?.bossMode) return;
     if (directBypassActive && !hasCrossTabViewers) return;
-    if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 18 * 1024) return;
+    if (!directBypassActive && ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 8 * 1024) return;
 
     const now = performance.now();
     if (!force && now - lastCaptureTs < 9.5) return;

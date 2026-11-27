@@ -393,9 +393,9 @@
             </div>
             <div class="sandbox-ctrl">
               <div class="seg" id="sandboxModes">
-                <button type="button" class="active" data-mode="projector" data-zh="环境变色" data-en="Color-Shift">环境变色</button>
-                <button type="button" data-mode="emboss" data-zh="迷彩斑纹" data-en="Camo-Scale">迷彩斑纹</button>
-                <button type="button" data-mode="cinema" data-zh="应激隐身" data-en="Bio-Reflex">应激隐身</button>
+                <button type="button" class="active" data-mode="projector" data-zh="变色融合" data-en="Chameleon">变色融合</button>
+                <button type="button" data-mode="emboss" data-zh="浮雕隐身" data-en="Emboss">浮雕隐身</button>
+                <button type="button" data-mode="cinema" data-zh="彩透变色" data-en="Cinema">彩透变色</button>
               </div>
               <button type="button" class="btn btn-sm" id="btnDemoLogSub" style="padding:4px 10px;font-size:11.5px" data-zh="日志字幕预览" data-en="Log Subtitles">日志字幕预览</button>
               <label class="slider-pill">
@@ -511,9 +511,9 @@
             <div class="feat-ico">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             </div>
-            <h3><span data-zh="活体变色龙三态（3 模式全免费）" data-en="Living Chameleon Trio (All Free)">活体变色龙三态（3 模式全免费）</span></h3>
-            <p data-zh="环境变色（随代码/表格/红绿底色渐变色素）、迷彩斑纹（3px 微米鳞纹隐身）、应激隐身（打字敲键盘 0.25 秒自动褪色潜伏，停手恢复）永久免费，搭配鼠标穿透 ⌃⇧M 流畅办公。" data-en="Color-Shift (habitat pigment morph), Camo-Scale (3px staggered micro-pattern), and Bio-Reflex (0.25s instant fade while typing)—100% free forever with click-through ⌃⇧M.">
-              环境变色（随代码/表格/红绿底色渐变色素）、迷彩斑纹（3px 微米鳞纹隐身）、应激隐身（打字敲键盘 0.25 秒自动褪色潜伏，停手恢复）永久免费，搭配鼠标穿透 ⌃⇧M 流畅办公。
+            <h3><span data-zh="60fps 变色龙拟态（3 模式全免费）" data-en="60fps Camouflage (All 3 Modes Free)">60fps 变色龙拟态（3 模式全免费）</span></h3>
+            <p data-zh="变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出无偏色，搭配全向等宽边框柔和与鼠标穿透 ⌃⇧M 流畅写代码。" data-en="All 3 crisp shaders (Chameleon, Emboss, Cinema) are 100% free forever. Underlying code, Excel grids, and vivid colors shine straight through with equal all-around feathering and click-through ⌃⇧M.">
+              变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出无偏色，搭配全向等宽边框柔和与鼠标穿透 ⌃⇧M 流畅写代码。
             </p>
           </div>
 
@@ -846,31 +846,18 @@
         }
 
         // -----------------------------------------------------------------
-        // Live 60fps WebGL Living-Chameleon Biological Skin Hero Playground
+        // Live 60fps WebGL Chameleon-Adaptation Hero Playground
         // -----------------------------------------------------------------
         let demoMode = "projector";
         let demoIntensity = 58;
-        let heroTyping = false;
-        let heroTypeTimer = null;
-        window.addEventListener("keydown", (e) => {
-          if (e.ctrlKey || e.metaKey || e.altKey) return;
-          heroTyping = true;
-          clearTimeout(heroTypeTimer);
-          heroTypeTimer = setTimeout(() => { heroTyping = false; }, 1400);
-        }, true);
 
         const glCanvas = document.getElementById("heroGlCanvas");
         const srcCanvas = document.getElementById("srcDemoCanvas");
         const sctx = srcCanvas.getContext("2d", { alpha: false });
         const gl = glCanvas.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false });
 
-        let prog = null, tex = null, uMode, uInt, uPivot, uBgRgb, uAccentRgb, uStress, uResolution, uTexel;
-        const heroAnim = {
-          bg: [0.09, 0.11, 0.14],
-          accent: [0.22, 0.74, 0.97],
-          pivot: 0.48,
-          stress: 0.0,
-        };
+        let prog = null, tex = null, uMode, uInt, uPivot, uResolution, uTexel;
+        let heroPivot = 0.48;
         if (gl) {
           const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv=vec2(p.x*0.5+0.5, 0.5-p.y*0.5); gl_Position=vec4(p,0.0,1.0); }`;
           const fs = `
@@ -880,61 +867,55 @@
             uniform int uMode;
             uniform float uInt;
             uniform float uPivot;
-            uniform vec3 uBgRgb;
-            uniform vec3 uAccentRgb;
-            uniform float uStress;
             uniform vec2 uResolution;
             uniform vec2 uTexel;
             void main() {
-              float fx = smoothstep(0.01, 0.14, uv.x) * smoothstep(0.01, 0.14, 1.0 - uv.x);
-              float fy = smoothstep(0.01, 0.14, uv.y) * smoothstep(0.01, 0.12, 1.0 - uv.y);
-              float mask = fx * fy;
+              vec2 winSize = max(uResolution, vec2(64.0, 64.0));
+              vec2 halfSize = winSize * 0.5;
+              vec2 pos = uv * winSize;
+              float radius = min(14.0, min(halfSize.x, halfSize.y) * 0.45);
+              float edgePx = clamp(min(halfSize.x, halfSize.y) * 0.28, 10.0, 42.0);
+              vec2 d = abs(pos - halfSize) - (halfSize - vec2(radius));
+              float sdf = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - radius;
+              float mask = smoothstep(0.0, edgePx, -sdf);
               vec4 c = texture2D(uTex, uv);
               float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-              vec3 hiPig = mix(vec3(1.0), clamp(uAccentRgb * 1.25 + vec3(0.12), 0.0, 1.0), 0.74);
-              vec3 loPig = mix(vec3(0.0), clamp(uAccentRgb * 0.38 + uBgRgb * 0.18, 0.0, 1.0), 0.68);
               if (uMode == 0) {
-                float k = clamp(uInt * 0.94 * mix(1.0, 0.84, uStress), 0.08, 0.94);
-                float cl = clamp((lum - uPivot) * 1.18 + uPivot, 0.0, 1.0);
+                float k = clamp(uInt * 0.96, 0.08, 0.96);
+                float cl = clamp((lum - uPivot) * 1.24 + uPivot, 0.0, 1.0);
                 if (cl < uPivot) {
-                  float a = clamp(k * ((uPivot - cl) / max(0.05, uPivot)), 0.0, 0.94) * mask;
-                  gl_FragColor = vec4(loPig * a, a);
+                  float a = clamp(k * ((uPivot - cl) / max(0.05, uPivot)), 0.0, 0.96) * mask;
+                  gl_FragColor = vec4(0.0, 0.0, 0.0, a);
                 } else {
-                  float a = clamp(k * ((cl - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.94) * mask;
-                  gl_FragColor = vec4(hiPig * a, a);
+                  float a = clamp(k * ((cl - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.96) * mask;
+                  gl_FragColor = vec4(a, a, a, a);
                 }
                 return;
               }
               if (uMode == 1) {
-                vec2 px = uv * max(uResolution, vec2(256.0, 144.0));
-                float rIdx = floor(px.y / 3.0);
-                float rWave = 0.76 + 0.24 * sin(px.y * 2.0944);
-                float stag = mod(rIdx, 2.0) * 2.5;
-                float cDot = 0.78 + 0.22 * sin((px.x + stag) * 1.2566);
-                float grid = mix(1.0, rWave * cDot, 0.76);
-                float lR = dot(texture2D(uTex, uv + vec2(uTexel.x, 0.0)).rgb, vec3(0.2126, 0.7152, 0.0722));
-                float lD = dot(texture2D(uTex, uv + vec2(0.0, uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
-                float eBoost = clamp((abs(lum - lR) + abs(lum - lD)) * 2.4, 0.0, 0.45);
-                float cl = clamp((lum - uPivot) * (1.28 + eBoost) + uPivot, 0.0, 1.0);
-                float k = clamp(uInt * 0.95 * mix(1.0, 0.85, uStress), 0.08, 0.95);
-                if (cl < uPivot) {
-                  float a = clamp(k * ((uPivot - cl) / max(0.05, uPivot)), 0.0, 0.94) * mask * grid;
-                  gl_FragColor = vec4(loPig * a, a);
-                } else {
-                  float a = clamp(k * ((cl - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.94) * mask * grid;
-                  gl_FragColor = vec4(hiPig * a, a);
-                }
+                float tl = dot(texture2D(uTex, uv + vec2(-uTexel.x, -uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float t  = dot(texture2D(uTex, uv + vec2(0.0,      -uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float tr = dot(texture2D(uTex, uv + vec2( uTexel.x, -uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float l  = dot(texture2D(uTex, uv + vec2(-uTexel.x,  0.0     )).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float r  = dot(texture2D(uTex, uv + vec2( uTexel.x,  0.0     )).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float bl = dot(texture2D(uTex, uv + vec2(-uTexel.x,  uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float b  = dot(texture2D(uTex, uv + vec2(0.0,       uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float br = dot(texture2D(uTex, uv + vec2( uTexel.x,  uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float gx = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+                float gy = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
+                float dir = (gx * 0.7 + gy * 0.7) * 1.45;
+                float edge = clamp(sqrt(gx * gx + gy * gy) * 1.85, 0.0, 1.0);
+                float k = clamp(uInt * 0.98, 0.08, 0.98);
+                float a = clamp(edge * k * 1.15, 0.0, 0.96) * mask;
+                float v = clamp(0.5 + dir * 0.95 - (uPivot - 0.5) * 0.25, 0.0, 1.0);
+                gl_FragColor = vec4(vec3(v) * a, a);
                 return;
               }
               float ch = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
-              float basePull = clamp((1.0 - uInt) * 0.40 + 0.08, 0.08, 0.46);
-              float envPull = mix(basePull, 0.78, uStress);
-              vec3 tgtCol = mix(uBgRgb, uAccentRgb, clamp(0.25 + 0.50 * lum, 0.25, 0.75));
-              vec3 harm = mix(clamp(c.rgb * 1.08, 0.0, 1.0), tgtCol, envPull);
-              float sal = clamp(abs(lum - uPivot) * 1.50 + ch * 0.90 + 0.28, 0.26, 1.0);
-              float calmA = clamp(uInt * 0.90 * mix(sal, 1.0, uInt * 0.55), 0.06, 0.92);
-              float a = calmA * (1.0 - uStress * 0.58) * mask;
-              gl_FragColor = vec4(harm * a, a);
+              float sal = clamp(abs(lum - uPivot) * 1.45 + ch * 0.85 + 0.24, 0.22, 1.0);
+              float a = clamp(uInt * 0.94 * mix(sal, 1.0, uInt * 0.58), 0.06, 0.95) * mask;
+              vec3 crisp = clamp(c.rgb * 1.06, 0.0, 1.0);
+              gl_FragColor = vec4(crisp * a, a);
             }
           `;
           const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
@@ -958,24 +939,18 @@
           uMode = gl.getUniformLocation(prog, "uMode");
           uInt = gl.getUniformLocation(prog, "uInt");
           uPivot = gl.getUniformLocation(prog, "uPivot");
-          uBgRgb = gl.getUniformLocation(prog, "uBgRgb");
-          uAccentRgb = gl.getUniformLocation(prog, "uAccentRgb");
-          uStress = gl.getUniformLocation(prog, "uStress");
           uResolution = gl.getUniformLocation(prog, "uResolution");
           uTexel = gl.getUniformLocation(prog, "uTexel");
         }
 
         const pip = document.getElementById("demoPip");
         const stage = document.getElementById("sandboxStage");
-        function getSandboxHabitatTarget() {
+        function getSandboxPivot() {
           const sw = Math.max(1, stage.clientWidth || 980);
-          const sh = Math.max(1, stage.clientHeight || 390);
           const rx = (pip.offsetLeft + pip.offsetWidth * 0.5) / sw;
-          const ry = (pip.offsetTop + pip.offsetHeight * 0.5) / sh;
-          if (rx < 0.386) return { bg: [0.05, 0.07, 0.09], accent: [0.22, 0.74, 0.97], pivot: 0.28 };
-          if (rx < 0.737) return { bg: [0.97, 0.98, 0.99], accent: [0.09, 0.64, 0.29], pivot: 0.72 };
-          if (ry < 0.5) return { bg: [0.86, 0.15, 0.15], accent: [0.97, 0.44, 0.44], pivot: 0.48 };
-          return { bg: [0.09, 0.64, 0.29], accent: [0.29, 0.87, 0.50], pivot: 0.48 };
+          if (rx < 0.386) return 0.28;
+          if (rx < 0.737) return 0.72;
+          return 0.48;
         }
 
         let t = 0;
@@ -1010,18 +985,12 @@
           sctx.textAlign = "center";
           sctx.lineWidth = 3.5;
           sctx.strokeStyle = "#000";
-          const txt = "ChameleonPiP 60fps · 拖动我到红绿区试试！";
+          const txt = "ChameleonPiP 60fps · 拖动我试试三模式！";
           sctx.strokeText(txt, w / 2, h - 18);
           sctx.fillStyle = "#fff";
           sctx.fillText(txt, w / 2, h - 18);
 
-          const tgt = getSandboxHabitatTarget();
-          for (let i = 0; i < 3; i++) {
-            heroAnim.bg[i] += (tgt.bg[i] - heroAnim.bg[i]) * 0.14;
-            heroAnim.accent[i] += (tgt.accent[i] - heroAnim.accent[i]) * 0.14;
-          }
-          heroAnim.pivot += (tgt.pivot - heroAnim.pivot) * 0.14;
-          heroAnim.stress += ((heroTyping ? 1.0 : 0.0) - heroAnim.stress) * 0.18;
+          heroPivot += (getSandboxPivot() - heroPivot) * 0.14;
 
           if (gl && prog) {
             gl.viewport(0, 0, glCanvas.width, glCanvas.height);
@@ -1031,10 +1000,7 @@
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
             gl.uniform1i(uMode, demoMode === "emboss" ? 1 : demoMode === "cinema" ? 2 : 0);
             gl.uniform1f(uInt, demoIntensity / 100);
-            gl.uniform1f(uPivot, heroAnim.pivot);
-            gl.uniform3f(uBgRgb, heroAnim.bg[0], heroAnim.bg[1], heroAnim.bg[2]);
-            gl.uniform3f(uAccentRgb, heroAnim.accent[0], heroAnim.accent[1], heroAnim.accent[2]);
-            gl.uniform1f(uStress, heroAnim.stress);
+            gl.uniform1f(uPivot, heroPivot);
             gl.uniform2f(uResolution, glCanvas.width, glCanvas.height);
             gl.uniform2f(uTexel, 1 / w, 1 / h);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

@@ -17,7 +17,7 @@
     autoSense: true, // Auto-adjusts light/shadow pivot for extreme white (#fff) or pitch black (#000) surfaces
     displayTarget: "ghost",
     bgColor: "#505050",
-    mode: "projector", // 'projector' (环境变色) | 'emboss' (迷彩斑纹) | 'cinema' (应激隐身)
+    mode: "projector", // 'projector' (变色融合) | 'emboss' (浮雕隐身) | 'cinema' (彩透变色)
     stealth: 58, // 投影浓度 (Projector Intensity: 12% 极淡微影 -> 58% 自然融合 -> 95% 浓郁清晰)
     feather: 28, // 镜头边缘柔化 (0% 清晰圆角 -> 80% 羽化无界)
     detail: 72,
@@ -208,24 +208,6 @@
     const intensity = clamp(Number(state.stealth ?? 58) / 100, 0.08, 0.96);
     const detailStrength = clamp(Number(state.detail ?? 72) / 100, 0, 1.2);
     const mode = state.mode || "projector";
-    const typing = Boolean(options.isTyping);
-
-    const bg = hexToRgb(state.bgColor || "#505050");
-    const br = bg.r / 255;
-    const bgc = bg.g / 255;
-    const bb = bg.b / 255;
-    const accent = hexToRgb(deriveHabitatAccent(state.bgColor, state.archetype, state.accentColor));
-    const ar = accent.r / 255;
-    const ag = accent.g / 255;
-    const ab = accent.b / 255;
-
-    // 72% vivid pigment shift toward detected habitat accent color
-    const hr = 0.28 + 0.72 * clamp(ar * 1.25 + 0.12, 0, 1);
-    const hg = 0.28 + 0.72 * clamp(ag * 1.25 + 0.12, 0, 1);
-    const hb = 0.28 + 0.72 * clamp(ab * 1.25 + 0.12, 0, 1);
-    const dr = clamp(ar * 0.26 + br * 0.12, 0, 0.45);
-    const dg = clamp(ag * 0.26 + bgc * 0.12, 0, 0.45);
-    const db = clamp(ab * 0.26 + bb * 0.12, 0, 0.45);
 
     // Auto-adapt neutral pivot slightly when over pure white (#fff) or pitch black (#000)
     // while keeping symmetric 0.48 on colorful / mixed / red-green / editor surfaces!
@@ -237,13 +219,11 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 1: `projector` (环境变色 — Living Chameleon Habitat Color-Shift)
-    // Underlying colors shine 100% through while highlights & shadows actively shift
-    // into the detected habitat pigment hue (red/green/IDE cyan/Excel emerald)!
+    // Mode 1: `projector` (变色融合 / 拟态 — Pure neutral light & shadow alpha layers)
+    // Underlying red stays red, green stays green, IDE syntax stays sharp — zero color cast!
     // -------------------------------------------------------------------------
     if (mode === "projector") {
-      const stressScale = typing ? 0.85 : 1.0;
-      const k = clamp(intensity * 0.94 * stressScale, 0.06, 0.94);
+      const k = clamp(intensity * 0.94, 0.06, 0.94);
       const contrast = 1 + 0.22 * detailStrength;
       const sDark = (-k * contrast) / pivot;
       const offDark = k * (0.5 + 0.5 * contrast);
@@ -252,14 +232,14 @@
 
       return `
         <feColorMatrix in="SourceGraphic" type="matrix" result="shadow"
-          values="0 0 0 0 ${fmt(dr)}
-                  0 0 0 0 ${fmt(dg)}
-                  0 0 0 0 ${fmt(db)}
+          values="0 0 0 0 0
+                  0 0 0 0 0
+                  0 0 0 0 0
                   ${fmt(0.2126 * sDark)} ${fmt(0.7152 * sDark)} ${fmt(0.0722 * sDark)} 0 ${fmt(offDark)}" />
         <feColorMatrix in="SourceGraphic" type="matrix" result="light"
-          values="0 0 0 0 ${fmt(hr)}
-                  0 0 0 0 ${fmt(hg)}
-                  0 0 0 0 ${fmt(hb)}
+          values="0 0 0 0 1
+                  0 0 0 0 1
+                  0 0 0 0 1
                   ${fmt(0.2126 * sLight)} ${fmt(0.7152 * sLight)} ${fmt(0.0722 * sLight)} 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -269,17 +249,15 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 2: `emboss` (迷彩斑纹 — Habitat-Tinted Micro-Grain & Scale Relief)
-    // Preserves crisp subject readability while breaking up smooth video tones into
-    // habitat-pigmented micro-scale textures that resemble code/data from afar!
+    // Mode 2: `emboss` (浮雕隐身 — Crisp 3D directional relief with zero flat fill)
     // -------------------------------------------------------------------------
     if (mode === "emboss") {
-      const k = clamp(intensity * 0.92, 0.10, 0.94);
-      const contrast = 1.25 + 0.2 * detailStrength;
-      const sDark = (-k * contrast) / pivot;
-      const offDark = k * (0.5 + 0.5 * contrast);
-      const sLight = (k * contrast) / (1 - pivot);
-      const offLight = (-k * (pivot * contrast - 0.5 * (contrast - 1))) / (1 - pivot);
+      const gain = clamp(1.1 + intensity * 2.2, 0.8, 3.4);
+      const k = clamp(intensity * 1.15, 0.12, 0.98);
+      const sDark = -k / 0.485;
+      const offDark = k;
+      const sLight = k / 0.485;
+      const offLight = (-k * 0.515) / 0.485;
 
       return `
         <feColorMatrix in="SourceGraphic" type="matrix" result="lum"
@@ -287,19 +265,19 @@
                   0.2126 0.7152 0.0722 0 0
                   0.2126 0.7152 0.0722 0 0
                   0      0      0      0 1" />
-        <feConvolveMatrix in="lum" order="3" divisor="1" bias="0" preserveAlpha="true" edgeMode="duplicate" result="grain"
-          kernelMatrix="0    -0.45  0
-                        -0.45 2.80 -0.45
-                        0    -0.45  0" />
-        <feColorMatrix in="grain" type="matrix" result="shadow"
-          values="0 0 0 0 ${fmt(dr)}
-                  0 0 0 0 ${fmt(dg)}
-                  0 0 0 0 ${fmt(db)}
+        <feConvolveMatrix in="lum" order="3" divisor="1" bias="0.5" preserveAlpha="true" edgeMode="duplicate" result="relief"
+          kernelMatrix="${fmt(-1.1 * gain)} ${fmt(-0.7 * gain)} 0
+                        ${fmt(-0.7 * gain)} 0                   ${fmt(0.7 * gain)}
+                        0                   ${fmt(0.7 * gain)}  ${fmt(1.1 * gain)}" />
+        <feColorMatrix in="relief" type="matrix" result="shadow"
+          values="0 0 0 0 0
+                  0 0 0 0 0
+                  0 0 0 0 0
                   ${fmt(sDark)} 0 0 0 ${fmt(offDark)}" />
-        <feColorMatrix in="grain" type="matrix" result="light"
-          values="0 0 0 0 ${fmt(hr)}
-                  0 0 0 0 ${fmt(hg)}
-                  0 0 0 0 ${fmt(hb)}
+        <feColorMatrix in="relief" type="matrix" result="light"
+          values="0 0 0 0 1
+                  0 0 0 0 1
+                  0 0 0 0 1
                   ${fmt(sLight)} 0 0 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -309,22 +287,15 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 3: `cinema` (应激隐身 — Bio-Reflex Typing Camouflage)
-    // Calm state keeps rich habitat-harmonized original colors; typing triggers
-    // instant chameleon reflex: pulls chroma 75% into habitat accent & dims alpha by 55%!
+    // Mode 3: `cinema` (彩透变色 — Crisp native colors with controllable opacity)
     // -------------------------------------------------------------------------
-    const envPull = typing ? 0.75 : clamp((1 - intensity) * 0.28 + 0.08, 0.08, 0.34);
-    const tr = typing ? ar * 0.6 + br * 0.4 : br;
-    const tg = typing ? ag * 0.6 + bgc * 0.4 : bgc;
-    const tb = typing ? ab * 0.6 + bb * 0.4 : bb;
-    const diag = (1 - envPull) * 1.08;
-    const alpha = clamp(intensity * (typing ? 0.38 : 0.88), 0.06, 0.92);
+    const alpha = clamp(intensity * 0.90, 0.08, 0.94);
     return `
       <feColorMatrix in="SourceGraphic" type="matrix"
-        values="${fmt(diag)} 0 0 0 ${fmt(envPull * tr)}
-                0 ${fmt(diag)} 0 0 ${fmt(envPull * tg)}
-                0 0 ${fmt(diag)} 0 ${fmt(envPull * tb)}
-                0 0 0 ${fmt(alpha)} 0" />
+        values="1.06 0    0    0 0
+                0    1.06 0    0 0
+                0    0    1.06 0 0
+                0    0    0    ${fmt(alpha)} 0" />
     `;
   }
 
@@ -400,18 +371,12 @@
   }
 
   function buildFeatherMaskCss(feather) {
-    const f = clamp(Number(feather ?? 28), 0, 80);
+    const f = clamp(Number(feather ?? 28), 0, 85);
     if (f <= 1) return { maskImage: "none", maskComposite: "add" };
-    const pad = clamp(Math.round(f * 0.06), 0, 6);
-    const full = clamp(pad + Math.round(4 + f * 0.28), 5, 34);
-    const botFull = clamp(pad + Math.round(3 + f * 0.18), 4, 22);
-
-    const maskH = `linear-gradient(to right, transparent 0%, transparent ${pad}%, #000 ${full}%, #000 ${
-      100 - full
-    }%, transparent ${100 - pad}%, transparent 100%)`;
-    const maskV = `linear-gradient(to bottom, transparent 0%, transparent ${pad}%, #000 ${full}%, #000 ${
-      100 - botFull
-    }%, transparent ${100 - pad}%, transparent 100%)`;
+    const px = Math.max(4, Math.round(f * 0.95));
+    const mid = Math.round(px * 0.45);
+    const maskH = `linear-gradient(to right, transparent 0px, rgba(0,0,0,0.45) ${mid}px, #000 ${px}px, #000 calc(100% - ${px}px), rgba(0,0,0,0.45) calc(100% - ${mid}px), transparent 100%)`;
+    const maskV = `linear-gradient(to bottom, transparent 0px, rgba(0,0,0,0.45) ${mid}px, #000 ${px}px, #000 calc(100% - ${px}px), rgba(0,0,0,0.45) calc(100% - ${mid}px), transparent 100%)`;
     return {
       webkitMaskImage: `${maskH}, ${maskV}`,
       webkitMaskComposite: "source-in",

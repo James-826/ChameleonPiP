@@ -636,7 +636,7 @@ final class LocalWebSocketHub {
 
                 if opcode == .text, let text = String(data: data, encoding: .utf8) {
                     if text == "ack" {
-                        self.ghostCredits[id] = min(2, (self.ghostCredits[id] ?? 0) + 1)
+                        self.ghostCredits[id] = min(1, (self.ghostCredits[id] ?? 0) + 1)
                         if !self.sendingBinary.contains(id),
                            (self.ghostCredits[id] ?? 0) > 0,
                            let next = self.pendingBinary.removeValue(forKey: id),
@@ -646,7 +646,7 @@ final class LocalWebSocketHub {
                         }
                     } else if text.contains("\"role\":\"ghostView\"") {
                         self.ghostViewIds.insert(id)
-                        self.ghostCredits[id] = 2
+                        self.ghostCredits[id] = 1
                         self.ghostLastSendTime[id] = CFAbsoluteTimeGetCurrent()
                     } else if text.contains("\"role\":\"arenaView\"") {
                         self.arenaViewIds.insert(id)
@@ -702,9 +702,9 @@ final class LocalWebSocketHub {
 
     private func enqueueOrSendBinary(_ data: Data, to cid: ObjectIdentifier, conn: NWConnection) {
         let now = CFAbsoluteTimeGetCurrent()
-        // Deadlock recovery guard: restore credit if a client missed ACKs for >450ms
-        if (ghostCredits[cid] ?? 0) <= 0 && now - (ghostLastSendTime[cid] ?? 0) > 0.45 && !sendingBinary.contains(cid) {
-            ghostCredits[cid] = 2
+        // Deadlock recovery guard: restore credit if a client missed ACKs for >180ms
+        if (ghostCredits[cid] ?? 0) <= 0 && now - (ghostLastSendTime[cid] ?? 0) > 0.18 && !sendingBinary.contains(cid) {
+            ghostCredits[cid] = 1
         }
         if (ghostCredits[cid] ?? 0) <= 0 || sendingBinary.contains(cid) {
             // Overwrite stale frame in Swift RAM (zero kernel TCP or WebKit IPC backlog!)
@@ -1648,8 +1648,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         controlsContainer.addSubview(btnRate)
         controlsContainer.addSubview(btnMute)
 
-        // Row 3 (y = 104): All 3 Living-Chameleon Camouflage Modes (100% FREE!)
-        segMode = NSSegmentedControl(labels: ["环境变色", "迷彩斑纹", "应激隐身"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
+        // Row 3 (y = 104): All 3 Crisp Chameleon Camouflage Modes (100% FREE!)
+        segMode = NSSegmentedControl(labels: ["变色融合", "浮雕隐身", "彩透变色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
         segMode.frame = NSRect(x: 14, y: 104, width: 288, height: 24)
         segMode.selectedSegment = 0
         segMode.segmentDistribution = .fillEqually
@@ -2233,7 +2233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func configureBuiltInProducerWebView(_ bw: FirstMouseWebView) {
         bw.ignoreAllMouseEvents = true
         bw.setValue(false, forKey: "drawsBackground")
-        bw.alphaValue = 0.004
+        bw.alphaValue = 0.01
         bw.autoresizingMask = [.width, .height]
         bw.frame = panel.contentView!.bounds
         bw.removeFromSuperview()
@@ -3317,6 +3317,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return ctx;
           }
 
+          let lastCapVidTime = -1;
+          let lastCapWall = 0;
+
           function captureAndSendFrame() {
             if (stopped || bossMode || tainted) return;
             const v = targetVideo || findBestVideo();
@@ -3326,14 +3329,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               document.querySelectorAll('video.chm-prod-vid').forEach(el => el.classList.remove('chm-prod-vid'));
               v.classList.add('chm-prod-vid');
             }
+            const curT = Number(v.currentTime || 0);
+            const nowW = performance.now();
+            if (!v.paused && curT === lastCapVidTime && nowW - lastCapWall < 220) {
+              return;
+            }
+            lastCapVidTime = curT;
+            lastCapWall = nowW;
             const aspect = v.videoWidth / Math.max(1, v.videoHeight);
-            const tw = aspect < 0.85 ? 272 : 448;
-            const th = Math.max(136, Math.round(tw / aspect));
+            const tw = aspect < 0.85 ? 268 : 420;
+            const th = Math.max(135, Math.round(tw / aspect));
             const c = ensureCanvas(tw, th);
             if (!c) return;
             try {
               c.drawImage(v, 0, 0, tw, th);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
               const comma = dataUrl.indexOf(',');
               if (comma > 0) {
                 post({ action: 'builtInVideoFrame', b64: dataUrl.slice(comma + 1) });
@@ -3370,7 +3380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               v.play().catch(() => {});
             }
             captureAndSendFrame();
-          }, 26);
+          }, 20);
 
           const metaTimer = setInterval(() => {
             if (stopped) { clearInterval(metaTimer); return; }
