@@ -1,66 +1,128 @@
-# ChameleonPiP 变色龙画中画 (v5.5)
+# ChameleonPiP · 变色龙画中画
 
 <p align="center">
-  <img src="extension/icons/icon128.png" width="96" height="96" alt="ChameleonPiP Icon" />
+  <img src="extension/icons/icon128.png" width="76" height="76" alt="ChameleonPiP Icon" />
 </p>
 
-**ChameleonPiP（变色龙画中画）** 是一款仿照变色龙皮肤生物拟态打造的**零边框桌面变色画中画工具**。它不再往屏幕上盖一层突兀的视频方框，而是像变色龙色素细胞一样随环境底色自然同化——**底层桌面是什么颜色（如红绿撞色、VS Code 深色代码、飞书白底文档或 Excel 表格），小窗内部就 100% 原封不动透出底色并自适应同化色温**，全功能永久免费开放。
+<p align="center">
+  无边框桌面融合画中画工具（macOS 原生版 + Chrome / Edge 扩展），完全免费开源。
+  <br />
+  <a href="https://chameleonpip.site">官网在线试玩</a> ·
+  <a href="https://github.com/James-826/ChameleonPiP/releases/latest">直接下载最新版</a> ·
+  <a href="https://chameleonpip.site/arena.html">在线计时榜</a>
+</p>
 
-同时内置 **Apple Vision AI 背后防偷窥雷达**、**独立隐蔽搜片浏览器**、**视频硬字幕 OCR 终端日志伪装**、**全球摸鱼排位榜（同城 / 国家 / 全球）** 与 **线上不间断耐力 1v1 对战（PK）**。
-
----
-
-## 在线体验与全球实时排位
-
-- **官方产品主页与变色龙实时体验**：[https://chameleonpip.site](https://chameleonpip.site)
-- **全球潜伏排位与 1v1 耐力对战竞技场**：[https://chameleonpip.site/arena.html](https://chameleonpip.site/arena.html)
-- **隐私政策（Privacy Policy）**：[https://chameleonpip.site/privacy.html](https://chameleonpip.site/privacy.html)
-
----
-
-## 核心特性
-
-### 1. 60fps Apple Metal WebGL 纯净三大变色龙模式（全免费）
-- **变色融合 (`projector`)**：纯净中性高光与暗影层映射，底层红绿背景、VS Code 代码高亮与表格 100% 原色透出无偏色，搭配 **窗口等宽全向边框柔和（`0%–85%`）** 让矩形边界彻底隐形。
-- **浮雕隐身 (`emboss`)**：平坦区域 100% 透明，仅将人物与动作立体轮廓微雕在桌面纹理上，极端隐蔽。
-- **彩透变色 (`cinema`)**：保留清晰原片色彩，结合四周等宽柔边无框融进桌面。
-
-### 2. 三大原生黑科技 & MacBook 灵动刘海（Dynamic Island）
-- **AI 摄像头背后防偷窥雷达**：调用 macOS 原生 Apple Vision 在纯内存中实时计数前置摄像头画面人数，背后出现第 2 张人脸瞬间触发老板键秒隐静音，人走 3 秒自动恢复播放，绝不拍照、录像或上传。
-- **独立隐蔽搜片浏览器（免插件直连）**：内置轻量桌面搜片窗口（`⌃⇧S`），支持直接搜索并一键接力秒数至桌面变色龙小窗播放；同时自动记忆历史搜索词与上次浏览位置。
-- **视频硬字幕 OCR + 独立代码终端日志**：本地 Vision 神经网络每 `0.78s` 扫描视频底部字幕区（支持无软字幕的视频硬字幕提取），与网页原生字幕智能互补后伪装成独立多行开发者编译终端日志。
-- **macOS 原生版（`ChameleonPiP.app`）**：无缝融入屏幕正上方物理摄像头刘海——点击左耳直接实时播放/暂停，点击右耳展开原生精简灵动岛，并搭载腾讯会议 / 飞书 / 录屏系统级共享隐身与全局快捷键（`⌃⇧G` 显隐、`⌃⇧B` 老板键秒隐、`⌃⇧M` 鼠标穿透）。
-
-### 3. 全球摸鱼排行榜、十阶矢量勋章 & 线上不间断耐力 PK
-- **自动潜伏记录**：播放视频时自动累计连续不间断时长、今日总时长与带薪折算收益；暂停超过 10 秒或触发老板键 `⌃⇧B` 自动结算本轮纪录。
-- **同城 / 国家 / 全球三维排行榜**：支持按同城、国家/地区热度、全球查看「不间断纪录 / 今日累计 / PK 积分」排名，配备手绘级矢量 SVG 冠亚季军六边形奖牌、矢量国旗与十阶几何段位徽章（`Lv.1 透明实习生` ～ `Lv.10 摸鱼之神`）。
-- **实时 WebSocket 1v1 耐力对战**：支持全球随机匹配或输入 4 位数字房间号与同事同房开局，每秒实时同步双方读秒，谁先暂停视频或触发老板键谁即判负并结算 ELO 积分。
+<p align="center">
+  <img src="docs/preview.png" width="880" alt="ChameleonPiP 变色龙画中画实时桌面融合效果预览" />
+</p>
 
 ---
 
-## 快速开始
+## 为什么做这个工具
 
-### 1. macOS 原生灵动刘海桌面版（推荐 · 开箱即用）
-- 直接双击运行仓库根目录下的 [`ChameleonPiP.app`](./ChameleonPiP.app)（或执行 `./macos-ghost/build.sh` 从 Swift 源码重新编译并安装到 `/Applications/ChameleonPiP.app`）。
+系统自带的画中画（PiP）会在屏幕上硬盖一块高亮矩形框，写代码、改文档或者对表格的时候非常扎眼，还经常挡住底下的字。
 
-### 2. Chrome / Edge 浏览器扩展（可选伴侣，支持网页直投）
-1. 克隆本仓库：`git clone https://github.com/James-826/ChameleonPiP.git`
-2. 打开浏览器进入 `chrome://extensions/`（或 `edge://extensions/`），开启右上角「开发者模式」。
-3. 点击「加载已解压的扩展程序」，选择仓库中的 [`extension`](./extension) 文件夹。
-4. 打开任意视频网页（B站、YouTube、抖音等），点击视频右上角 **「桌面变色龙小窗」** 或按 **`⌃Control + ⇧Shift + G`**（Windows 为 **`Ctrl + Shift + G`**）即可开启变色龙画中画。
+**ChameleonPiP** 去掉了传统画中画的边框，给画面四周做了等宽圆角柔化，并通过 WebGL 着色器把视频的底色抽离掉，让它直接跟着屏幕底下的背景色自适应变化：
+- 底下是深色编辑器或终端，小窗就像一层淡淡的光影叠在上面；
+- 底下是白底文档或 Excel 表格，画面会自动适配浅色亮度枢轴，底色不被染脏；
+- 按一下快捷键还能鼠标穿透，视频放着的同时照常点击、选中和编辑底下的代码。
 
-### 3. Windows / macOS 跨平台桌面版（Electron）
+---
+
+## 主要功能
+
+### 1. 三种桌面融合模式
+- **变色融合 (`projector`)**：提取视频的明暗细节叠在当前桌面底色上，红绿对比背景、VS Code 语法高亮和表格文字都能清楚透出来，同时随着底层明暗自动切换亮度枢轴。
+- **浮雕隐身 (`emboss`)**：大面积背景区域完全变透明，只用 3D 浮雕线条保留人物和动作轮廓，在办公环境里最隐蔽。
+- **彩透变色 (`cinema`)**：保留完整色彩，配合窗口物理像素级四周等宽柔边（`0%–85%`），适合日常追剧或看比赛。
+
+### 2. MacBook 刘海快捷控制 & 桌面小细节
+- **刘海控制栏**：`ChameleonPiP.app` 常驻顶部屏幕摄像头刘海两侧，点左耳直接播放/暂停，点右耳展开精简控制面板，不占 Dock 和桌面空间。
+- **共享屏幕自动隐身**：支持在腾讯会议、飞书、Zoom 共享屏幕或系统录屏截图时自动隐藏浮窗。
+- **鼠标一键穿透 (`⌃⇧M`)**：开启后小窗不再拦截点击和滚轮，需要调节进度条或拖动位置时按住 `Option` 即可临时唤出控制条。
+- **触控板双指捏合缩放**：双指直接在小窗上捏合放大或缩小，边框柔化宽度会按窗口当前尺寸实时重新计算。
+
+### 3. 本地防窥自动暂停（可选）
+- 开启后通过 macOS 原生 Apple Vision 在内存中统计前置摄像头画面人数；当检测到身后多出第 2 张人脸时，立即静音并隐藏小窗，人走后约 3 秒自动恢复播放。
+- 所有识别均在本地内存完成，不拍照、不录像、也不上传任何画面。
+
+### 4. 独立搜片小窗 & 日志伪装字幕
+- **内置独立搜片窗口 (`⌃⇧S`)**：不方便在主浏览器翻视频时，按 `⌃⇧S` 呼出独立轻量浏览器直接找片并一键投送进变色龙小窗，自动保留上次搜索关键词和页面进度。
+- **代码终端日志字幕**：不方便戴耳机时可开启「日志字幕」，工具会读取网页字幕并配合本地字幕区域识别，把台词转成独立的滚动编译日志窗口。
+
+### 5. 顺手做的计时榜与 1v1 房间
+- 内置连续播放时长统计与线上 4 位数字房间号对战，可以和朋友比谁先按老板键暂停（纯娱乐可随时关闭）。
+
+---
+
+## 下载与安装
+
+### 方式一：直接下载安装包（推荐）
+
+前往 [GitHub Releases 最新版](https://github.com/James-826/ChameleonPiP/releases/latest) 或 [官网下载页](https://chameleonpip.site) 下载对应压缩包：
+
+1. **macOS 原生桌面端（`ChameleonPiP-macOS-App-v5.5.zip`）**
+   - 解压后将 `ChameleonPiP.app` 拖入「应用程序（`/Applications`）」双击运行。
+   - 若首次打开提示来自未识别开发者，可右键点击 `ChameleonPiP.app` 选择「打开」，或在系统设置「隐私与安全性」中点击仍要打开。
+2. **Chrome / Edge 浏览器扩展（`ChameleonPiP-Chrome-Extension-v5.5.zip`）**
+   - 解压压缩包到本地目录。
+   - 打开 `chrome://extensions/`（或 `edge://extensions/`），开启右上角「开发者模式」。
+   - 点击「加载已解压的扩展程序」，选中解压出来的文件夹。
+   - 打开 B 站、YouTube 等任意视频网页，点击视频右上角的「桌面变色龙小窗」即可直接投送到桌面；更新后记得点一下扩展卡片上的「刷新」。
+
+### 常用全局快捷键
+
+| 快捷键 (macOS) | 作用 |
+| :--- | :--- |
+| `⌃Control + ⇧Shift + G` | 显示 / 隐藏变色龙小窗（在浏览器中也可作为快速投送触发键） |
+| `⌃Control + ⇧Shift + B` | 老板键：一键静音并立刻隐藏小窗，再按恢复 |
+| `⌃Control + ⇧Shift + M` | 开关鼠标穿透（开启后可直接操作底层窗口） |
+| `⌃Control + ⇧Shift + S` | 显示 / 收起内置独立搜片浏览器 |
+
+### 方式二：从源码编译运行
+
 ```bash
-cd desktop
-npm install
-npm start          # 直接运行
-npm run dist:win   # 打包 Windows 安装包/便携版
-npm run dist:mac   # 打包 macOS 客户端
+git clone https://github.com/James-826/ChameleonPiP.git
+cd ChameleonPiP
 ```
 
-### 4. 自建全球排位与 PK 服务端（可选，默认已连接官方 Cloudflare 加密隧道节点）
-客户端已默认连接官方 Cloudflare 加密节点，开箱即可与全球用户同榜排行与实时 PK。如需自建私有节点：
-```bash
-node server/arena-server.js
-# 默认监听 127.0.0.1:51938，可在排位页顶部点击「实时联机服」徽章切换自定义服务器地址
-```
+- **编译 macOS 原生客户端（需 Xcode Command Line Tools / `swiftc`）**：
+  ```bash
+  ./macos-ghost/build.sh
+  ```
+- **加载浏览器扩展开发版**：在 `chrome://extensions/` 加载仓库下的 `extension/` 目录即可（浏览器端与客户端通过本地 `127.0.0.1:27182` WebSocket 通信）。
+- **跨平台 Electron 桌面端（Windows / macOS）**：
+  ```bash
+  cd desktop
+  npm install
+  npm start          # 直接运行
+  npm run dist:win   # 打包 Windows 安装包
+  npm run dist:mac   # 打包 macOS 客户端
+  ```
+- **可选：自建排位与联机房间服务**：
+  ```bash
+  node server/arena-server.js
+  ```
+
+---
+
+## 项目目录说明
+
+- `macos-ghost/`：macOS 原生版 Swift 源码（`ChameleonPiP.swift`）、WebGL 画中画视图（`ghost-view.html`）与构建脚本（`build.sh`）
+- `extension/`：Chrome / Edge Manifest V3 扩展源码（含 Offscreen Capture、Web Worker 帧编码与桥接脚本）
+- `desktop/`：跨平台 Electron 桌面端实现
+- `web/` 与 `demo/`：产品主页、实时体验交互沙盒与计时榜前端页面
+- `server/`：计时榜与 1v1 房间 WebSocket 服务端
+
+---
+
+## English
+
+**ChameleonPiP** is a free, open-source borderless Picture-in-Picture (PiP) player for macOS and Chrome/Edge. Instead of floating an opaque bright rectangle over your workspace, it blends video frames into your underlying IDE, terminal, spreadsheet, or document background with symmetric rounded-edge feathering.
+
+- **Three Blending Modes**:
+  - **Projector (`projector`)**: Neutral highlight/shadow luminance mapping that adapts to dark editors or light documents without tinting underlying text.
+  - **Emboss (`emboss`)**: 3D contour relief with near-zero flat background fill for minimal distraction.
+  - **Cinema (`cinema`)**: Crisp full-color translucency with physical-pixel rounded-rectangle SDF edge feathering.
+- **macOS Native Notch Controls (`ChameleonPiP.app`)**: Lives discreetly beside the MacBook notch, hides automatically from screen sharing/capture apps, supports one-key click-through (`Ctrl+Shift+M`) and panic hide (`Ctrl+Shift+B`), and offers optional on-device Apple Vision behind-shoulder peek detection (processed strictly in memory).
+- **Quick Start**: Grab the latest macOS app or Chrome extension zip from [Releases](https://github.com/James-826/ChameleonPiP/releases/latest) or try the live WebGL sandbox at [chameleonpip.site](https://chameleonpip.site).
