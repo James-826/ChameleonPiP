@@ -245,6 +245,11 @@
     };
   }
 
+  const seenDanmaku = [];
+  const seenDanmakuSet = new Set();
+  let lastDanmakuText = "";
+  let lastDanmakuAt = 0;
+
   function readHostSubtitles(targetVid) {
     const selectors = [
       ".bpx-player-subtitle-panel-text",
@@ -297,10 +302,34 @@
       }
     }
     if (state.stealthSubtitle) {
-      const dmNodes = document.querySelectorAll(".bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku");
+      const now = performance.now();
+      const dmNodes = document.querySelectorAll(
+        ".bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku, .xgplayer-danmu div"
+      );
+      if (dmNodes.length > 0 && now - lastDanmakuAt < 1100 && lastDanmakuText) {
+        return lastDanmakuText;
+      }
+      const picked = [];
       for (const dn of dmNodes) {
-        const txt = (dn.textContent || "").trim();
-        if (txt.length >= 2 && txt.length <= 36) return txt;
+        const txt = (dn.textContent || "").replace(/\s+/g, " ").trim();
+        if (txt.length >= 2 && txt.length <= 60 && !seenDanmakuSet.has(txt)) {
+          seenDanmakuSet.add(txt);
+          seenDanmaku.push(txt);
+          if (seenDanmaku.length > 80) {
+            const old = seenDanmaku.shift();
+            seenDanmakuSet.delete(old);
+          }
+          picked.push(txt);
+          if (picked.length >= 2) break;
+        }
+      }
+      if (picked.length > 0) {
+        lastDanmakuText = picked.join("  //  ");
+        lastDanmakuAt = now;
+        return lastDanmakuText;
+      }
+      if (now - lastDanmakuAt < 3200 && lastDanmakuText) {
+        return lastDanmakuText;
       }
     }
     return "";
@@ -568,9 +597,10 @@
           border: 1px solid rgba(52, 211, 153, 0.24);
           color: #c9d1d9;
           text-shadow: none;
-          white-space: nowrap;
+          white-space: pre-wrap;
+          word-break: break-word;
+          max-height: 54px;
           overflow: hidden;
-          text-overflow: ellipsis;
         }
         .p-subtitle.stealth-log.light-bg {
           background: rgba(248, 250, 252, 0.9);

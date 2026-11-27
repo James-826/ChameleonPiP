@@ -596,6 +596,7 @@
             window.webkit.messageHandlers.ghostAction.postMessage(payload);
           }
         }
+        const hasNativeHost = Boolean(window.webkit?.messageHandlers?.ghostAction);
 
         function broadcastStateUpdate(patch) {
           state = { ...state, ...patch };
@@ -652,8 +653,30 @@
           }
         }
 
+        let lastStealthLogHeartbeatAt = 0;
+        let lastForwardedSubText = "";
+
+        function pushStealthLogToHost(text, force = false) {
+          if (!hasNativeHost || !state.stealthSubtitle) return;
+          const clean = String(text || "").trim();
+          const now = performance.now();
+          if (!force && clean === lastForwardedSubText && now - lastStealthLogHeartbeatAt < 1500) {
+            return;
+          }
+          lastForwardedSubText = clean;
+          lastStealthLogHeartbeatAt = now;
+          postNative({
+            action: "stealthLogUpdate",
+            text: clean,
+            paused: Boolean(player.paused),
+            currentTime: Number(player.currentTime || 0),
+            duration: Number(player.duration || 0),
+          });
+        }
+
         function notifyHostPlayer(force = false) {
           const now = performance.now();
+          pushStealthLogToHost(lastRawSubtitle, false);
           const hasActiveVideo = isRealVideoPlaying();
           const activeChanged = hasActiveVideo !== lastNotifiedActiveVideo;
           if (!force && !activeChanged && now - lastPlayerSyncAt < 180) return;
@@ -708,6 +731,14 @@
         function renderSubtitle(rawText) {
           if (rawText !== undefined) lastRawSubtitle = String(rawText || "");
           const clean = lastRawSubtitle.trim();
+
+          if (hasNativeHost && state.stealthSubtitle) {
+            // Keep the borderless Chameleon small window 100% pure! Route logs to the independent Console window.
+            subtitleEl.style.display = "none";
+            subtitleEl.classList.remove("stealth-log", "light-bg");
+            pushStealthLogToHost(clean, clean.length > 0 && clean !== lastForwardedSubText);
+            return;
+          }
 
           if (state.stealthSubtitle && Core.formatStealthLogParts) {
             subtitleEl.style.display = "block";

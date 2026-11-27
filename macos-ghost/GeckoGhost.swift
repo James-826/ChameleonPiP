@@ -20,8 +20,14 @@ final class GhostPanel: NSPanel {
 }
 
 final class FirstMouseWebView: WKWebView {
+    var ignoreAllMouseEvents: Bool = false
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        return true
+        return !ignoreAllMouseEvents
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return ignoreAllMouseEvents ? nil : super.hitTest(point)
     }
 }
 
@@ -414,7 +420,10 @@ final class LocalWebSocketHub {
     private var pendingBinary: [ObjectIdentifier: Data] = [:]
     private var ghostCredits: [ObjectIdentifier: Int] = [:]
     private var ghostLastSendTime: [ObjectIdentifier: CFAbsoluteTime] = [:]
+    private var lastExternalProducerNotifyAt: CFAbsoluteTime = 0
     var onArenaConnected: (() -> Void)?
+    var onExternalProducerActive: (() -> Void)?
+    var onGhostCommandForBuiltIn: ((String) -> Void)?
 
     func start(ports: [UInt16] = [27182, 51937]) {
         for port in ports {
@@ -485,6 +494,34 @@ final class LocalWebSocketHub {
         }
     }
 
+    func pushLocalBuiltInFrame(_ data: Data) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            for cid in self.ghostViewIds {
+                if let c = self.connections[cid] {
+                    self.enqueueOrSendBinary(data, to: cid, conn: c)
+                }
+            }
+        }
+    }
+
+    func pushLocalBuiltInText(_ json: String) {
+        guard let data = json.data(using: .utf8) else { return }
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let meta = NWProtocolWebSocket.Metadata(opcode: .text)
+            let ctx = NWConnection.ContentContext(identifier: "wsLocalText", metadata: [meta])
+            for cid in self.ghostViewIds {
+                self.connections[cid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+            }
+            if json.contains("\"type\":\"meta\"") || json.contains("\"type\":\"streamStopped\"") {
+                for aid in self.arenaViewIds {
+                    self.connections[aid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
+                }
+            }
+        }
+    }
+
     private func receiveLoop(_ conn: NWConnection, id: ObjectIdentifier) {
         conn.receiveMessage { [weak self] data, context, _, error in
             guard let self = self else { return }
@@ -525,6 +562,9 @@ final class LocalWebSocketHub {
                                 self.connections[aid]?.send(content: data, contentContext: ctx, isComplete: true, completion: .idempotent)
                             }
                         } else {
+                            if let cb = self.onGhostCommandForBuiltIn {
+                                DispatchQueue.main.async { cb(text) }
+                            }
                             self.broadcast(data: data, opcode: .text, toGhostViews: false, sender: id)
                         }
                     } else {
@@ -537,6 +577,15 @@ final class LocalWebSocketHub {
                         }
                     }
                 } else if opcode == .binary {
+                    if self.producerIds.contains(id) || self.offscreenIds.contains(id) {
+                        let now = CFAbsoluteTimeGetCurrent()
+                        if now - self.lastExternalProducerNotifyAt > 0.8 {
+                            self.lastExternalProducerNotifyAt = now
+                            DispatchQueue.main.async { [weak self] in
+                                self?.onExternalProducerActive?()
+                            }
+                        }
+                    }
                     self.broadcast(data: data, opcode: .binary, toGhostViews: true, sender: id)
                 }
             }
@@ -622,8 +671,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var builtInWebView: FirstMouseWebView?
     private var isBuiltInWebActive: Bool = false
     private var builtInVideoIsolated: Bool = false
+    private var builtInSnapshotTimer: Timer?
+    private var builtInSnapshotBusy: Bool = false
     private var currentBuiltInUrl: String = ""
     private var cachedBiliCookie: String = ""
+
+    // Independent Multi-Line Developer Terminal / Output Log Window (zero video obstruction!)
+    private var logPanel: GhostPanel?
+    private var logWebView: FirstMouseWebView?
+    private var lastLogConsoleJson: String = ""
 
     // Independent Full-Web Stealth Search Browser Window (never covers the small PiP window!)
     private var searchWindow: NSWindow?
@@ -704,6 +760,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var activeResizeDir: String?
     private var resizeInitialFrame: NSRect = .zero
     private var resizeStartMouse: NSPoint = .zero
+    private weak var activeDragWindow: NSWindow?
     private var pointerTrackTimer: Timer?
     private var isWindowHovered: Bool = false
     private var lastExternalApp: (name: String, archetype: String) = ("桌面", "web")
@@ -734,10 +791,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 self?.broadcastPlaybackStateToArena()
             }
         }
+        wsHub.onExternalProducerActive = { [weak self] in
+            guard let self = self else { return }
+            if self.isBuiltInWebActive {
+                self.exitBuiltInWebMode()
+            }
+            if !self.isVisible {
+                self.isVisible = true
+            }
+            if self.bossMode {
+                self.setBoss(false)
+            }
+            self.panel?.orderFrontRegardless()
+            self.syncNativeIslandControls()
+        }
+        wsHub.onGhostCommandForBuiltIn = { [weak self] rawText in
+            self?.handleGhostCommandForBuiltIn(rawText)
+        }
         wsHub.start(ports: [27182, 51937])
         setupGhostPanel()
         setupDynamicNotchIsland()
         setupMenuBarStatusItem()
+        if stealthSubtitleEnabled {
+            setStealthLogPanelVisible(true)
+        }
         registerGlobalHotKeys()
         setupGlobalTypingSensor()
         startAutoSceneLoop()
@@ -918,6 +995,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func updatePanelSharingType() {
         panel?.sharingType = hideFromCapture ? .none : .readOnly
         searchWindow?.sharingType = hideFromCapture ? .none : .readOnly
+        logPanel?.sharingType = hideFromCapture ? .none : .readOnly
     }
 
     private func configureAntiPeekRadarCallbacks() {
@@ -1104,7 +1182,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
 
         NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .scrollWheel, .magnify]) { [weak self] event in
-            guard let self = self, !self.clickThrough, event.window === self.panel, !self.bossMode else { return event }
+            guard let self = self else { return event }
+
+            // Independent Multi-Line Stealth Log Console Window drag & 8-way resize
+            if let lw = self.logPanel, event.window === lw, event.type == .leftMouseDown {
+                let loc = event.locationInWindow
+                let b = lw.frame.size
+                let cornerPad: CGFloat = 16
+                let edgePad: CGFloat = 9
+                let inCornerX = loc.x <= cornerPad || loc.x >= b.width - cornerPad
+                let inCornerY = loc.y <= cornerPad || loc.y >= b.height - cornerPad
+                let isCorner = inCornerX && inCornerY
+                let nearL = loc.x <= (isCorner ? cornerPad : edgePad)
+                let nearR = loc.x >= b.width - (isCorner ? cornerPad : edgePad)
+                let nearB = loc.y <= (isCorner ? cornerPad : edgePad)
+                let nearT = loc.y >= b.height - (isCorner ? cornerPad : 7)
+
+                var dir = ""
+                if nearT { dir += "n" } else if nearB { dir += "s" }
+                if nearL { dir += "w" } else if nearR { dir += "e" }
+                if !dir.isEmpty {
+                    self.startNativeResize(dir: dir, window: lw)
+                    return nil
+                }
+                // Header bar (top 28pt) excluding right-side toolbar pills
+                if loc.y >= b.height - 28 && loc.x < b.width - 270 {
+                    self.startNativeDrag(offset: loc, window: lw)
+                    return nil
+                }
+                return event
+            }
+
+            guard !self.clickThrough, event.window === self.panel, !self.bossMode else { return event }
 
             // Support two-finger trackpad pinch-to-zoom directly on the small window!
             if event.type == .magnify {
@@ -1122,28 +1231,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 let loc = event.locationInWindow
                 let b = self.panel.frame.size
                 let hudVisible = self.hoverRevealEnabled || event.modifierFlags.contains(.option)
-
-                // In Built-in Web Browse Mode (before video is isolated), allow normal webpage clicking inside the interior!
-                if self.isBuiltInWebActive && !self.builtInVideoIsolated {
-                    let browsePad: CGFloat = 10
-                    let nearL = loc.x <= browsePad
-                    let nearR = loc.x >= b.width - browsePad
-                    let nearB = loc.y <= browsePad
-                    let nearT = loc.y >= b.height - browsePad
-                    var dir = ""
-                    if nearT { dir += "n" } else if nearB { dir += "s" }
-                    if nearL { dir += "w" } else if nearR { dir += "e" }
-                    if !dir.isEmpty {
-                        self.startNativeResize(dir: dir)
-                        return nil
-                    }
-                    // Allow drag from the thin top strip (excluding right-side toolbar buttons)
-                    if loc.y >= b.height - 34 && loc.x < b.width - 150 {
-                        self.startNativeDrag(offset: loc)
-                        return nil
-                    }
-                    return event
-                }
 
                 // Let HUD buttons (top bar: 穿透/搜片/日志/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
                 let inTopHudButtons = hudVisible && loc.y >= b.height - 46 && loc.y <= b.height - 8 && loc.x >= 10 && loc.x <= b.width - 10
@@ -1169,11 +1256,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 if nearL { dir += "w" } else if nearR { dir += "e" }
 
                 if !dir.isEmpty {
-                    self.startNativeResize(dir: dir)
+                    self.startNativeResize(dir: dir, window: self.panel)
                     return nil
                 }
 
-                self.startNativeDrag(offset: loc)
+                self.startNativeDrag(offset: loc, window: self.panel)
             }
             return event
         }
@@ -1190,16 +1277,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         panel.setFrame(NSRect(x: nx, y: ny, width: nw, height: nh), display: true)
     }
 
-    private func startNativeResize(dir: String) {
+    private func startNativeResize(dir: String, window: NSWindow? = nil) {
+        let targetWin = window ?? panel!
+        activeDragWindow = targetWin
         activeResizeDir = dir
-        resizeInitialFrame = panel.frame
+        resizeInitialFrame = targetWin.frame
         resizeStartMouse = NSEvent.mouseLocation
         dragOriginOffset = nil
         isDraggingWindow = false
         ensurePointerTrackTimer()
     }
 
-    private func startNativeDrag(offset: NSPoint) {
+    private func startNativeDrag(offset: NSPoint, window: NSWindow? = nil) {
+        activeDragWindow = window ?? panel!
         activeResizeDir = nil
         dragOriginOffset = offset
         dragDownScreenPt = NSEvent.mouseLocation
@@ -1212,12 +1302,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         pointerTrackTimer?.invalidate()
         let timer = Timer(timeInterval: 0.008, repeats: true) { [weak self] t in
             guard let self = self else { t.invalidate(); return }
+            let targetWin = self.activeDragWindow ?? self.panel!
             if (NSEvent.pressedMouseButtons & 1) == 0 {
                 t.invalidate()
                 self.pointerTrackTimer = nil
-                if self.activeResizeDir != nil || self.isDraggingWindow {
+                if targetWin === self.panel && (self.activeResizeDir != nil || self.isDraggingWindow) {
                     self.senseEnvironmentAsync()
                 }
+                self.activeDragWindow = nil
                 self.activeResizeDir = nil
                 self.dragOriginOffset = nil
                 self.dragDownScreenPt = nil
@@ -1227,24 +1319,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
             let m = NSEvent.mouseLocation
             if let dir = self.activeResizeDir {
+                let minW: CGFloat = (targetWin === self.logPanel) ? 360 : 190
+                let minH: CGFloat = (targetWin === self.logPanel) ? 115 : 110
                 let dx = m.x - self.resizeStartMouse.x
                 let dy = m.y - self.resizeStartMouse.y
                 let f0 = self.resizeInitialFrame
                 var nf = f0
 
-                if dir.contains("e") { nf.size.width = max(190, f0.width + dx) }
+                if dir.contains("e") { nf.size.width = max(minW, f0.width + dx) }
                 if dir.contains("w") {
-                    let nw = max(190, f0.width - dx)
+                    let nw = max(minW, f0.width - dx)
                     nf.origin.x = f0.maxX - nw
                     nf.size.width = nw
                 }
-                if dir.contains("n") { nf.size.height = max(110, f0.height + dy) }
+                if dir.contains("n") { nf.size.height = max(minH, f0.height + dy) }
                 if dir.contains("s") {
-                    let nh = max(110, f0.height - dy)
+                    let nh = max(minH, f0.height - dy)
                     nf.origin.y = f0.maxY - nh
                     nf.size.height = nh
                 }
-                self.panel.setFrame(nf, display: true)
+                targetWin.setFrame(nf, display: true)
                 return
             }
 
@@ -1253,7 +1347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                     self.isDraggingWindow = true
                 }
                 if self.isDraggingWindow {
-                    self.panel.setFrameOrigin(NSPoint(x: m.x - offset.x, y: m.y - offset.y))
+                    targetWin.setFrameOrigin(NSPoint(x: m.x - offset.x, y: m.y - offset.y))
                 }
             }
         }
@@ -1505,9 +1599,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func setStealthSubtitle(_ enabled: Bool) {
         stealthSubtitleEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: "chameleonStealthSubtitle")
-        let patchJs = "{\"stealthSubtitle\":\(enabled ? "true" : "false"),\"mirrorSubtitles\":true}"
+        let patchJs = "{\"stealthSubtitle\":\(enabled ? "true" : "false"),\"mirrorSubtitles\":\(enabled ? "true" : "false")}"
         webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
-        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+        setStealthLogPanelVisible(enabled)
         syncNativeIslandControls()
     }
 
@@ -1768,6 +1862,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
+    private func handleGhostCommandForBuiltIn(_ rawText: String) {
+        guard isBuiltInWebActive,
+              let data = rawText.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = obj["type"] as? String else { return }
+        if type == "cmd" {
+            let safeData = try? JSONSerialization.data(withJSONObject: obj, options: [])
+            if let safeData = safeData, let jsonStr = String(data: safeData, encoding: .utf8) {
+                builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.execPlayerCmd(\(jsonStr));", completionHandler: nil)
+            }
+        }
+    }
+
     private func setBoss(_ active: Bool) {
         bossMode = active
         if active {
@@ -1787,8 +1894,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 searchWindow?.orderFrontRegardless()
             }
         }
+        if isBuiltInWebActive {
+            builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.setBossMode(\(bossMode));", completionHandler: nil)
+        }
         webView.evaluateJavaScript("window.GeckoNativeBridge?.setBossMode(\(bossMode));", completionHandler: nil)
-        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.setBossMode(\(bossMode));", completionHandler: nil)
+        logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.setBossSafeMode(\(bossMode ? "true" : "false"));", completionHandler: nil)
         syncNativeIslandControls()
     }
 
@@ -1876,6 +1986,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
+    private func stopBuiltInSnapshotPump() {
+        builtInSnapshotTimer?.invalidate()
+        builtInSnapshotTimer = nil
+        builtInSnapshotBusy = false
+    }
+
+    private func startBuiltInSnapshotPump() {
+        guard builtInSnapshotTimer == nil else { return }
+        let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] timer in
+            guard let self = self, self.isBuiltInWebActive, let bw = self.builtInWebView else {
+                timer.invalidate()
+                self?.builtInSnapshotTimer = nil
+                return
+            }
+            if !self.isVisible || self.bossMode || self.builtInSnapshotBusy { return }
+            let sz = bw.bounds.size
+            if sz.width < 10 || sz.height < 10 { return }
+            self.builtInSnapshotBusy = true
+            let cfg = WKSnapshotConfiguration()
+            cfg.rect = CGRect(origin: .zero, size: sz)
+            cfg.snapshotWidth = NSNumber(value: 448)
+            bw.takeSnapshot(with: cfg) { [weak self] image, _ in
+                guard let self = self else { return }
+                self.builtInSnapshotBusy = false
+                guard self.isBuiltInWebActive, !self.bossMode,
+                      let img = image,
+                      let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+                let rep = NSBitmapImageRep(cgImage: cg)
+                if let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.72]) {
+                    self.wsHub.pushLocalBuiltInFrame(jpg)
+                }
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        builtInSnapshotTimer = t
+    }
+
+    private func configureBuiltInProducerWebView(_ bw: FirstMouseWebView) {
+        bw.ignoreAllMouseEvents = true
+        bw.setValue(false, forKey: "drawsBackground")
+        bw.alphaValue = 0.004
+        bw.autoresizingMask = [.width, .height]
+        bw.frame = panel.contentView!.bounds
+        bw.removeFromSuperview()
+        panel.contentView?.addSubview(bw, positioned: .below, relativeTo: webView)
+    }
+
     private func loadBuiltInWebUrl(_ raw: String) {
         var norm = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if !norm.lowercased().hasPrefix("http://") && !norm.lowercased().hasPrefix("https://") {
@@ -1895,68 +2052,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return
         }
 
+        stopBuiltInSnapshotPump()
         currentBuiltInUrl = norm
         if builtInWebView == nil {
             let cfg = WKWebViewConfiguration()
             cfg.userContentController.add(self, name: "ghostAction")
             cfg.mediaTypesRequiringUserActionForPlayback = []
             cfg.allowsAirPlayForMediaPlayback = false
-
-            if let coreURL = Bundle.main.url(forResource: "gecko-core", withExtension: "js"),
-               let coreSrc = try? String(contentsOf: coreURL, encoding: .utf8) {
-                cfg.userContentController.addUserScript(
-                    WKUserScript(source: coreSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-                )
-            }
             cfg.userContentController.addUserScript(
-                WKUserScript(source: Self.builtInIsolatorScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+                WKUserScript(source: Self.searchBrowserPreHookScript(), injectionTime: .atDocumentStart, forMainFrameOnly: false)
+            )
+            cfg.userContentController.addUserScript(
+                WKUserScript(source: Self.builtInBridgeScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             )
 
             let bw = FirstMouseWebView(frame: panel.contentView!.bounds, configuration: cfg)
-            bw.autoresizingMask = [.width, .height]
             bw.uiDelegate = self
-            bw.setValue(false, forKey: "drawsBackground")
             bw.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
-            panel.contentView?.addSubview(bw)
             builtInWebView = bw
         }
 
+        if let bw = builtInWebView {
+            configureBuiltInProducerWebView(bw)
+        }
         isBuiltInWebActive = true
-        builtInVideoIsolated = false
-        webView.isHidden = true
-        builtInWebView?.isHidden = false
+        builtInVideoIsolated = true
+        webView.isHidden = false
         isVisible = true
         if bossMode { setBoss(false) }
-        // Give user comfortable browsing size if panel is tiny
-        if panel.frame.width < 420 {
-            var f = panel.frame
-            let nw: CGFloat = 480
-            let nh: CGFloat = 300
-            f.origin.x -= (nw - f.width) * 0.5
-            f.origin.y -= (nh - f.height) * 0.5
-            f.size = NSSize(width: nw, height: nh)
-            panel.setFrame(f, display: true, animate: true)
-        }
         panel.orderFrontRegardless()
         builtInWebView?.load(URLRequest(url: url))
         syncNativeIslandControls()
-
-        // Push current state right after page begins loading
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            guard let self = self, self.isBuiltInWebActive else { return }
-            let patch = "{\"mode\":\"\(self.currentMode)\",\"stealth\":\(self.currentStealth),\"stealthSubtitle\":\(self.stealthSubtitleEnabled ? "true" : "false"),\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false")}"
-            self.builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patch));", completionHandler: nil)
-        }
     }
 
     private func exitBuiltInWebMode() {
+        stopBuiltInSnapshotPump()
         guard isBuiltInWebActive else { return }
         isBuiltInWebActive = false
         builtInVideoIsolated = false
-        builtInWebView?.evaluateJavaScript("document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
+        builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.stop?.(); document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
         builtInWebView?.loadHTMLString("<html><body style='background:transparent'></body></html>", baseURL: nil)
-        builtInWebView?.isHidden = true
+        builtInWebView?.removeFromSuperview()
+        builtInWebView = nil
         webView.isHidden = false
+        wsHub.pushLocalBuiltInText("{\"type\":\"streamStopped\"}")
         hasActiveVideoPlaying = false
         broadcastPlaybackStateToArena()
         syncNativeIslandControls()
@@ -2105,6 +2244,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         cfg.mediaTypesRequiringUserActionForPlayback = []
         cfg.allowsAirPlayForMediaPlayback = false
         cfg.userContentController.addUserScript(
+            WKUserScript(source: Self.searchBrowserPreHookScript(), injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        )
+        cfg.userContentController.addUserScript(
             WKUserScript(source: Self.searchBrowserHelperScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         )
 
@@ -2193,59 +2335,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return
         }
 
-        // Clean up previous built-in WebView if present
+        let lowerHost = (curUrl.host ?? "").lowercased()
+        let lowerPath = curUrl.path.lowercased()
+        let isSearchResultsList = lowerHost == "search.bilibili.com" ||
+            lowerPath.hasPrefix("/results") ||
+            lowerPath == "/search" ||
+            lowerPath == "/s"
+
+        if isSearchResultsList {
+            swv.evaluateJavaScript("Array.from(document.querySelectorAll('video')).some(v => v.readyState >= 2 && (v.duration || 0) > 8 && !v.paused)") { [weak self] res, _ in
+                if (res as? Bool) == true {
+                    self?.performPromoteSearchWebViewToChameleon(swv, url: curUrl)
+                } else {
+                    swv.evaluateJavaScript(
+                        "window.__CHAMELEON_SHOW_SRCH_TOAST__?.('当前是搜索列表页，请先点开任意视频，或点击视频卡片右上「变色龙小窗播 ▶」');",
+                        completionHandler: nil
+                    )
+                }
+            }
+            return
+        }
+
+        performPromoteSearchWebViewToChameleon(swv, url: curUrl)
+    }
+
+    private func performPromoteSearchWebViewToChameleon(_ swv: FirstMouseWebView, url curUrl: URL) {
+        stopBuiltInSnapshotPump()
         if let oldBw = builtInWebView {
-            oldBw.evaluateJavaScript("document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
+            oldBw.evaluateJavaScript("window.ChameleonBuiltInBridge?.stop?.(); document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
+            oldBw.loadHTMLString("<html><body style='background:transparent'></body></html>", baseURL: nil)
             oldBw.removeFromSuperview()
             builtInWebView = nil
         }
 
-        // Turn off search-mode overlay & grayscale browsing before promoting WebView to GhostPanel!
+        // Turn off search-mode overlay & grayscale browsing before promoting WebView behind Metal ghost-view!
         swv.evaluateJavaScript(
             "document.documentElement?.classList.remove('chm-gray-browse'); window.__CHAMELEON_SET_SRCH_MODE__?.(false);",
             completionHandler: nil
         )
 
-        // Attach isolator script dynamically for future navigations inside builtInWebView
-        if let coreURL = Bundle.main.url(forResource: "gecko-core", withExtension: "js"),
-           let coreSrc = try? String(contentsOf: coreURL, encoding: .utf8) {
-            swv.configuration.userContentController.addUserScript(
-                WKUserScript(source: coreSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-            )
-            let isoSrc = Self.builtInIsolatorScript()
-            swv.configuration.userContentController.addUserScript(
-                WKUserScript(source: isoSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-            )
-            swv.evaluateJavaScript(coreSrc + "\n" + isoSrc, completionHandler: nil)
-        }
+        let bridgeSrc = Self.builtInBridgeScript()
+        swv.configuration.userContentController.addUserScript(
+            WKUserScript(source: bridgeSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+        swv.evaluateJavaScript(bridgeSrc, completionHandler: nil)
 
-        // 0-reload view reparenting from searchWindow -> bottom-right GhostPanel!
-        swv.removeFromSuperview()
-        swv.frame = panel.contentView!.bounds
-        swv.autoresizingMask = [.width, .height]
-        panel.contentView?.addSubview(swv)
-
+        configureBuiltInProducerWebView(swv)
         builtInWebView = swv
         searchWebView = nil
         currentBuiltInUrl = curUrl.absoluteString
         isBuiltInWebActive = true
-        builtInVideoIsolated = false
-        webView.isHidden = true
-        builtInWebView?.isHidden = false
+        builtInVideoIsolated = true
+        webView.isHidden = false
         isVisible = true
         if bossMode { setBoss(false) }
 
         searchWindow?.orderOut(nil)
         panel.orderFrontRegardless()
         syncNativeIslandControls()
-
-        let patch = "{\"mode\":\"\(currentMode)\",\"stealth\":\(currentStealth),\"stealthSubtitle\":\(stealthSubtitleEnabled ? "true" : "false"),\"hoverReveal\":\(hoverRevealEnabled ? "true" : "false")}"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            self?.builtInWebView?.evaluateJavaScript(
-                "window.ChameleonBuiltInBridge?.applyPatch(\(patch)); window.ChameleonBuiltInBridge?.forceIsolateNow?.();",
-                completionHandler: nil
-            )
-        }
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -2284,8 +2431,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
+    private static func searchBrowserPreHookScript() -> String {
+        return #"""
+        (function() {
+          if (window.__CHAMELEON_PRE_HOOK__) return;
+          window.__CHAMELEON_PRE_HOOK__ = true;
+          const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
+
+          try {
+            if (typeof HTMLVideoElement !== 'undefined') {
+              HTMLVideoElement.prototype.requestPictureInPicture = function() {
+                post({ action: 'projectFromSearchBrowser' });
+                return Promise.reject(new DOMException('ChameleonPiP intercepted', 'AbortError'));
+              };
+              const origSetPres = HTMLVideoElement.prototype.webkitSetPresentationMode;
+              if (typeof origSetPres === 'function') {
+                HTMLVideoElement.prototype.webkitSetPresentationMode = function(mode) {
+                  if (mode === 'picture-in-picture') {
+                    post({ action: 'projectFromSearchBrowser' });
+                    return;
+                  }
+                  return origSetPres.apply(this, arguments);
+                };
+              }
+            }
+            if (window.documentPictureInPicture?.requestWindow) {
+              window.documentPictureInPicture.requestWindow = function() {
+                post({ action: 'projectFromSearchBrowser' });
+                return Promise.reject(new DOMException('ChameleonPiP intercepted', 'AbortError'));
+              };
+            }
+          } catch (_) {}
+
+          document.addEventListener('click', (e) => {
+            if (window.__CHAMELEON_BUILTIN_LOADED__) return;
+            const tgt = e.target && e.target.closest ? e.target.closest(
+              '.bpx-player-ctrl-pip, .bilibili-player-video-btn-pip, .ytp-pip-button, .xgplayer-pip, [data-e2e="pip-icon"], [aria-label*="画中画"], [aria-label*="小窗"], [title*="画中画"], [title*="小窗"]'
+            ) : null;
+            if (tgt) {
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              post({ action: 'projectFromSearchBrowser' });
+            }
+          }, true);
+        })();
+        """#
+    }
+
     private static func searchBrowserHelperScript() -> String {
-        return """
+        return #"""
         (function() {
           if (window.__CHAMELEON_SRCH_HELPER__) return;
           window.__CHAMELEON_SRCH_HELPER__ = true;
@@ -2315,12 +2509,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: none;
             }
             #chm-srch-proj-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+            #chm-srch-toast {
+              position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
+              padding: 7px 14px; border-radius: 999px;
+              background: rgba(13,17,23,0.94); border: 1px solid rgba(52,211,153,0.55);
+              color: #a7f3d0; font: 600 11.5px -apple-system, 'PingFang SC', sans-serif;
+              box-shadow: 0 10px 28px rgba(0,0,0,0.5); display: none; white-space: nowrap;
+            }
+            .chm-card-proj {
+              position: absolute; top: 6px; right: 6px; z-index: 40;
+              appearance: none; border: 1px solid rgba(52,211,153,0.7);
+              background: rgba(5,150,105,0.92); color: #fff;
+              font: 700 10px -apple-system, 'PingFang SC', sans-serif;
+              padding: 3px 7px; border-radius: 999px; cursor: pointer;
+              box-shadow: 0 3px 10px rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.14s ease;
+            }
+            .bili-video-card:hover .chm-card-proj,
+            ytd-video-renderer:hover .chm-card-proj,
+            ytd-rich-item-renderer:hover .chm-card-proj { opacity: 1; }
+            .chm-card-proj:hover { background: #10b981; }
           `;
           document.head?.appendChild(st);
 
           const btn = document.createElement('button');
           btn.id = 'chm-srch-proj-btn';
-          btn.textContent = '投送到右下小窗 ▶';
+          btn.textContent = '变色龙小窗播放 ▶';
           btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -2328,10 +2541,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
           });
           document.body?.appendChild(btn);
 
+          const toast = document.createElement('div');
+          toast.id = 'chm-srch-toast';
+          document.body?.appendChild(toast);
+          let toastTimer = null;
+          window.__CHAMELEON_SHOW_SRCH_TOAST__ = (msg) => {
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 3500);
+          };
+
           window.__CHAMELEON_SET_SRCH_MODE__ = (active) => {
             srchOverlayEnabled = Boolean(active);
-            if (!srchOverlayEnabled) btn.remove();
+            if (!srchOverlayEnabled) {
+              btn.remove();
+              toast.remove();
+              document.querySelectorAll('.chm-card-proj').forEach(x => x.remove());
+            }
           };
+
+          function attachCardQuickButtons() {
+            if (!srchOverlayEnabled || window.__CHAMELEON_BUILTIN_LOADED__) return;
+            const cards = document.querySelectorAll('.bili-video-card, ytd-video-renderer, ytd-rich-item-renderer');
+            for (const card of cards) {
+              if (card.dataset.chmCardBound) continue;
+              const link = card.querySelector('a[href*="/video/BV"], a#thumbnail[href*="/watch?v="]');
+              if (!link) continue;
+              const rawHref = link.getAttribute('href') || '';
+              if (!rawHref) continue;
+              const fullHref = rawHref.startsWith('//') ? 'https:' + rawHref
+                : rawHref.startsWith('/') ? location.origin + rawHref : rawHref;
+              const imgWrap = card.querySelector('.bili-video-card__image, #thumbnail') || card;
+              if (getComputedStyle(imgWrap).position === 'static') {
+                imgWrap.style.position = 'relative';
+              }
+              const pb = document.createElement('button');
+              pb.className = 'chm-card-proj';
+              pb.textContent = '变色龙小窗播 ▶';
+              pb.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                post({ action: 'openDirectUrl', url: fullHref });
+              });
+              imgWrap.appendChild(pb);
+              card.dataset.chmCardBound = '1';
+            }
+          }
 
           setInterval(() => {
             if (!srchOverlayEnabled || window.__CHAMELEON_BUILTIN_LOADED__) {
@@ -2342,14 +2598,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               btn.style.display = 'none';
               return;
             }
-            const hasVid = Array.from(document.querySelectorAll('video')).some(v => {
+            attachCardQuickButtons();
+            const isListPage = location.hostname === 'search.bilibili.com' || location.pathname.startsWith('/results');
+            const hasVid = !isListPage && Array.from(document.querySelectorAll('video')).some(v => {
               const r = v.getBoundingClientRect();
               return (r.width >= 160 && r.height >= 90) || v.readyState >= 1;
             });
             btn.style.display = hasVid ? 'inline-flex' : 'none';
           }, 500);
         })();
-        """
+        """#
     }
 
     private static func stealthStartPageHtml() -> String {
@@ -2638,102 +2896,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         runSearch(retryAfterRefresh: false)
     }
 
-    private static func builtInIsolatorScript() -> String {
-        return """
+    private static func builtInBridgeScript() -> String {
+        return #"""
         (function() {
           if (window.__CHAMELEON_BUILTIN_LOADED__) return;
           window.__CHAMELEON_BUILTIN_LOADED__ = true;
           const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
-          const state = { mode: 'projector', stealth: 58, feather: 28, autoSense: true, bgColor: '#505050', mirrorSubtitles: true, stealthSubtitle: false, bossMode: false, hoverReveal: false };
-          let isolated = false;
-          let autoIsolateWanted = true;
+
           let targetVideo = null;
           let wasPlayingBeforeBoss = false;
-          let isHovered = false;
+          let bossMode = false;
+          let stopped = false;
+          let tainted = false;
+          let taintNotified = false;
+          let canvas = null;
+          let ctx = null;
+          let stealthSubOn = true;
 
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          svg.style.cssText = 'position:fixed;width:0;height:0;pointer-events:none;z-index:-1;';
-          const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-          svg.appendChild(defs);
-          document.documentElement.appendChild(svg);
+          const seenDm = [];
+          const seenDmSet = new Set();
+          let lastDmText = '';
+          let lastDmAt = 0;
 
-          const styleEl = document.createElement('style');
-          styleEl.id = 'chm-builtin-style';
-          styleEl.textContent = `
-            html.chm-iso, html.chm-iso body { background: transparent !important; overflow: hidden !important; }
-            html.chm-iso body > *:not(#chm-builtin-hud):not(#chm-builtin-sub):not(svg):not(.chm-iso-ancestor) { opacity: 0 !important; pointer-events: none !important; }
-            .bili-mini-mask, .login-panel-popover, .lt-row, .bili-Layout-header, ytd-consent-bump-v2-lightbox { display: none !important; }
-            video.chm-iso-vid {
+          const st = document.createElement('style');
+          st.id = 'chm-builtin-style';
+          st.textContent = `
+            html, body { background: #000 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+            .bili-mini-mask, .login-panel-popover, .lt-row, .bili-Layout-header, ytd-consent-bump-v2-lightbox, #chm-srch-proj-btn, .chm-card-proj { display: none !important; }
+            video.chm-prod-vid {
               position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
-              max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important;
-              object-fit: cover !important; z-index: 2147483640 !important; background: transparent !important;
-              opacity: 1 !important; visibility: visible !important; pointer-events: none !important;
-            }
-            html.chm-boss video.chm-iso-vid, html.chm-boss #chm-builtin-sub { opacity: 0 !important; }
-            #chm-builtin-hud {
-              position: fixed; top: 6px; right: 8px; z-index: 2147483647;
-              display: flex; align-items: center; gap: 4px;
-              font: 600 10.5px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-              transition: opacity 0.16s ease;
-            }
-            html.chm-iso:not(.chm-hov) #chm-builtin-hud { opacity: 0; pointer-events: none; }
-            #chm-builtin-hud button {
-              appearance: none; border: 1px solid rgba(255,255,255,0.18);
-              background: rgba(12,18,26,0.82); color: #e2e8f0; border-radius: 6px;
-              padding: 4px 8px; cursor: pointer; font: inherit; backdrop-filter: blur(10px);
-            }
-            #chm-builtin-hud button:hover { background: rgba(16,185,129,0.35); color: #fff; }
-            #chm-builtin-hud button.active { background: rgba(16,185,129,0.28); border-color: rgba(52,211,153,0.65); color: #a7f3d0; }
-            #chm-builtin-sub {
-              position: fixed; bottom: 10px; left: 8%; right: 8%; z-index: 2147483645;
-              text-align: center; font: 600 12px/1.35 -apple-system, 'PingFang SC', sans-serif;
-              pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,0.35); display: none;
-            }
-            #chm-builtin-sub.stealth-log {
-              bottom: 8px; left: 8px; right: 8px; text-align: left;
-              font: 500 10.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-              padding: 5px 9px; border-radius: 6px; background: rgba(13,17,23,0.86);
-              border: 1px solid rgba(52,211,153,0.24); color: #c9d1d9; text-shadow: none;
-              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            }
-            #chm-builtin-sub.stealth-log.light-bg {
-              background: rgba(248,250,252,0.9); border-color: rgba(15,23,42,0.16); color: #1e293b;
+              max-width: none !important; max-height: none !important; min-width: 100vw !important; min-height: 100vh !important;
+              margin: 0 !important; padding: 0 !important; object-fit: cover !important;
+              z-index: 2147483647 !important; background: #000 !important;
+              opacity: 1 !important; visibility: visible !important; display: block !important; transform: none !important;
             }
           `;
-          document.head.appendChild(styleEl);
-
-          const featherStyle = document.createElement('style');
-          document.head.appendChild(featherStyle);
-
-          const hud = document.createElement('div');
-          hud.id = 'chm-builtin-hud';
-          hud.innerHTML = `<button id="chmBtnTerm">搜片</button><button id="chmBtnLog">日志</button><button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭</button>`;
-          document.body.appendChild(hud);
-
-          const subEl = document.createElement('div');
-          subEl.id = 'chm-builtin-sub';
-          document.body.appendChild(subEl);
-
-          const btnTerm = hud.querySelector('#chmBtnTerm');
-          const btnLog = hud.querySelector('#chmBtnLog');
-          const btnIso = hud.querySelector('#chmBtnIso');
-          const btnExit = hud.querySelector('#chmBtnExit');
-          let subActivatedAt = 0;
-
-          function markAncestors(v, add) {
-            document.querySelectorAll('.chm-iso-ancestor').forEach(el => el.classList.remove('chm-iso-ancestor'));
-            if (!add || !v) return;
-            let p = v.parentElement;
-            while (p && p !== document.body && p !== document.documentElement) {
-              p.classList.add('chm-iso-ancestor');
-              p = p.parentElement;
-            }
-          }
+          document.head?.appendChild(st);
 
           function findBestVideo() {
             const vids = Array.from(document.querySelectorAll('video'));
             let best = null, bestScore = -1;
             for (const v of vids) {
+              if (!v.isConnected) continue;
               const r = v.getBoundingClientRect();
               const area = Math.max(0, r.width) * Math.max(0, r.height);
               if (area < 4000 && v.readyState < 2) continue;
@@ -2746,69 +2950,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return best;
           }
 
-          function applyFilter() {
-            const Core = window.GeckoCore;
-            if (!Core || !targetVideo) return;
-            if (isolated) {
-              Core.applySvgFilterToMedia(defs, targetVideo, state, { isPeeking: false });
-              featherStyle.textContent = Core.buildFeatherRuleCss('video.chm-iso-vid', state.feather);
-            } else {
-              targetVideo.style.removeProperty('filter');
-              featherStyle.textContent = '';
-            }
-          }
-
-          function setIsolated(val) {
-            const v = targetVideo || findBestVideo();
-            if (val && !v) return;
-            isolated = Boolean(val);
-            if (isolated && v) {
-              targetVideo = v;
-              document.querySelectorAll('video.chm-iso-vid').forEach(el => { if (el !== v) el.classList.remove('chm-iso-vid'); });
-              v.classList.add('chm-iso-vid');
-              markAncestors(v, true);
-              document.documentElement.classList.add('chm-iso');
-              btnIso.textContent = '浏览网页';
-              applyFilter();
-            } else {
-              document.documentElement.classList.remove('chm-iso');
-              document.querySelectorAll('video.chm-iso-vid').forEach(el => { el.classList.remove('chm-iso-vid'); el.style.removeProperty('filter'); });
-              markAncestors(null, false);
-              featherStyle.textContent = '';
-              btnIso.textContent = '变色融合';
-            }
-            post({ action: 'builtInVideoStatus', isolated });
-          }
-
-          btnTerm?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            post({ action: 'openSearchBrowser' });
-          });
-          btnLog?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            state.stealthSubtitle = !state.stealthSubtitle;
-            if (state.stealthSubtitle) {
-              subActivatedAt = performance.now();
-              state.mirrorSubtitles = true;
-            }
-            btnLog.classList.toggle('active', Boolean(state.stealthSubtitle));
-            updateSub();
-            post({
-              action: 'stateChanged',
-              state: { mode: state.mode, stealth: state.stealth, stealthSubtitle: state.stealthSubtitle, hoverReveal: state.hoverReveal }
-            });
-          });
-          btnIso.addEventListener('click', (e) => {
-            e.stopPropagation();
-            autoIsolateWanted = !isolated;
-            setIsolated(!isolated);
-          });
-          btnExit.addEventListener('click', (e) => {
-            e.stopPropagation();
-            post({ action: 'exitBuiltInWeb' });
-          });
-
-          function readSub() {
+          function readSub(v) {
             const sels = [
               '.bpx-player-subtitle-panel-text',
               '.bili-subtitle-x-subtitle-panel-text',
@@ -2821,140 +2963,168 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             for (const sel of sels) {
               const ns = document.querySelectorAll(sel);
               if (ns.length) {
-                const txt = Array.from(ns).map(n => n.textContent.trim()).filter(Boolean).join(' ');
+                const txt = Array.from(ns).map(n => (n.textContent || '').trim()).filter(Boolean).join(' ');
                 if (txt) return txt;
               }
             }
-            if (targetVideo?.textTracks) {
-              if (state.stealthSubtitle) {
-                let hasAct = false;
-                for (const tr of targetVideo.textTracks) {
-                  if (tr.mode === 'showing' || tr.mode === 'hidden') { hasAct = true; break; }
-                }
-                if (!hasAct) {
-                  for (const tr of targetVideo.textTracks) {
-                    if (tr.kind === 'subtitles' || tr.kind === 'captions') {
-                      try { tr.mode = 'hidden'; } catch (_) {}
-                      break;
-                    }
+            if (v?.textTracks) {
+              let hasAct = false;
+              for (const tr of v.textTracks) {
+                if (tr.mode === 'showing' || tr.mode === 'hidden') { hasAct = true; break; }
+              }
+              if (!hasAct) {
+                for (const tr of v.textTracks) {
+                  if (tr.kind === 'subtitles' || tr.kind === 'captions') {
+                    try { tr.mode = 'hidden'; } catch (_) {}
+                    break;
                   }
                 }
               }
-              for (const tr of targetVideo.textTracks) {
+              for (const tr of v.textTracks) {
                 if ((tr.mode === 'showing' || tr.mode === 'hidden') && tr.activeCues?.length) {
                   return Array.from(tr.activeCues).map(c => c.text || '').join(' ').replace(/<[^>]+>/g, '').trim();
                 }
               }
             }
-            if (state.stealthSubtitle) {
-              const dms = document.querySelectorAll('.bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku');
+            if (stealthSubOn) {
+              const now = performance.now();
+              const dms = document.querySelectorAll('.bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku, .xgplayer-danmu div');
+              if (dms.length > 0 && now - lastDmAt < 1100 && lastDmText) return lastDmText;
+              const picked = [];
               for (const dn of dms) {
-                const t = (dn.textContent || '').trim();
-                if (t.length >= 2 && t.length <= 36) return t;
+                const t = (dn.textContent || '').split(/\s+/).filter(Boolean).join(' ').trim();
+                if (t.length >= 2 && t.length <= 60 && !seenDmSet.has(t)) {
+                  seenDmSet.add(t);
+                  seenDm.push(t);
+                  if (seenDm.length > 80) seenDmSet.delete(seenDm.shift());
+                  picked.push(t);
+                  if (picked.length >= 2) break;
+                }
               }
+              if (picked.length > 0) {
+                lastDmText = picked.join('  //  ');
+                lastDmAt = now;
+                return lastDmText;
+              }
+              if (now - lastDmAt < 3200 && lastDmText) return lastDmText;
             }
             return '';
           }
 
-          function escapeHtml(s) {
-            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          }
-
-          function fmtSec(sec) {
-            const n = Math.max(0, Math.floor(sec || 0));
-            return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
-          }
-
-          function updateSub() {
-            const Core = window.GeckoCore;
-            btnLog?.classList.toggle('active', Boolean(state.stealthSubtitle));
-            const txt = (state.mirrorSubtitles || state.stealthSubtitle) && isolated ? readSub() : '';
-
-            if (isolated && state.stealthSubtitle && Core?.formatStealthLogParts) {
-              subEl.style.display = 'block';
-              let line = txt;
-              if (!line) {
-                if (performance.now() - subActivatedAt < 4200) {
-                  line = '日志伪装已开启 · 自动捕获字幕/弹幕并以终端日志呈现';
-                } else if (targetVideo?.paused) {
-                  line = 'worker::idle — pipeline paused at ' + fmtSec(targetVideo.currentTime || 0) + ' · status=HOLD';
-                } else {
-                  const cur = fmtSec(targetVideo?.currentTime || 0);
-                  const dur = fmtSec(Number.isFinite(targetVideo?.duration) ? targetVideo.duration : 0);
-                  line = 'stream::chunk — offset=' + cur + '/' + dur + ' · rate=' + (targetVideo?.playbackRate || 1) + 'x · status=OK';
-                }
+          function pushMetaNow() {
+            if (stopped) return;
+            const v = targetVideo || findBestVideo();
+            if (!v) return;
+            const aspect = (v.videoWidth || 16) / Math.max(1, v.videoHeight || 9);
+            const payload = {
+              type: 'meta',
+              aspect: aspect,
+              subtitle: readSub(v),
+              player: {
+                paused: Boolean(v.paused),
+                ended: Boolean(v.ended),
+                readyState: v.readyState || 0,
+                currentTime: Number(v.currentTime || 0),
+                duration: Number.isFinite(v.duration) ? v.duration : 0,
+                muted: Boolean(v.muted || v.volume === 0),
+                volume: Number(v.volume ?? 1),
+                playbackRate: Number(v.playbackRate || 1)
               }
-              const p = Core.formatStealthLogParts(line);
-              const isLight = Core.getLuminance(state.bgColor || '#505050') > 0.62;
-              subEl.classList.add('stealth-log');
-              subEl.classList.toggle('light-bg', isLight);
-              subEl.innerHTML = `<span style="color:#64748b">[${p.ts}]</span> <span style="color:${isLight ? '#059669' : '#34d399'};font-weight:700">[${p.level}]</span> <span style="color:${isLight ? '#0284c7' : '#79c0ff'}">${p.mod}</span> — ${escapeHtml(p.text)}`;
-              return;
-            }
+            };
+            post({ action: 'builtInVideoMeta', json: JSON.stringify(payload) });
+          }
 
-            if (!txt || !isolated || !state.mirrorSubtitles) { subEl.style.display = 'none'; return; }
-            subEl.style.display = 'block';
-            subEl.classList.remove('stealth-log', 'light-bg');
-            subEl.style.color = Core ? Core.deriveAutoInkColor(state.bgColor) : 'rgba(255,255,255,0.85)';
-            subEl.textContent = txt;
+          function ensureCanvas(w, h) {
+            if (!canvas) {
+              canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              ctx = canvas.getContext('2d', { alpha: false });
+            } else if (canvas.width !== w || canvas.height !== h) {
+              canvas.width = w;
+              canvas.height = h;
+            }
+            return ctx;
+          }
+
+          function captureAndSendFrame() {
+            if (stopped || bossMode || tainted) return;
+            const v = targetVideo || findBestVideo();
+            if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight) return;
+            targetVideo = v;
+            if (!v.classList.contains('chm-prod-vid')) {
+              document.querySelectorAll('video.chm-prod-vid').forEach(el => el.classList.remove('chm-prod-vid'));
+              v.classList.add('chm-prod-vid');
+            }
+            const aspect = v.videoWidth / Math.max(1, v.videoHeight);
+            const tw = aspect < 0.85 ? 272 : 448;
+            const th = Math.max(136, Math.round(tw / aspect));
+            const c = ensureCanvas(tw, th);
+            if (!c) return;
+            try {
+              c.drawImage(v, 0, 0, tw, th);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+              const comma = dataUrl.indexOf(',');
+              if (comma > 0) {
+                post({ action: 'builtInVideoFrame', b64: dataUrl.slice(comma + 1) });
+              }
+            } catch (_) {
+              tainted = true;
+              if (!taintNotified) {
+                taintNotified = true;
+                post({ action: 'builtInCanvasTainted' });
+              }
+            }
           }
 
           let autoPlayAttempted = false;
           const isDirectWatchUrl = location.href.includes('/video/') || location.href.includes('youtube.com/watch');
 
-          setInterval(() => {
+          const frameTimer = setInterval(() => {
+            if (stopped) { clearInterval(frameTimer); return; }
             const v = findBestVideo();
-            if (v && v !== targetVideo) targetVideo = v;
-            if (v && isDirectWatchUrl && !autoPlayAttempted && v.paused && v.readyState >= 1 && !state.bossMode) {
+            if (v && v !== targetVideo) {
+              targetVideo = v;
+              tainted = false;
+              taintNotified = false;
+              v.classList.add('chm-prod-vid');
+            }
+            if (v && isDirectWatchUrl && !autoPlayAttempted && v.paused && v.readyState >= 1 && !bossMode) {
               autoPlayAttempted = true;
               v.play().catch(() => {});
             }
-            if (v && autoIsolateWanted && !isolated && v.readyState >= 2 && (!v.paused || isDirectWatchUrl)) {
-              setIsolated(true);
-            }
-            if (isolated && targetVideo) applyFilter();
-            updateSub();
-            const playing = Boolean(targetVideo && !targetVideo.paused && !targetVideo.ended && targetVideo.readyState >= 2 && !state.bossMode);
-            post({
-              action: 'playerChanged',
-              source: 'builtin',
-              player: {
-                paused: targetVideo ? targetVideo.paused : true,
-                hasActiveVideo: playing,
-                currentTime: targetVideo ? (targetVideo.currentTime || 0) : 0,
-                duration: targetVideo && Number.isFinite(targetVideo.duration) ? targetVideo.duration : 180,
-                muted: targetVideo ? (targetVideo.muted || targetVideo.volume === 0) : false,
-                playbackRate: targetVideo ? (targetVideo.playbackRate || 1) : 1
-              }
-            });
-          }, 350);
+            captureAndSendFrame();
+          }, 26);
+
+          const metaTimer = setInterval(() => {
+            if (stopped) { clearInterval(metaTimer); return; }
+            pushMetaNow();
+          }, 340);
+
+          setTimeout(pushMetaNow, 120);
 
           window.ChameleonBuiltInBridge = {
-            forceIsolateNow() {
-              autoIsolateWanted = true;
-              const v = findBestVideo();
-              if (v) { targetVideo = v; if (v.paused) v.play().catch(() => {}); setIsolated(true); }
-            },
-            setHovered(val) {
-              isHovered = Boolean(val);
-              document.documentElement.classList.toggle('chm-hov', isHovered);
+            stop() {
+              stopped = true;
+              clearInterval(frameTimer);
+              clearInterval(metaTimer);
+              const v = targetVideo || findBestVideo();
+              try { v?.pause(); } catch (_) {}
             },
             applyPatch(p) {
-              if (p?.stealthSubtitle && !state.stealthSubtitle) subActivatedAt = performance.now();
-              Object.assign(state, p || {});
-              applyFilter();
-              updateSub();
-            },
-            onMacSensor(sensor) {
-              if (sensor?.bgColor) { state.bgColor = sensor.bgColor; applyFilter(); updateSub(); }
+              if (p && typeof p.stealthSubtitle === 'boolean') stealthSubOn = p.stealthSubtitle;
             },
             setBossMode(val) {
-              state.bossMode = Boolean(val);
-              document.documentElement.classList.toggle('chm-boss', state.bossMode);
+              bossMode = Boolean(val);
               const v = targetVideo || findBestVideo();
               if (!v) return;
-              if (state.bossMode) { wasPlayingBeforeBoss = !v.paused; v.pause(); }
-              else if (wasPlayingBeforeBoss) { v.play().catch(() => {}); }
+              if (bossMode) {
+                wasPlayingBeforeBoss = !v.paused;
+                v.pause();
+              } else if (wasPlayingBeforeBoss) {
+                v.play().catch(() => {});
+              }
+              pushMetaNow();
             },
             execPlayerCmd(cmd) {
               const v = targetVideo || findBestVideo();
@@ -2964,11 +3134,347 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               else if (cmd.action === 'seek') { v.currentTime = Math.max(0, (v.currentTime || 0) + Number(cmd.delta || 0)); }
               else if (cmd.action === 'seekTo' && Number.isFinite(cmd.value)) { v.currentTime = Math.max(0, cmd.value); }
               else if (cmd.action === 'setMuted') { v.muted = Boolean(cmd.value); if (!v.muted && v.volume < 0.05) v.volume = 0.85; }
-              else if (cmd.action === 'setRate' && Number.isFinite(cmd.value)) { v.playbackRate = cmd.value; }
+              else if (cmd.action === 'toggleMute') { v.muted = !(v.muted || v.volume === 0); if (!v.muted && v.volume < 0.05) v.volume = 0.85; }
+              else if (cmd.action === 'setVolume' && Number.isFinite(cmd.value)) { v.volume = Math.max(0, Math.min(1, Number(cmd.value))); v.muted = v.volume === 0; }
+              else if (cmd.action === 'setRate' && Number.isFinite(cmd.value)) { v.playbackRate = Number(cmd.value); }
+              setTimeout(pushMetaNow, 30);
             }
           };
         })();
-        """
+        """#
+    }
+
+    // MARK: - Independent Multi-Line Developer Terminal / Output Console Window
+    private func ensureStealthLogPanel() {
+        if logPanel != nil { return }
+        let screenVis = (panel?.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let w: CGFloat = min(580, max(380, screenVis.width * 0.42))
+        let h: CGFloat = 192
+        let rect = NSRect(x: screenVis.minX + 26, y: screenVis.minY + 26, width: w, height: h)
+
+        let lp = GhostPanel(
+            contentRect: rect,
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        lp.isOpaque = false
+        lp.backgroundColor = .clear
+        lp.hasShadow = true
+        lp.level = .floating
+        lp.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        lp.sharingType = hideFromCapture ? .none : .readOnly
+        lp.minSize = NSSize(width: 360, height: 115)
+
+        let cfg = WKWebViewConfiguration()
+        cfg.userContentController.add(self, name: "ghostAction")
+        let lwv = FirstMouseWebView(frame: lp.contentView!.bounds, configuration: cfg)
+        lwv.autoresizingMask = [.width, .height]
+        lwv.setValue(false, forKey: "drawsBackground")
+        lp.contentView?.addSubview(lwv)
+        lwv.loadHTMLString(Self.stealthLogConsoleHtml(), baseURL: nil)
+
+        self.logPanel = lp
+        self.logWebView = lwv
+    }
+
+    private func setStealthLogPanelVisible(_ visible: Bool) {
+        if visible {
+            ensureStealthLogPanel()
+            logPanel?.orderFrontRegardless()
+            if !lastLogConsoleJson.isEmpty {
+                let js = "window.StealthConsoleBridge?.pushSubtitle(\(lastLogConsoleJson));"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                    self?.logWebView?.evaluateJavaScript(js, completionHandler: nil)
+                }
+            }
+            if bossMode {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                    self?.logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.setBossSafeMode(true);", completionHandler: nil)
+                }
+            }
+        } else {
+            logPanel?.orderOut(nil)
+        }
+    }
+
+    private func pushStealthLogToConsole(_ dict: [String: Any]) {
+        guard stealthSubtitleEnabled else { return }
+        if logPanel?.isVisible != true {
+            setStealthLogPanelVisible(true)
+        }
+        let payload: [String: Any] = [
+            "text": (dict["text"] as? String) ?? "",
+            "paused": (dict["paused"] as? Bool) ?? isPlayerPaused,
+            "currentTime": (dict["currentTime"] as? Double) ?? playerCurTime,
+            "duration": (dict["duration"] as? Double) ?? playerDuration
+        ]
+        if let rawData = try? JSONSerialization.data(withJSONObject: payload, options: []),
+           let json = String(data: rawData, encoding: .utf8) {
+            lastLogConsoleJson = json
+            logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(json));", completionHandler: nil)
+        }
+    }
+
+    private static func stealthLogConsoleHtml() -> String {
+        return #"""
+        <!doctype html>
+        <html lang="zh-CN">
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            html, body {
+              width: 100%; height: 100%; overflow: hidden; background: transparent;
+              font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "SF Mono", "PingFang SC", monospace;
+              -webkit-font-smoothing: antialiased;
+            }
+            .shell {
+              display: flex; flex-direction: column; width: 100%; height: 100%;
+              border-radius: 9px; overflow: hidden;
+              background: #0d1117; border: 1px solid rgba(255,255,255,0.12); color: #c9d1d9;
+            }
+            body[data-theme="light"] .shell {
+              background: #f8fafc; border-color: rgba(15,23,42,0.16); color: #1e293b;
+            }
+            body[data-theme="glass"] .shell {
+              background: rgba(13,17,23,0.72); border-color: rgba(255,255,255,0.14);
+              backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            }
+            .hdr {
+              height: 28px; display: flex; align-items: center; justify-content: space-between;
+              padding: 0 10px; border-bottom: 1px solid rgba(255,255,255,0.08);
+              background: rgba(255,255,255,0.03); flex-shrink: 0; cursor: grab; user-select: none;
+              font-size: 10.5px;
+            }
+            body[data-theme="light"] .hdr {
+              border-bottom-color: rgba(15,23,42,0.10); background: rgba(15,23,42,0.04);
+            }
+            .tabs { display: flex; align-items: center; gap: 11px; }
+            .tab-lbl { color: #6e7681; font-weight: 600; letter-spacing: 0.3px; }
+            .tab-lbl.on { color: #e6edf3; border-bottom: 1.5px solid #34d399; padding: 5px 0; }
+            body[data-theme="light"] .tab-lbl.on { color: #0f172a; }
+            .hdr-tools { display: flex; align-items: center; gap: 4px; }
+            .tbtn {
+              appearance: none; border: 1px solid rgba(255,255,255,0.11); background: rgba(255,255,255,0.04);
+              color: #8b949e; font: inherit; font-size: 10px; padding: 2px 6px; border-radius: 4px; cursor: pointer;
+            }
+            .tbtn:hover { color: #fff; border-color: rgba(52,211,153,0.45); }
+            .tbtn.on { color: #6ee7b7; border-color: rgba(52,211,153,0.55); background: rgba(16,185,129,0.16); font-weight: 600; }
+            body[data-theme="light"] .tbtn { border-color: rgba(15,23,42,0.15); color: #475569; background: rgba(15,23,42,0.03); }
+            body[data-theme="light"] .tbtn.on { color: #047857; background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.45); }
+            .body {
+              flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 11.5px; line-height: 1.56;
+              user-select: text;
+            }
+            .body::-webkit-scrollbar { width: 5px; }
+            .body::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.22); border-radius: 99px; }
+            .log-row {
+              white-space: pre-wrap; word-break: break-word;
+              padding: 1.5px 0 1.5px 14px; text-indent: -14px;
+            }
+            .ts { color: #6e7681; }
+            .lv-info { color: #34d399; font-weight: 700; }
+            .lv-dbg { color: #79c0ff; font-weight: 600; }
+            .mod { color: #79c0ff; }
+            .msg { color: #e6edf3; }
+            .meta { color: #8b949e; }
+            body[data-theme="light"] .ts, body[data-theme="light"] .meta { color: #64748b; }
+            body[data-theme="light"] .lv-info { color: #059669; }
+            body[data-theme="light"] .lv-dbg, body[data-theme="light"] .mod { color: #0284c7; }
+            body[data-theme="light"] .msg { color: #0f172a; }
+            body.boss-safe .sub-line { display: none !important; }
+            .ftr {
+              height: 20px; display: flex; align-items: center; justify-content: space-between;
+              padding: 0 10px; font-size: 10px; color: #6e7681; flex-shrink: 0;
+              border-top: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);
+              user-select: none;
+            }
+            body[data-theme="light"] .ftr { border-top-color: rgba(15,23,42,0.08); background: rgba(15,23,42,0.02); }
+            .cur {
+              display: inline-block; width: 6px; height: 11px; background: #34d399;
+              vertical-align: middle; margin-left: 4px; animation: blink 1.1s steps(2, start) infinite;
+            }
+            @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="shell">
+            <div class="hdr">
+              <div class="tabs">
+                <span class="tab-lbl">PROBLEMS</span>
+                <span class="tab-lbl on">OUTPUT</span>
+                <span class="tab-lbl">TERMINAL</span>
+              </div>
+              <div class="hdr-tools">
+                <button class="tbtn on" data-tpl="api">后端API</button>
+                <button class="tbtn" data-tpl="ml">模型训练</button>
+                <button class="tbtn" data-tpl="test">编译测试</button>
+                <button class="tbtn" id="btnTheme">暗色</button>
+                <button class="tbtn" id="btnSm">A-</button>
+                <button class="tbtn" id="btnLg">A+</button>
+                <button class="tbtn" id="btnClr">清空</button>
+                <button class="tbtn" id="btnCls" title="关闭终端日志窗口">×</button>
+              </div>
+            </div>
+            <div class="body" id="logBody"></div>
+            <div class="ftr">
+              <span id="ftrLeft">main*  0 errors  0 warnings  |  worker-runtime (watch)</span>
+              <span>UTF-8  LF  <span id="ftrState">IDLE</span><span class="cur"></span></span>
+            </div>
+          </div>
+
+          <script>
+            const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
+            const logBody = document.getElementById('logBody');
+            const ftrState = document.getElementById('ftrState');
+            const themes = ['dark', 'light', 'glass'];
+            const themeLabels = { dark: '暗色', light: '浅色', glass: '透底' };
+            let curTheme = localStorage.getItem('chmLogTheme') || 'dark';
+            let curTpl = localStorage.getItem('chmLogTpl') || 'api';
+            let fontPx = Number(localStorage.getItem('chmLogFont') || 11.5);
+            let reqSeq = 1040;
+            let trainStep = 14820;
+            let lastSub = '';
+            let hovered = false;
+
+            function applyUiPrefs() {
+              document.body.setAttribute('data-theme', curTheme);
+              document.getElementById('btnTheme').textContent = themeLabels[curTheme] || '暗色';
+              logBody.style.fontSize = fontPx.toFixed(1) + 'px';
+              document.querySelectorAll('[data-tpl]').forEach(b => b.classList.toggle('on', b.dataset.tpl === curTpl));
+            }
+
+            function nowStamp() {
+              const d = new Date();
+              const ms = String(d.getMilliseconds()).padStart(3, '0');
+              return String(d.getHours()).padStart(2, '0') + ':' +
+                     String(d.getMinutes()).padStart(2, '0') + ':' +
+                     String(d.getSeconds()).padStart(2, '0') + '.' + ms;
+            }
+
+            function esc(s) {
+              return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+
+            function appendRow(html, isSub) {
+              const row = document.createElement('div');
+              row.className = isSub ? 'log-row sub-line' : 'log-row';
+              row.innerHTML = html;
+              logBody.appendChild(row);
+              while (logBody.children.length > 90) {
+                logBody.removeChild(logBody.firstChild);
+              }
+              if (!hovered) {
+                logBody.scrollTop = logBody.scrollHeight;
+              }
+            }
+
+            function pushAmbient(forceMsg) {
+              const ts = nowStamp();
+              reqSeq += 1;
+              trainStep += 4;
+              const ms = (3.2 + (reqSeq % 14) * 0.6).toFixed(1);
+              if (forceMsg) {
+                appendRow(`<span class="ts">[${ts}]</span> <span class="lv-info">INFO </span> <span class="mod">[core.boot]</span> <span class="meta">${esc(forceMsg)}</span>`, false);
+                return;
+              }
+              const pool = [
+                `<span class="ts">[${ts}]</span> <span class="lv-dbg">DEBUG</span> <span class="mod">[pg.pool]</span> <span class="meta">conn_acquired=2 idle=6 tx=0x${reqSeq.toString(16)} (${ms}ms)</span>`,
+                `<span class="ts">[${ts}]</span> <span class="lv-dbg">DEBUG</span> <span class="mod">[redis.lru]</span> <span class="meta">MGET batch_keys=18 hit_ratio=99.4% rss=41.2MB</span>`,
+                `<span class="ts">[${ts}]</span> <span class="lv-info">INFO </span> <span class="mod">[grpc.gw]</span> <span class="meta">heartbeat ok shard=us-west-2 seq=${reqSeq} rtt=${ms}ms</span>`,
+                `<span class="ts">[${ts}]</span> <span class="lv-dbg">DEBUG</span> <span class="mod">[vite.hmr]</span> <span class="meta">chunk graph verified (64 modules, 0 stale edges)</span>`
+              ];
+              appendRow(pool[reqSeq % pool.length], false);
+            }
+
+            function formatSubRow(clean) {
+              const ts = nowStamp();
+              reqSeq += 1;
+              trainStep += 1;
+              const lat = (4.1 + (reqSeq % 9) * 0.7).toFixed(1);
+              if (curTpl === 'ml') {
+                const loss = (0.0412 - (trainStep % 15) * 0.0004).toFixed(4);
+                return `<span class="ts">[${ts}]</span> <span class="lv-info">TRAIN</span> <span class="mod">[eval.batch]</span> <span class="meta">step=${trainStep} loss=${loss} | sample="</span><span class="msg">${esc(clean)}</span><span class="meta">"</span>`;
+              }
+              if (curTpl === 'test') {
+                return `<span class="ts">[${ts}]</span> <span class="lv-info">PASS </span> <span class="mod">[spec.suite]</span> <span class="meta">pipeline.spec.ts &gt; #${reqSeq}: </span><span class="msg">${esc(clean)}</span> <span class="meta">(${lat}ms)</span>`;
+              }
+              return `<span class="ts">[${ts}]</span> <span class="lv-info">INFO </span> <span class="mod">[trace.worker]</span> <span class="meta">req=0x${reqSeq.toString(16)} status=200 msg="</span><span class="msg">${esc(clean)}</span><span class="meta">" (${lat}ms)</span>`;
+            }
+
+            function seedInitialLogs() {
+              pushAmbient('Initializing worker-runtime v5.4 (node=20.11, workers=8)');
+              pushAmbient('Mounted telemetry bus & ring-buffer pipeline');
+              pushAmbient('Connected datastore pool (primary=127.0.0.1, pool_max=32)');
+              pushAmbient('Loaded scheduler policy [stealth-console=attached]');
+              pushAmbient('Health check passed (0 warnings, 0 errors)');
+            }
+
+            logBody.addEventListener('mouseenter', () => { hovered = true; });
+            logBody.addEventListener('mouseleave', () => { hovered = false; logBody.scrollTop = logBody.scrollHeight; });
+
+            document.querySelectorAll('[data-tpl]').forEach(b => {
+              b.addEventListener('click', () => {
+                curTpl = b.dataset.tpl;
+                localStorage.setItem('chmLogTpl', curTpl);
+                applyUiPrefs();
+              });
+            });
+            document.getElementById('btnTheme').addEventListener('click', () => {
+              curTheme = themes[(themes.indexOf(curTheme) + 1) % themes.length];
+              localStorage.setItem('chmLogTheme', curTheme);
+              applyUiPrefs();
+            });
+            document.getElementById('btnSm').addEventListener('click', () => {
+              fontPx = Math.max(9.5, fontPx - 0.5);
+              localStorage.setItem('chmLogFont', String(fontPx));
+              applyUiPrefs();
+            });
+            document.getElementById('btnLg').addEventListener('click', () => {
+              fontPx = Math.min(16, fontPx + 0.5);
+              localStorage.setItem('chmLogFont', String(fontPx));
+              applyUiPrefs();
+            });
+            document.getElementById('btnClr').addEventListener('click', () => {
+              logBody.innerHTML = '';
+              lastSub = '';
+              pushAmbient('Console buffer cleared');
+            });
+            document.getElementById('btnCls').addEventListener('click', () => {
+              post({ action: 'closeStealthLogPanel' });
+            });
+
+            setInterval(() => { pushAmbient(null); }, 4200);
+
+            window.StealthConsoleBridge = {
+              pushSubtitle(payload) {
+                if (!payload) return;
+                const clean = String(payload.text || '').trim();
+                const sec = Math.max(0, Math.floor(Number(payload.currentTime || 0)));
+                const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+                const ss = String(sec % 60).padStart(2, '0');
+                ftrState.textContent = (payload.paused ? 'PAUSE ' : 'LIVE ') + mm + ':' + ss;
+                if (clean && clean !== lastSub) {
+                  lastSub = clean;
+                  appendRow(formatSubRow(clean), true);
+                }
+              },
+              setBossSafeMode(active) {
+                document.body.classList.toggle('boss-safe', Boolean(active));
+                if (active) {
+                  pushAmbient('Build verification snapshot complete (0 failures)');
+                  pushAmbient('Idle GC pass reclaimed 12.4MB');
+                }
+              }
+            };
+
+            applyUiPrefs();
+            seedInitialLogs();
+          </script>
+        </body>
+        </html>
+        """#
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -3007,15 +3513,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
         case "exitBuiltInWeb":
             exitBuiltInWebMode()
+        case "builtInVideoFrame":
+            if isBuiltInWebActive && !bossMode,
+               let b64 = dict["b64"] as? String,
+               let data = Data(base64Encoded: b64) {
+                wsHub.pushLocalBuiltInFrame(data)
+            }
+        case "builtInVideoMeta":
+            if isBuiltInWebActive, let json = dict["json"] as? String {
+                wsHub.pushLocalBuiltInText(json)
+            }
+        case "builtInCanvasTainted":
+            if isBuiltInWebActive {
+                startBuiltInSnapshotPump()
+            }
+        case "stealthLogUpdate":
+            pushStealthLogToConsole(dict)
+        case "closeStealthLogPanel":
+            setStealthSubtitle(false)
         case "builtInVideoStatus":
             if let iso = dict["isolated"] as? Bool {
                 builtInVideoIsolated = iso
                 syncNativeIslandControls()
             }
         case "chromeStreamStarted":
-            if isBuiltInWebActive {
-                exitBuiltInWebMode()
-            }
             if !isVisible {
                 isVisible = true
             }
@@ -3033,13 +3554,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                     stealthSubtitleEnabled = ss
                     UserDefaults.standard.set(ss, forKey: "chameleonStealthSubtitle")
                     webView.evaluateJavaScript(
-                        "window.GeckoNativeBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":true});",
+                        "window.GeckoNativeBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":\(ss ? "true" : "false")});",
                         completionHandler: nil
                     )
-                    builtInWebView?.evaluateJavaScript(
-                        "window.ChameleonBuiltInBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":true});",
-                        completionHandler: nil
-                    )
+                    setStealthLogPanelVisible(ss)
                 }
                 if let hr = st["hoverReveal"] as? Bool, hr != hoverRevealEnabled {
                     hoverRevealEnabled = hr
@@ -3052,10 +3570,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 syncNativeIslandControls()
             }
         case "playerChanged":
-            let src = (dict["source"] as? String) ?? "ghost"
-            if (src == "builtin" && !isBuiltInWebActive) || (src != "builtin" && isBuiltInWebActive) {
-                return
-            }
             if let pl = dict["player"] as? [String: Any] {
                 let paused = (pl["paused"] as? Bool) ?? true
                 let activeVideo = (pl["hasActiveVideo"] as? Bool) ?? false
