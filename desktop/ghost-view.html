@@ -259,9 +259,9 @@
     <div class="pip-root" id="pipRoot" data-mode="projector">
       <div class="hud-top">
         <div class="pill-group">
-          <button class="seg-btn active" data-mode="projector" title="拟态同色：仿生变色龙色素细胞，底层代码/表格/红绿底色原样透出并同化环境色温">拟态</button>
-          <button class="seg-btn" data-mode="emboss" title="鳞纹浮雕：仿生变色龙颗粒鳞片肌理，平坦色块完全透明，仅留微雕轮廓">鳞纹</button>
-          <button class="seg-btn" data-mode="cinema" title="虹彩显色：仿生变色龙纳米晶格显色，保留原片色彩并自适应同化桌面底色">虹彩</button>
+          <button class="seg-btn active" data-mode="projector" title="环境变色：随底下代码/表格/文档/壁纸实时平滑变换同系保护色">变色</button>
+          <button class="seg-btn" data-mode="emboss" title="迷彩斑纹：化为同色系代码行纹与微米鳞点，远看像代码数据、近看画面清晰">斑纹</button>
+          <button class="seg-btn" data-mode="cinema" title="应激隐身：平时通透原彩，敲键盘打字时像活体变色龙一样0.25秒自动褪色潜伏，停手恢复">应激</button>
         </div>
         <div style="display:flex;align-items:center;gap:3px">
           <button class="icon-btn" data-scale="0.85" title="缩小窗口 (-)">−</button>
@@ -374,9 +374,17 @@
         const subtitleEl = document.getElementById("subtitleEl");
 
         // -------------------------------------------------------------------
-        // 60-120Hz Apple Metal WebGL Chameleon Biomimetic 3-Layer Skin Engine
+        // 60-120Hz Apple Metal WebGL Living-Chameleon Biological Skin Engine
         // Eliminates WebKit's slow CPU SVG <filter> completely in WKWebView!
         // -------------------------------------------------------------------
+        const skinAnim = {
+          bg: [0.09, 0.11, 0.14],
+          accent: [0.22, 0.74, 0.97],
+          pivot: 0.48,
+          stress: 0.0,
+          rafId: 0,
+        };
+
         function createWebGlProjector(canvas) {
           const gl =
             canvas.getContext("webgl", {
@@ -407,6 +415,9 @@
             uniform float uPivot;
             uniform float uFeather;
             uniform vec3 uBgRgb;
+            uniform vec3 uAccentRgb;
+            uniform float uStress;
+            uniform vec2 uResolution;
             uniform vec2 uTexel;
 
             void main() {
@@ -428,47 +439,57 @@
 
               vec4 src = texture2D(uTex, vUv);
               float lum = dot(src.rgb, vec3(0.2126, 0.7152, 0.0722));
-              vec3 lightTint = mix(vec3(1.0), clamp(uBgRgb * 1.35 + vec3(0.24), 0.0, 1.0), 0.28);
-              vec3 darkTint = mix(vec3(0.0), uBgRgb * 0.28, 0.22);
+              vec3 hiPigment = mix(vec3(1.0), clamp(uAccentRgb * 1.25 + vec3(0.12), 0.0, 1.0), 0.74);
+              vec3 loPigment = mix(vec3(0.0), clamp(uAccentRgb * 0.38 + uBgRgb * 0.18, 0.0, 1.0), 0.68);
 
+              // Mode 0: 环境变色 — Living Chromatophore Color-Shift
               if (uMode == 0) {
-                float k = clamp(uIntensity * 0.94, 0.06, 0.94);
-                float cLum = clamp((lum - uPivot) * 1.16 + uPivot, 0.0, 1.0);
+                float k = clamp(uIntensity * 0.94 * mix(1.0, 0.84, uStress), 0.06, 0.94);
+                float cLum = clamp((lum - uPivot) * 1.18 + uPivot, 0.0, 1.0);
                 if (cLum < uPivot) {
                   float aDark = clamp(k * ((uPivot - cLum) / max(0.05, uPivot)), 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(darkTint * aDark, aDark);
+                  gl_FragColor = vec4(loPigment * aDark, aDark);
                 } else {
                   float aLight = clamp(k * ((cLum - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(lightTint * aLight, aLight);
+                  gl_FragColor = vec4(hiPigment * aLight, aLight);
                 }
                 return;
               }
 
+              // Mode 1: 迷彩斑纹 — Staggered Chameleon Dermal Scales / Code-Line Pattern
               if (uMode == 1) {
-                vec3 tl = texture2D(uTex, vUv - uTexel * 1.35).rgb;
-                vec3 br = texture2D(uTex, vUv + uTexel * 1.35).rgb;
-                float lTl = dot(tl, vec3(0.2126, 0.7152, 0.0722));
-                float lBr = dot(br, vec3(0.2126, 0.7152, 0.0722));
-                float gain = 1.5 + uIntensity * 2.8;
-                float diff = (lBr - lTl) * gain;
-                if (abs(diff) < 0.018) {
-                  gl_FragColor = vec4(0.0);
-                } else if (diff < 0.0) {
-                  float a = clamp(-diff * uIntensity * 1.35, 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(darkTint * a, a);
+                vec2 px = vUv * max(uResolution, vec2(256.0, 144.0));
+                float rowIdx = floor(px.y / 3.0);
+                float rowWave = 0.76 + 0.24 * sin(px.y * 2.0944);
+                float stagger = mod(rowIdx, 2.0) * 2.5;
+                float cellDot = 0.78 + 0.22 * sin((px.x + stagger) * 1.2566);
+                float camoGrid = mix(1.0, rowWave * cellDot, 0.76);
+
+                float lumR = dot(texture2D(uTex, vUv + vec2(uTexel.x, 0.0)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float lumD = dot(texture2D(uTex, vUv + vec2(0.0, uTexel.y)).rgb, vec3(0.2126, 0.7152, 0.0722));
+                float edgeBoost = clamp((abs(lum - lumR) + abs(lum - lumD)) * 2.4, 0.0, 0.45);
+                float cLum = clamp((lum - uPivot) * (1.28 + edgeBoost) + uPivot, 0.0, 1.0);
+                float k = clamp(uIntensity * 0.95 * mix(1.0, 0.85, uStress), 0.08, 0.95);
+                if (cLum < uPivot) {
+                  float aDark = clamp(k * ((uPivot - cLum) / max(0.05, uPivot)), 0.0, 0.95) * mask * camoGrid;
+                  gl_FragColor = vec4(loPigment * aDark, aDark);
                 } else {
-                  float a = clamp(diff * uIntensity * 1.35, 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(lightTint * a, a);
+                  float aLight = clamp(k * ((cLum - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.95) * mask * camoGrid;
+                  gl_FragColor = vec4(hiPigment * aLight, aLight);
                 }
                 return;
               }
 
+              // Mode 2: 应激隐身 — Bio-Reflex Typing Camouflage (vivid when idle, instant fade+camo when typing)
               float chroma = max(src.r, max(src.g, src.b)) - min(src.r, min(src.g, src.b));
-              float envPull = clamp((1.0 - uIntensity) * 0.44 + 0.10, 0.10, 0.50);
+              float basePull = clamp((1.0 - uIntensity) * 0.40 + 0.08, 0.08, 0.46);
+              float envPull = mix(basePull, 0.78, uStress);
               vec3 boosted = clamp(src.rgb * 1.08, 0.0, 1.0);
-              vec3 harmonized = mix(boosted, mix(boosted, uBgRgb, 0.65), envPull);
-              float salience = clamp(abs(lum - uPivot) * 1.55 + chroma * 0.90 + 0.30, 0.28, 1.0);
-              float a = clamp(uIntensity * 0.90 * mix(salience, 1.0, uIntensity * 0.55), 0.06, 0.92) * mask;
+              vec3 targetCol = mix(uBgRgb, uAccentRgb, clamp(0.25 + 0.50 * lum, 0.25, 0.75));
+              vec3 harmonized = mix(boosted, targetCol, envPull);
+              float salience = clamp(abs(lum - uPivot) * 1.50 + chroma * 0.90 + 0.28, 0.26, 1.0);
+              float calmAlpha = clamp(uIntensity * 0.90 * mix(salience, 1.0, uIntensity * 0.55), 0.06, 0.92);
+              float a = calmAlpha * (1.0 - uStress * 0.58) * mask;
               gl_FragColor = vec4(harmonized * a, a);
             }
           `;
@@ -509,6 +530,9 @@
           const uPivot = gl.getUniformLocation(prog, "uPivot");
           const uFeather = gl.getUniformLocation(prog, "uFeather");
           const uBgRgb = gl.getUniformLocation(prog, "uBgRgb");
+          const uAccentRgb = gl.getUniformLocation(prog, "uAccentRgb");
+          const uStress = gl.getUniformLocation(prog, "uStress");
+          const uResolution = gl.getUniformLocation(prog, "uResolution");
           const uTexel = gl.getUniformLocation(prog, "uTexel");
           let hasTexture = false;
           let texW = 512;
@@ -522,20 +546,16 @@
               gl.viewport(0, 0, texW, texH);
             }
             const m = st.mode === "emboss" ? 1 : st.mode === "cinema" ? 2 : 0;
-            let pivot = 0.48;
-            if (st.autoSense && st.bgColor) {
-              const lum = Core.getLuminance(st.bgColor);
-              if (lum > 0.86) pivot = 0.72;
-              else if (lum < 0.14) pivot = 0.28;
-            }
-            const bgRgb = Core.hexToRgb(st.bgColor || "#505050");
             gl.clearColor(0.0, 0.0, 0.0, 0.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.uniform1i(uMode, m);
             gl.uniform1f(uIntensity, Core.clamp(Number(st.stealth ?? 58) / 100, 0.08, 0.96));
-            gl.uniform1f(uPivot, pivot);
+            gl.uniform1f(uPivot, skinAnim.pivot);
             gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.85));
-            gl.uniform3f(uBgRgb, bgRgb.r / 255, bgRgb.g / 255, bgRgb.b / 255);
+            gl.uniform3f(uBgRgb, skinAnim.bg[0], skinAnim.bg[1], skinAnim.bg[2]);
+            gl.uniform3f(uAccentRgb, skinAnim.accent[0], skinAnim.accent[1], skinAnim.accent[2]);
+            gl.uniform1f(uStress, skinAnim.stress);
+            gl.uniform2f(uResolution, texW, texH);
             gl.uniform2f(uTexel, 1 / Math.max(1, texW), 1 / Math.max(1, texH));
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             gl.flush();
@@ -656,7 +676,7 @@
               JSON.stringify({
                 type: "videoPlaybackState",
                 playing,
-                mode: `${state.mode === "emboss" ? "鳞纹" : state.mode === "cinema" ? "虹彩" : "拟态"} ${state.stealth}%`,
+                mode: `${state.mode === "emboss" ? "斑纹" : state.mode === "cinema" ? "应激" : "变色"} ${state.stealth}%`,
                 stats: p
                   ? {
                       currentStreakSeconds: p.currentStreakSeconds || 0,
@@ -1327,7 +1347,7 @@
         }
         syncMembershipWithNative();
 
-        // All 3 Chameleon visual modes (拟态 / 鳞纹 / 虹彩) are 100% FREE forever!
+        // All 3 Chameleon visual modes (变色 / 斑纹 / 应激) are 100% FREE forever!
         document.querySelectorAll(".seg-btn").forEach((b) => {
           b.addEventListener("click", () => {
             broadcastStateUpdate({ mode: b.dataset.mode });
@@ -1399,6 +1419,60 @@
         document.getElementById("btnBoss").addEventListener("click", () => postNative({ action: "setBoss", value: true }));
         document.getElementById("btnRecoverBoss").addEventListener("click", () => postNative({ action: "setBoss", value: false }));
 
+        function computeSkinTargets() {
+          const bg = Core.hexToRgb(state.bgColor || "#161b22");
+          const acc = Core.hexToRgb(Core.deriveHabitatAccent(state.bgColor, state.archetype, state.accentColor));
+          let targetPivot = 0.48;
+          if (state.autoSense && state.bgColor) {
+            const lum = Core.getLuminance(state.bgColor);
+            if (lum > 0.86) targetPivot = 0.72;
+            else if (lum < 0.14) targetPivot = 0.28;
+          }
+          return {
+            bg: [bg.r / 255, bg.g / 255, bg.b / 255],
+            accent: [acc.r / 255, acc.g / 255, acc.b / 255],
+            pivot: targetPivot,
+            stress: isTyping ? 1.0 : 0.0,
+          };
+        }
+
+        function scheduleSkinMorph() {
+          if (skinAnim.rafId) return;
+          const step = () => {
+            skinAnim.rafId = 0;
+            const tgt = computeSkinTargets();
+            let delta = 0;
+            for (let i = 0; i < 3; i++) {
+              const db = tgt.bg[i] - skinAnim.bg[i];
+              skinAnim.bg[i] += db * 0.14;
+              const da = tgt.accent[i] - skinAnim.accent[i];
+              skinAnim.accent[i] += da * 0.14;
+              delta = Math.max(delta, Math.abs(db), Math.abs(da));
+            }
+            const dp = tgt.pivot - skinAnim.pivot;
+            skinAnim.pivot += dp * 0.14;
+            const ds = tgt.stress - skinAnim.stress;
+            skinAnim.stress += ds * 0.18;
+            delta = Math.max(delta, Math.abs(dp), Math.abs(ds));
+
+            if (glProjector) {
+              glProjector.redraw(state);
+            } else {
+              render();
+            }
+            if (delta > 0.003) {
+              skinAnim.rafId = requestAnimationFrame(step);
+            } else {
+              skinAnim.bg = tgt.bg;
+              skinAnim.accent = tgt.accent;
+              skinAnim.pivot = tgt.pivot;
+              skinAnim.stress = tgt.stress;
+              if (glProjector) glProjector.redraw(state);
+            }
+          };
+          skinAnim.rafId = requestAnimationFrame(step);
+        }
+
         window.GeckoNativeBridge = {
           setHovered(val, forcePeek = false) {
             applyHoverReveal(val, forcePeek);
@@ -1406,22 +1480,23 @@
           onMacSensor(sensor) {
             isTyping = Boolean(sensor.isTyping);
             if (state.autoSense) {
-              const prevLum = Core.getLuminance(state.bgColor);
               const patch = Core.computeAutoScenePatch(sensor, state);
-              state.bgColor = Core.lerpColor(state.bgColor, patch.bgColor, 0.45);
-              state.inkColor = Core.deriveAutoInkColor(state.bgColor, sensor.archetype);
+              state.bgColor = patch.bgColor;
+              state.accentColor = patch.accentColor;
+              state.archetype = patch.archetype;
+              state.inkColor = Core.deriveAutoInkColor(state.bgColor);
               renderSubtitle();
-              const nextLum = Core.getLuminance(state.bgColor);
-              const prevBucket = prevLum > 0.86 ? 2 : prevLum < 0.14 ? 0 : 1;
-              const nextBucket = nextLum > 0.86 ? 2 : nextLum < 0.14 ? 0 : 1;
-              if (prevBucket !== nextBucket) render();
             }
+            scheduleSkinMorph();
           },
           applyPatch(patch) {
             if (patch?.stealthSubtitle && !state.stealthSubtitle) {
               stealthSubActivatedAt = performance.now();
             }
             state = { ...state, ...patch };
+            if (patch?.bgColor || patch?.accentColor || patch?.archetype) {
+              scheduleSkinMorph();
+            }
             render();
             if (ws?.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "statePatch", patch }));
@@ -1500,7 +1575,7 @@
           }
 
           if (isActivelyPlaying && tickCount % 12 === 0) {
-            const modeLabel = `${state.mode === "emboss" ? "鳞纹" : state.mode === "cinema" ? "虹彩" : "拟态"} ${state.stealth}%`;
+            const modeLabel = `${state.mode === "emboss" ? "斑纹" : state.mode === "cinema" ? "应激" : "变色"} ${state.stealth}%`;
             fetch(`${S.getApiBase()}/api/heartbeat`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },

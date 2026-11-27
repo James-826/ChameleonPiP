@@ -132,7 +132,7 @@
       }
     }
 
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && state.typingLurk) {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && (state.typingLurk || state.mode === "cinema" || state.mode === "projector")) {
       if (!isTyping) {
         isTyping = true;
         applyStateToParasite();
@@ -725,9 +725,9 @@
 
         <div class="hud-top" style="z-index:65;padding-top:10px">
           <div class="pill-group">
-            <button class="seg-btn" data-mode="projector">拟态</button>
-            <button class="seg-btn" data-mode="emboss">鳞纹</button>
-            <button class="seg-btn" data-mode="cinema">虹彩</button>
+            <button class="seg-btn" data-mode="projector">变色</button>
+            <button class="seg-btn" data-mode="emboss">斑纹</button>
+            <button class="seg-btn" data-mode="cinema">应激</button>
           </div>
           <div style="display:flex;gap:4px">
             <button class="icon-btn" data-size="260" style="width:auto;padding:0 6px;font-size:10px" title="小窗">S</button>
@@ -1102,9 +1102,9 @@
           <button class="t-btn" id="tbThrough">鼠标穿透</button>
         </div>
         <div class="seg4">
-          <button class="sb" data-mode="projector">拟态</button>
-          <button class="sb" data-mode="emboss">鳞纹</button>
-          <button class="sb" data-mode="cinema">虹彩</button>
+          <button class="sb" data-mode="projector">变色</button>
+          <button class="sb" data-mode="emboss">斑纹</button>
+          <button class="sb" data-mode="cinema">应激</button>
         </div>
         <div class="sl">
           <div><span>变色融合浓度</span><strong id="tbValStealth">58%</strong></div>

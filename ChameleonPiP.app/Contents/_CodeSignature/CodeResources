@@ -10,19 +10,19 @@
 		</data>
 		<key>Resources/arena.html</key>
 		<data>
-		nlqYbFSI+IaH3l5KpZdJfYRaEYc=
+		RD7VLCCw+gCs7JQPki/kD/l48BY=
 		</data>
 		<key>Resources/chameleon-stats.js</key>
 		<data>
-		xmG4Woi9IhtiE8knuLbtJLJwiu8=
+		GZHoSaUarsMIJqZXPzud22qxNwQ=
 		</data>
 		<key>Resources/gecko-core.js</key>
 		<data>
-		ppoTnE8OlcXInT58pbNbcryLjpE=
+		vqBlhA0/tkNQyoLhPq+3UQDLHQc=
 		</data>
 		<key>Resources/ghost-view.html</key>
 		<data>
-		ZN76mUKqPDsns+/bCIQ13Cdgp6Y=
+		eB17ExHtYsjOS6hh16W/nhoyJPk=
 		</data>
 		<key>Resources/icon128.png</key>
 		<data>
@@ -30,15 +30,15 @@
 		</data>
 		<key>Resources/index.html</key>
 		<data>
-		cVfpx6h9oX/IWaaShuzDX3Yti4M=
+		RYOTO96JOJ7YVKgRzbxB5Cby1Uo=
 		</data>
 		<key>Resources/menubar.html</key>
 		<data>
-		WzGene6odo3czgOu70vHZ8unshY=
+		5FiC/qA+E0QzEZk1RUb7Col0O5E=
 		</data>
 		<key>Resources/store-config.js</key>
 		<data>
-		nUcRqCZJjrYEKm8CouyhwTTnOF4=
+		7in2B8MC8bQVMVgAUXX1C/7Uj/s=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -54,28 +54,28 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oHkBSeW554bYHG0zw2FyIp0Gj19wsyU2cp6wAHDghNU=
+			NM5d2ew5WCEB/hVE5BfeinUGpFFeyCXi32deBDPlG9E=
 			</data>
 		</dict>
 		<key>Resources/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			23v5a3CSPW6qMvFcQHQMDk4KYIb4+o7odrFIsYrBIO0=
+			qZ7RGefoUSDwos6AvWM8OV8Vl9x3GLlsWs2eGrzq9Ug=
 			</data>
 		</dict>
 		<key>Resources/gecko-core.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GXMcmufnHwltunWCufXaXG/AmzrvD7UjmHMLSMFnLpc=
+			vAzBfKdGtyuw27hhShRkfYS+tp20WnA3WApnZ3I6LlI=
 			</data>
 		</dict>
 		<key>Resources/ghost-view.html</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			6VmqJaZG1q78k3VnG5LIWLdj0yID1xrsepjLk0ITRu0=
+			gwjRR/MNn0TSA2rOr1MzIziR3rLXYG+l+lk/JWRrgkw=
 			</data>
 		</dict>
 		<key>Resources/icon128.png</key>
@@ -89,35 +89,35 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			vyg3RhMyZdyWDMdJvakYsk6ZCJNNFibnUItB5ArqjRc=
+			Tme8nwlhlQttg7z6awy3Dz5FMFQxK0RZMYxNkbEgK0U=
 			</data>
 		</dict>
 		<key>Resources/menubar.html</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			QR+FyUzk037SbQQhd3yO09mHngJuYv+hcSswCZJM/Uw=
+			zFSZK0dSkO34pbuz0JaYiOO+xGMW6lbQReNhIO1fpks=
 			</data>
 		</dict>
 		<key>Resources/store-config.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			7GydsUGzc9NNNgMRM11lNHQjat4RWh9KHTgt31woJDY=
+			h6moRlBgVVAA1Sla3O6ki0S8JovtqnqI47kpri6WMQk=
 			</data>
 		</dict>
 		<key>extension/chameleon-stats.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			23v5a3CSPW6qMvFcQHQMDk4KYIb4+o7odrFIsYrBIO0=
+			qZ7RGefoUSDwos6AvWM8OV8Vl9x3GLlsWs2eGrzq9Ug=
 			</data>
 		</dict>
 		<key>extension/gecko-core.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			GXMcmufnHwltunWCufXaXG/AmzrvD7UjmHMLSMFnLpc=
+			vAzBfKdGtyuw27hhShRkfYS+tp20WnA3WApnZ3I6LlI=
 			</data>
 		</dict>
 		<key>extension/icons/icon128.png</key>

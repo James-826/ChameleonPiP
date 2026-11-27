@@ -12,10 +12,19 @@ import CoreVideo
 
 final class GhostPanel: NSPanel {
     var allowKeyWindow: Bool = true
+    var clampToVisibleFrame: Bool = false
     override var canBecomeKey: Bool { allowKeyWindow }
     override var canBecomeMain: Bool { false }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
-        return frameRect
+        guard clampToVisibleFrame, let vis = (screen ?? self.screen ?? NSScreen.main)?.visibleFrame else {
+            return frameRect
+        }
+        var r = frameRect
+        r.size.width = min(r.size.width, vis.width - 4)
+        r.size.height = min(r.size.height, vis.height - 4)
+        r.origin.x = max(vis.minX + 2, min(r.origin.x, vis.maxX - r.size.width - 2))
+        r.origin.y = max(vis.minY + 2, min(r.origin.y, vis.maxY - r.size.height - 2))
+        return r
     }
 }
 
@@ -864,6 +873,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var currentFeather: Int = (UserDefaults.standard.object(forKey: "chameleonFeather") as? Int) ?? 28
 
     private var lastKeyTime: TimeInterval = 0
+    private var lastPushedTyping: Bool = false
+    private var lastDragSenseAt: CFAbsoluteTime = 0
+    private var lastSensedBgHex: String = "#161b22"
+    private var lastSensedAccentHex: String = "#38bdf8"
+    private var cachedWallpaperUrl: URL? = nil
+    private var cachedWallpaperColors: (bg: String, accent: String)? = nil
+    private var typingSensorTimer: Timer?
     private var dragOriginOffset: NSPoint?
     private var dragDownScreenPt: NSPoint?
     private var isDraggingWindow: Bool = false
@@ -1310,30 +1326,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .scrollWheel, .magnify]) { [weak self] event in
             guard let self = self else { return event }
 
-            // Independent Multi-Line Stealth Log Console Window drag & 8-way resize
+            // Independent Multi-Line Stealth Log Console Window 8-way resize (non-edge drags route via JS beginLogDrag)
             if let lw = self.logPanel, event.window === lw, event.type == .leftMouseDown {
                 let loc = event.locationInWindow
                 let b = lw.frame.size
-                let cornerPad: CGFloat = 16
-                let edgePad: CGFloat = 9
+                let inTopRightButtons = loc.y >= b.height - 28 && loc.x >= b.width - 42 && loc.x <= b.width - 7
+                let cornerPad: CGFloat = 12
+                let edgePad: CGFloat = 6
                 let inCornerX = loc.x <= cornerPad || loc.x >= b.width - cornerPad
                 let inCornerY = loc.y <= cornerPad || loc.y >= b.height - cornerPad
                 let isCorner = inCornerX && inCornerY
                 let nearL = loc.x <= (isCorner ? cornerPad : edgePad)
                 let nearR = loc.x >= b.width - (isCorner ? cornerPad : edgePad)
                 let nearB = loc.y <= (isCorner ? cornerPad : edgePad)
-                let nearT = loc.y >= b.height - (isCorner ? cornerPad : 7)
+                let nearT = loc.y >= b.height - (isCorner ? cornerPad : edgePad)
 
                 var dir = ""
                 if nearT { dir += "n" } else if nearB { dir += "s" }
                 if nearL { dir += "w" } else if nearR { dir += "e" }
-                if !dir.isEmpty {
+                if !dir.isEmpty && !inTopRightButtons {
                     self.startNativeResize(dir: dir, window: lw)
-                    return nil
-                }
-                // Header bar (top 28pt) excluding right-side toolbar pills
-                if loc.y >= b.height - 28 && loc.x < b.width - 270 {
-                    self.startNativeDrag(offset: loc, window: lw)
                     return nil
                 }
                 return event
@@ -1444,6 +1456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
 
             let m = NSEvent.mouseLocation
+            let scr = NSScreen.screens.first(where: { $0.frame.contains(m) }) ?? targetWin.screen ?? NSScreen.main
             if let dir = self.activeResizeDir {
                 let minW: CGFloat = (targetWin === self.logPanel) ? 360 : 190
                 let minH: CGFloat = (targetWin === self.logPanel) ? 115 : 110
@@ -1464,6 +1477,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                     nf.origin.y = f0.maxY - nh
                     nf.size.height = nh
                 }
+                if let vis = scr?.visibleFrame {
+                    if nf.maxY > vis.maxY - 2 {
+                        if dir.contains("n") {
+                            nf.size.height = max(minH, vis.maxY - 2 - nf.origin.y)
+                        } else {
+                            nf.origin.y = vis.maxY - 2 - nf.size.height
+                        }
+                    }
+                    if targetWin === self.logPanel {
+                        nf.origin.x = max(vis.minX + 2, min(nf.origin.x, vis.maxX - minW - 2))
+                        if nf.maxX > vis.maxX - 2 {
+                            nf.size.width = max(minW, vis.maxX - 2 - nf.origin.x)
+                        }
+                        if nf.minY < vis.minY + 2 {
+                            let clampedTop = nf.maxY
+                            nf.origin.y = vis.minY + 2
+                            if dir.contains("s") {
+                                nf.size.height = max(minH, clampedTop - nf.origin.y)
+                            }
+                        }
+                    }
+                }
                 targetWin.setFrame(nf, display: true)
                 return
             }
@@ -1473,7 +1508,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                     self.isDraggingWindow = true
                 }
                 if self.isDraggingWindow {
-                    targetWin.setFrameOrigin(NSPoint(x: m.x - offset.x, y: m.y - offset.y))
+                    var nx = m.x - offset.x
+                    var ny = m.y - offset.y
+                    if let vis = scr?.visibleFrame {
+                        let w = targetWin.frame.width
+                        let h = targetWin.frame.height
+                        if targetWin === self.logPanel {
+                            nx = max(vis.minX + 2, min(nx, vis.maxX - w - 2))
+                            ny = max(vis.minY + 2, min(ny, vis.maxY - h - 2))
+                        } else {
+                            let minWinY = (scr?.frame.minY ?? vis.minY) + 2
+                            nx = max(vis.minX - w + 80, min(nx, vis.maxX - 80))
+                            ny = max(minWinY, min(ny, vis.maxY - h - 2))
+                        }
+                    }
+                    targetWin.setFrameOrigin(NSPoint(x: nx, y: ny))
+                    if targetWin === self.panel {
+                        let nowT = CFAbsoluteTimeGetCurrent()
+                        if nowT - self.lastDragSenseAt > 0.16 {
+                            self.lastDragSenseAt = nowT
+                            self.senseEnvironmentAsync()
+                        }
+                    }
                 }
             }
         }
@@ -1592,8 +1648,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         controlsContainer.addSubview(btnRate)
         controlsContainer.addSubview(btnMute)
 
-        // Row 3 (y = 104): All 3 Biomimetic Chameleon Camouflage Modes (100% FREE!)
-        segMode = NSSegmentedControl(labels: ["拟态同色", "鳞纹浮雕", "虹彩显色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
+        // Row 3 (y = 104): All 3 Living-Chameleon Camouflage Modes (100% FREE!)
+        segMode = NSSegmentedControl(labels: ["环境变色", "迷彩斑纹", "应激隐身"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
         segMode.frame = NSRect(x: 14, y: 104, width: 288, height: 24)
         segMode.selectedSegment = 0
         segMode.segmentDistribution = .fillEqually
@@ -3388,6 +3444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             backing: .buffered,
             defer: false
         )
+        lp.clampToVisibleFrame = true
         lp.isOpaque = false
         lp.backgroundColor = .clear
         lp.hasShadow = true
@@ -3413,7 +3470,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func setStealthLogPanelVisible(_ visible: Bool) {
         if visible {
             ensureStealthLogPanel()
-            logPanel?.orderFrontRegardless()
+            if let lp = logPanel {
+                let clamped = lp.constrainFrameRect(lp.frame, to: lp.screen ?? panel?.screen ?? NSScreen.main)
+                if clamped != lp.frame {
+                    lp.setFrame(clamped, display: true)
+                }
+                lp.orderFrontRegardless()
+            }
             if isLogConsoleLoaded {
                 if !lastLogConsoleJson.isEmpty {
                     logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(lastLogConsoleJson));", completionHandler: nil)
@@ -3487,10 +3550,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
             .hdr {
               height: 28px; display: flex; align-items: center; justify-content: space-between;
-              padding: 0 10px; border-bottom: 1px solid rgba(255,255,255,0.08);
+              padding: 0 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
               background: rgba(255,255,255,0.03); flex-shrink: 0; cursor: grab; user-select: none;
               font-size: 10.5px;
             }
+            .hdr:active, .body:active, .ftr:active { cursor: grabbing; }
             body[data-theme="light"] .hdr {
               border-bottom-color: rgba(15,23,42,0.10); background: rgba(15,23,42,0.04);
             }
@@ -3509,7 +3573,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             body[data-theme="light"] .tbtn.on { color: #047857; background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.45); }
             .body {
               flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 11.5px; line-height: 1.56;
-              user-select: text;
+              cursor: grab; user-select: none;
             }
             .body::-webkit-scrollbar { width: 5px; }
             .body::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.22); border-radius: 99px; }
@@ -3532,7 +3596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               height: 20px; display: flex; align-items: center; justify-content: space-between;
               padding: 0 10px; font-size: 10px; color: #6e7681; flex-shrink: 0;
               border-top: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);
-              user-select: none;
+              cursor: grab; user-select: none;
             }
             body[data-theme="light"] .ftr { border-top-color: rgba(15,23,42,0.08); background: rgba(15,23,42,0.02); }
             .cur {
@@ -3660,12 +3724,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
 
             function seedInitialLogs() {
-              pushAmbient('Initializing worker-runtime v5.4 (node=20.11, workers=8)');
+              pushAmbient('Initializing worker-runtime v5.5 (node=20.11, workers=8)');
               pushAmbient('Mounted telemetry bus & ring-buffer pipeline');
               pushAmbient('Subtitle engine ready: DOM-CC + Apple Vision Neural OCR (zh/en) active');
               pushAmbient('Loaded scheduler policy [stealth-console=attached]');
               pushAmbient('Health check passed (0 warnings, 0 errors)');
             }
+
+            // Drag window from anywhere inside header, body, or footer (excluding toolbar buttons)
+            document.addEventListener('mousedown', (e) => {
+              if (e.button !== 0) return;
+              if (e.target.closest('button')) return;
+              post({ action: 'beginLogDrag' });
+            });
 
             logBody.addEventListener('mouseenter', () => { hovered = true; });
             logBody.addEventListener('mouseleave', () => { hovered = false; logBody.scrollTop = logBody.scrollHeight; });
@@ -3802,6 +3873,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             pushStealthLogToConsole(dict)
         case "closeStealthLogPanel":
             setStealthSubtitle(false)
+        case "beginLogDrag":
+            if let lw = self.logPanel {
+                let m = NSEvent.mouseLocation
+                let off = NSPoint(x: m.x - lw.frame.origin.x, y: m.y - lw.frame.origin.y)
+                self.startNativeDrag(offset: off, window: lw)
+            }
         case "builtInVideoStatus":
             if let iso = dict["isolated"] as? Bool {
                 builtInVideoIsolated = iso
@@ -3938,9 +4015,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     private func setupGlobalTypingSensor() {
-        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
-            self?.lastKeyTime = ProcessInfo.processInfo.systemUptime
+        typingSensorTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self = self, self.isVisible, !self.bossMode else { return }
+            let secSinceKey = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
+            let typingNow = secSinceKey < 1.65
+            if typingNow {
+                self.lastKeyTime = ProcessInfo.processInfo.systemUptime
+            }
+            if typingNow != self.lastPushedTyping {
+                self.lastPushedTyping = typingNow
+                self.pushSensorToWebView(
+                    bgColor: self.lastSensedBgHex,
+                    accentColor: self.lastSensedAccentHex,
+                    archetype: self.lastExternalApp.archetype,
+                    appName: self.lastExternalApp.name,
+                    isTyping: typingNow
+                )
+            }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        typingSensorTimer = timer
     }
 
     private func startAutoSceneLoop() {
@@ -3956,57 +4051,136 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 self.senseEnvironmentAsync(periodic: false)
             }
             self.senseDebounceWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)
         }
 
-        // Defer first ScreenCaptureKit probe by 1.5s, then use a lightweight 10s periodic fallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        // Fast initial habitat sense + 2.0s periodic refresh (tracks windows & desktop wallpapers cleanly)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
             guard let self = self else { return }
-            Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            if self.isVisible && !self.bossMode {
+                self.senseEnvironmentAsync(periodic: false)
+            }
+            Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
                 guard let self = self, self.isVisible, !self.bossMode else { return }
                 self.senseEnvironmentAsync(periodic: true)
             }
         }
     }
 
-    private func classifyFrontmostApp() -> (name: String, archetype: String) {
+    private func classifyBundleAndName(bundleId: String, appName: String) -> (String, String) {
+        let bid = bundleId.lowercased()
+        let low = appName.lowercased()
+        if bid.contains("vscode") || bid.contains("cursor") || bid.contains("xcode") ||
+           bid.contains("jetbrains") || bid.contains("zed") || bid.contains("antigravity") ||
+           bid.contains("sublimetext") || low.contains("code") || low.contains("idea") {
+            return (appName, "ide")
+        } else if bid.contains("terminal") || bid.contains("iterm") || bid.contains("warp") ||
+                  bid.contains("ghostty") || bid.contains("alacritty") || bid.contains("kitty") {
+            return (appName, "terminal")
+        } else if bid.contains("excel") || bid.contains("numbers") || bid.contains("wps") {
+            return (appName, "sheet")
+        } else if bid.contains("lark") || bid.contains("feishu") || bid.contains("notion") ||
+                  bid.contains("word") || bid.contains("pages") || bid.contains("notes") || bid.contains("obsidian") {
+            return (appName, "doc")
+        } else if bid.contains("wechat") || bid.contains("qq") || bid.contains("slack") ||
+                  bid.contains("discord") || bid.contains("telegram") {
+            return (appName, "chat")
+        }
+        return (appName, "web")
+    }
+
+    /// Zero-permission habitat detector: checks actual on-screen window directly beneath `panel.frame`!
+    private func classifyHabitatUnderPanel() -> (name: String, archetype: String) {
+        if let panelFrame = panel?.frame {
+            let primaryH = NSScreen.screens.first?.frame.height ?? 1080
+            let qPt = CGPoint(x: panelFrame.midX, y: primaryH - panelFrame.midY)
+            if let wins = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+                let myPid = ProcessInfo.processInfo.processIdentifier
+                for w in wins {
+                    guard let ownerPid = w[kCGWindowOwnerPID as String] as? pid_t, ownerPid != myPid else { continue }
+                    guard (w[kCGWindowLayer as String] as? Int ?? 0) == 0 else { continue }
+                    guard (w[kCGWindowAlpha as String] as? Double ?? 1.0) > 0.05 else { continue }
+                    guard let boundsRaw = w[kCGWindowBounds as String],
+                          let bounds = CGRect(dictionaryRepresentation: boundsRaw as! CFDictionary),
+                          bounds.width >= 40, bounds.height >= 40,
+                          bounds.contains(qPt) else { continue }
+                    let ownerName = (w[kCGWindowOwnerName as String] as? String) ?? "桌面"
+                    let app = NSRunningApplication(processIdentifier: ownerPid)
+                    let bid = app?.bundleIdentifier ?? ""
+                    let classified = classifyBundleAndName(bundleId: bid, appName: ownerName)
+                    lastExternalApp = classified
+                    return classified
+                }
+                return ("桌面壁纸", "desktop")
+            }
+        }
         guard let app = NSWorkspace.shared.frontmostApplication else { return lastExternalApp }
         let bid = (app.bundleIdentifier ?? "").lowercased()
         if bid == "com.chameleonpip.macos" || bid == "com.geckopip.ghost" { return lastExternalApp }
-        let name = app.localizedName ?? "桌面"
-        let lowName = name.lowercased()
-        let result: (String, String)
-        if bid.contains("vscode") || bid.contains("cursor") || bid.contains("xcode") ||
-           bid.contains("jetbrains") || bid.contains("zed") || bid.contains("antigravity") || lowName.contains("code") {
-            result = (name, "ide")
-        } else if bid.contains("terminal") || bid.contains("iterm") || bid.contains("warp") || bid.contains("ghostty") {
-            result = (name, "terminal")
-        } else if bid.contains("excel") || bid.contains("numbers") || bid.contains("wps") {
-            result = (name, "sheet")
-        } else if bid.contains("lark") || bid.contains("feishu") || bid.contains("wechat") || bid.contains("notion") || bid.contains("word") {
-            result = (name, "doc")
-        } else {
-            result = (name, "web")
-        }
-        lastExternalApp = result
-        return result
+        let res = classifyBundleAndName(bundleId: bid, appName: app.localizedName ?? "桌面")
+        lastExternalApp = res
+        return res
     }
 
-    private func fallbackColorForArchetype(_ archetype: String) -> String {
+    private func sampleCurrentWallpaperPalette(isSystemDark: Bool) -> (bg: String, accent: String) {
+        let fb = isSystemDark ? ("#1e1b4b", "#818cf8") : ("#e0f2fe", "#0284c7")
+        guard let scr = panel?.screen ?? NSScreen.main,
+              let url = NSWorkspace.shared.desktopImageURL(for: scr) else { return fb }
+        if url == cachedWallpaperUrl, let cached = cachedWallpaperColors {
+            return cached
+        }
+        guard let img = NSImage(contentsOf: url),
+              let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return fb
+        }
+        // Downsample wallpaper cleanly into a tiny 32x18 grid once per wallpaper change
+        let w = 32, h = 18
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        if let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            var rSum = 0.0, gSum = 0.0, bSum = 0.0
+            let cnt = Double(w * h)
+            var crSum = 0.0, cgSum = 0.0, cbSum = 0.0, cwSum = 0.0
+            for i in stride(from: 0, to: w * h * 4, by: 4) {
+                let r = Double(buf[i]), g = Double(buf[i + 1]), b = Double(buf[i + 2])
+                rSum += r; gSum += g; bSum += b
+                let sat = max(r, max(g, b)) - min(r, min(g, b))
+                if sat >= 24 {
+                    let wt = sat * sat
+                    crSum += r * wt; cgSum += g * wt; cbSum += b * wt; cwSum += wt
+                }
+            }
+            let bg = String(format: "#%02x%02x%02x", Int((rSum / cnt).rounded()), Int((gSum / cnt).rounded()), Int((bSum / cnt).rounded()))
+            let accent = cwSum > 1
+                ? String(format: "#%02x%02x%02x", Int((crSum / cwSum).rounded()), Int((cgSum / cwSum).rounded()), Int((cbSum / cwSum).rounded()))
+                : fb.1
+            let res = (bg, accent)
+            cachedWallpaperUrl = url
+            cachedWallpaperColors = res
+            return res
+        }
+        return fb
+    }
+
+    private func habitatPaletteForArchetype(_ archetype: String) -> (bg: String, accent: String) {
         let isSystemDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
         switch archetype {
-        case "ide": return isSystemDark ? "#1e1e1e" : "#f8fafc"
-        case "terminal": return "#0d1117"
-        case "sheet": return "#f4f6f5"
-        case "doc": return isSystemDark ? "#1f2329" : "#ffffff"
-        default: return isSystemDark ? "#1e2228" : "#f8fafc"
+        case "ide": return isSystemDark ? ("#161b22", "#38bdf8") : ("#f8fafc", "#0284c7")
+        case "terminal": return ("#0d1117", "#34d399")
+        case "sheet": return isSystemDark ? ("#14261c", "#34d399") : ("#f0fdf4", "#16a34a")
+        case "doc": return isSystemDark ? ("#1f2329", "#94a3b8") : ("#ffffff", "#475569")
+        case "chat": return isSystemDark ? ("#1e1e1e", "#2dd4bf") : ("#f3f4f6", "#059669")
+        case "desktop": return sampleCurrentWallpaperPalette(isSystemDark: isSystemDark)
+        default: return isSystemDark ? ("#18181b", "#60a5fa") : ("#f8fafc", "#2563eb")
         }
     }
 
     private func senseEnvironmentAsync(periodic: Bool = false) {
         guard autoSense else { return }
-        let (appName, archetype) = classifyFrontmostApp()
-        let isTyping = (ProcessInfo.processInfo.systemUptime - lastKeyTime) < 1.5
+        let (appName, archetype) = classifyHabitatUnderPanel()
+        let secSinceKey = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
+        let isTyping = secSinceKey < 1.65 || (ProcessInfo.processInfo.systemUptime - lastKeyTime) < 1.5
+        lastPushedTyping = isTyping
         let panelFrame = panel.frame
         if periodic && hasActiveVideoPlaying && appName == lastSensedAppName && panelFrame == lastSensedFrame {
             return
@@ -4014,10 +4188,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         lastSensedAppName = appName
         lastSensedFrame = panelFrame
         let ghostWinID = CGWindowID(panel.windowNumber)
+        let palette = habitatPaletteForArchetype(archetype)
 
         guard CGPreflightScreenCaptureAccess() else {
-            let hex = fallbackColorForArchetype(archetype)
-            pushSensorToWebView(bgColor: hex, archetype: archetype, appName: appName, isTyping: isTyping)
+            pushSensorToWebView(bgColor: palette.bg, accentColor: palette.accent, archetype: archetype, appName: appName, isTyping: isTyping)
             return
         }
 
@@ -4025,7 +4199,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let quartzRect = CGRect(x: panelFrame.origin.x, y: primaryH - (panelFrame.origin.y + panelFrame.height), width: panelFrame.width, height: panelFrame.height)
 
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { [weak self] content, err in
-            guard let self = self, let content = content, err == nil else { return }
+            guard let self = self, let content = content, err == nil else {
+                DispatchQueue.main.async {
+                    self?.pushSensorToWebView(bgColor: palette.bg, accentColor: palette.accent, archetype: archetype, appName: appName, isTyping: isTyping)
+                }
+                return
+            }
             guard let scDisplay = content.displays.first(where: { CGDisplayBounds($0.displayID).intersects(quartzRect) }) ?? content.displays.first else { return }
             let dispBounds = CGDisplayBounds(scDisplay.displayID)
             var localRect = CGRect(
@@ -4046,13 +4225,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
             SCScreenshotManager.captureImage(contentFilter: filter, configuration: cfg) { cgImage, capErr in
                 let hex: String
+                let accent: String
                 if let img = cgImage, capErr == nil, let sampled = Self.averageHex(img) {
                     hex = sampled
+                    accent = Self.dominantChromaHex(img, fallback: palette.accent)
                 } else {
-                    hex = self.fallbackColorForArchetype(archetype)
+                    hex = palette.bg
+                    accent = palette.accent
                 }
                 DispatchQueue.main.async {
-                    self.pushSensorToWebView(bgColor: hex, archetype: archetype, appName: appName, isTyping: isTyping)
+                    self.pushSensorToWebView(bgColor: hex, accentColor: accent, archetype: archetype, appName: appName, isTyping: isTyping)
                 }
             }
         }
@@ -4072,13 +4254,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return String(format: "#%02x%02x%02x", Int((rSum / count).rounded()), Int((gSum / count).rounded()), Int((bSum / count).rounded()))
     }
 
-    private func pushSensorToWebView(bgColor: String, archetype: String, appName: String, isTyping: Bool) {
+    private static func dominantChromaHex(_ img: CGImage, fallback: String) -> String {
+        let w = img.width, h = img.height
+        guard w > 2, h > 2 else { return fallback }
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return fallback }
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var rSum = 0.0, gSum = 0.0, bSum = 0.0, wSum = 0.0
+        var satCount = 0
+        let totalCount = max(1, w * h)
+        for i in stride(from: 0, to: w * h * 4, by: 4) {
+            let r = Double(buf[i]), g = Double(buf[i + 1]), b = Double(buf[i + 2])
+            let sat = max(r, max(g, b)) - min(r, min(g, b))
+            if sat >= 24 {
+                satCount += 1
+                let wt = sat * sat
+                rSum += r * wt; gSum += g * wt; bSum += b * wt; wSum += wt
+            }
+        }
+        guard Double(satCount) / Double(totalCount) >= 0.06, wSum > 1 else {
+            return fallback
+        }
+        return String(format: "#%02x%02x%02x", Int((rSum / wSum).rounded()), Int((gSum / wSum).rounded()), Int((bSum / wSum).rounded()))
+    }
+
+    private func pushSensorToWebView(bgColor: String, accentColor: String, archetype: String, appName: String, isTyping: Bool) {
+        lastSensedBgHex = bgColor
+        lastSensedAccentHex = accentColor
         let safeApp = appName.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\\", with: "")
-        let js = "window.GeckoNativeBridge?.onMacSensor({bgColor:'\(bgColor)',archetype:'\(archetype)',appName:'\(safeApp)',isTyping:\(isTyping ? "true" : "false")});"
+        let js = "window.GeckoNativeBridge?.onMacSensor({bgColor:'\(bgColor)',accentColor:'\(accentColor)',archetype:'\(archetype)',appName:'\(safeApp)',isTyping:\(isTyping ? "true" : "false")});"
         webView.evaluateJavaScript(js, completionHandler: nil)
         if isBuiltInWebActive {
             builtInWebView?.evaluateJavaScript(
-                "window.ChameleonBuiltInBridge?.onMacSensor({bgColor:'\(bgColor)',archetype:'\(archetype)'});",
+                "window.ChameleonBuiltInBridge?.onMacSensor({bgColor:'\(bgColor)',accentColor:'\(accentColor)',archetype:'\(archetype)',isTyping:\(isTyping ? "true" : "false")});",
                 completionHandler: nil
             )
         }

@@ -574,7 +574,7 @@
 
             <div class="signal-row" id="signalRow" style="display:none">
               <button type="button" class="signal-btn" data-sig="老板路过，注意隐蔽">老板路过警告</button>
-              <button type="button" class="signal-btn" data-sig="已切换鳞纹浮雕潜伏">已切鳞纹模式</button>
+              <button type="button" class="signal-btn" data-sig="已切换迷彩斑纹潜伏">已切迷彩斑纹</button>
               <button type="button" class="signal-btn" data-sig="开启鼠标穿透，稳如泰山">已开鼠标穿透</button>
               <button type="button" class="signal-btn" data-sig="这局看谁坚持更久">看谁坚持更久</button>
             </div>
@@ -759,7 +759,7 @@
         let videoPlaying = false;
         let lastVideoSignalAt = 0;
         let idlePauseSec = 0;
-        let activeVideoModeLabel = "拟态 58%";
+        let activeVideoModeLabel = "变色 58%";
 
         document.getElementById("titlePk").insertAdjacentHTML("afterbegin", S.SVG_ICONS.swords);
         document.getElementById("titleTiers").insertAdjacentHTML("afterbegin", S.SVG_ICONS.layers);
@@ -888,7 +888,7 @@
                   nickname: profile.nickname,
                   city: profile.city,
                   regionCode: profile.regionCode,
-                  mode: "拟态 58%",
+                  mode: "变色 58%",
                   totalSeconds: profile.totalSeconds,
                 })
               );
@@ -1022,7 +1022,7 @@
           document.getElementById("pkOppRole").textContent = roomCode ? `房间 #${roomCode}` : "实时对手";
           document.getElementById("pkOppName").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${S.renderFlagSvg(opp.regionCode || "CN")}<span>${opp.nickname}</span></span>`;
           document.getElementById("pkOppMeta").innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${S.renderRankCrestSvg(rInfo.level, 16)}<span>${opp.city} · ${rInfo.code} ${rInfo.title}</span></span>`;
-          document.getElementById("pkOppState").textContent = `潜伏中 (${opp.mode || "拟态 58%"})`;
+          document.getElementById("pkOppState").textContent = `潜伏中 (${opp.mode || "变色 58%"})`;
           addFeed(`<strong>[对战开始]</strong> 已匹配对手 <strong>${opp.nickname}</strong> (${opp.city})，计时开始。`);
           renderAll();
         }

@@ -17,7 +17,7 @@
     autoSense: true, // Auto-adjusts light/shadow pivot for extreme white (#fff) or pitch black (#000) surfaces
     displayTarget: "ghost",
     bgColor: "#505050",
-    mode: "projector", // 'projector' (拟态同色) | 'emboss' (鳞纹浮雕) | 'cinema' (虹彩显色)
+    mode: "projector", // 'projector' (环境变色) | 'emboss' (迷彩斑纹) | 'cinema' (应激隐身)
     stealth: 58, // 投影浓度 (Projector Intensity: 12% 极淡微影 -> 58% 自然融合 -> 95% 浓郁清晰)
     feather: 28, // 镜头边缘柔化 (0% 清晰圆角 -> 80% 羽化无界)
     detail: 72,
@@ -101,9 +101,42 @@
     return getLuminance(bgHex) < 0.55 ? "rgba(255,255,255,0.78)" : "rgba(15,23,42,0.78)";
   }
 
+  function deriveHabitatAccent(bgHex, archetype, explicitAccent) {
+    if (explicitAccent && /^#[0-9a-fA-F]{6}$/.test(explicitAccent)) {
+      return explicitAccent;
+    }
+    const { r, g, b } = hexToRgb(bgHex || "#505050");
+    const maxC = Math.max(r, g, b);
+    const minC = Math.min(r, g, b);
+    if (maxC - minC >= 26) {
+      const mid = (maxC + minC) * 0.5;
+      const boost = 1.32;
+      return rgbToHex(mid + (r - mid) * boost, mid + (g - mid) * boost, mid + (b - mid) * boost);
+    }
+    const isLight = getLuminance(bgHex || "#505050") > 0.62;
+    switch (archetype) {
+      case "ide":
+        return isLight ? "#0284c7" : "#38bdf8";
+      case "terminal":
+        return "#34d399";
+      case "sheet":
+        return isLight ? "#16a34a" : "#34d399";
+      case "doc":
+        return isLight ? "#475569" : "#94a3b8";
+      case "chat":
+        return isLight ? "#059669" : "#2dd4bf";
+      default:
+        return isLight ? "#2563eb" : "#38bdf8";
+    }
+  }
+
   function computeAutoScenePatch(sensor, currentState) {
+    const bgColor = sensor.bgColor || currentState?.bgColor || "#505050";
+    const archetype = sensor.archetype || currentState?.archetype || "web";
     return {
-      bgColor: sensor.bgColor || currentState?.bgColor || "#505050",
+      bgColor,
+      accentColor: deriveHabitatAccent(bgColor, archetype, sensor.accentColor),
+      archetype,
     };
   }
 
@@ -175,17 +208,24 @@
     const intensity = clamp(Number(state.stealth ?? 58) / 100, 0.08, 0.96);
     const detailStrength = clamp(Number(state.detail ?? 72) / 100, 0, 1.2);
     const mode = state.mode || "projector";
+    const typing = Boolean(options.isTyping);
 
     const bg = hexToRgb(state.bgColor || "#505050");
     const br = bg.r / 255;
     const bgc = bg.g / 255;
     const bb = bg.b / 255;
-    const lr = 0.72 + 0.28 * clamp(br * 1.35 + 0.24, 0, 1);
-    const lg = 0.72 + 0.28 * clamp(bgc * 1.35 + 0.24, 0, 1);
-    const lb = 0.72 + 0.28 * clamp(bb * 1.35 + 0.24, 0, 1);
-    const dr = 0.06 * br;
-    const dg = 0.06 * bgc;
-    const db = 0.06 * bb;
+    const accent = hexToRgb(deriveHabitatAccent(state.bgColor, state.archetype, state.accentColor));
+    const ar = accent.r / 255;
+    const ag = accent.g / 255;
+    const ab = accent.b / 255;
+
+    // 72% vivid pigment shift toward detected habitat accent color
+    const hr = 0.28 + 0.72 * clamp(ar * 1.25 + 0.12, 0, 1);
+    const hg = 0.28 + 0.72 * clamp(ag * 1.25 + 0.12, 0, 1);
+    const hb = 0.28 + 0.72 * clamp(ab * 1.25 + 0.12, 0, 1);
+    const dr = clamp(ar * 0.26 + br * 0.12, 0, 0.45);
+    const dg = clamp(ag * 0.26 + bgc * 0.12, 0, 0.45);
+    const db = clamp(ab * 0.26 + bb * 0.12, 0, 0.45);
 
     // Auto-adapt neutral pivot slightly when over pure white (#fff) or pitch black (#000)
     // while keeping symmetric 0.48 on colorful / mixed / red-green / editor surfaces!
@@ -197,11 +237,13 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 1: `projector` (拟态同色 — Chromatophore Habitat Blend)
-    // Underlying red stays red, green stays green; highlights & shadows adopt subtle ambient tint!
+    // Mode 1: `projector` (环境变色 — Living Chameleon Habitat Color-Shift)
+    // Underlying colors shine 100% through while highlights & shadows actively shift
+    // into the detected habitat pigment hue (red/green/IDE cyan/Excel emerald)!
     // -------------------------------------------------------------------------
     if (mode === "projector") {
-      const k = clamp(intensity * 0.94, 0.06, 0.94);
+      const stressScale = typing ? 0.85 : 1.0;
+      const k = clamp(intensity * 0.94 * stressScale, 0.06, 0.94);
       const contrast = 1 + 0.22 * detailStrength;
       const sDark = (-k * contrast) / pivot;
       const offDark = k * (0.5 + 0.5 * contrast);
@@ -215,9 +257,9 @@
                   0 0 0 0 ${fmt(db)}
                   ${fmt(0.2126 * sDark)} ${fmt(0.7152 * sDark)} ${fmt(0.0722 * sDark)} 0 ${fmt(offDark)}" />
         <feColorMatrix in="SourceGraphic" type="matrix" result="light"
-          values="0 0 0 0 ${fmt(lr)}
-                  0 0 0 0 ${fmt(lg)}
-                  0 0 0 0 ${fmt(lb)}
+          values="0 0 0 0 ${fmt(hr)}
+                  0 0 0 0 ${fmt(hg)}
+                  0 0 0 0 ${fmt(hb)}
                   ${fmt(0.2126 * sLight)} ${fmt(0.7152 * sLight)} ${fmt(0.0722 * sLight)} 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -227,18 +269,17 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 2: `emboss` (鳞纹浮雕 — Dermal Tubercle Scale Micro-Relief)
-    // Directional 3x3 emboss kernel: flat areas = 0.5 -> Alpha = 0.000 (100% pure background!),
-    // sunlit scale ridges cast ambient highlight tint, shadowed edges cast ambient shadow tint!
+    // Mode 2: `emboss` (迷彩斑纹 — Habitat-Tinted Micro-Grain & Scale Relief)
+    // Preserves crisp subject readability while breaking up smooth video tones into
+    // habitat-pigmented micro-scale textures that resemble code/data from afar!
     // -------------------------------------------------------------------------
     if (mode === "emboss") {
-      const gain = clamp(1.1 + intensity * 2.2, 0.8, 3.4);
-      const k = clamp(intensity * 1.15, 0.12, 0.98);
-      // Around bias 0.5: shadow for val < 0.485, light for val > 0.515 (deadband eliminates noise!)
-      const sDark = -k / 0.485;
-      const offDark = k;
-      const sLight = k / 0.485;
-      const offLight = (-k * 0.515) / 0.485;
+      const k = clamp(intensity * 0.92, 0.10, 0.94);
+      const contrast = 1.25 + 0.2 * detailStrength;
+      const sDark = (-k * contrast) / pivot;
+      const offDark = k * (0.5 + 0.5 * contrast);
+      const sLight = (k * contrast) / (1 - pivot);
+      const offLight = (-k * (pivot * contrast - 0.5 * (contrast - 1))) / (1 - pivot);
 
       return `
         <feColorMatrix in="SourceGraphic" type="matrix" result="lum"
@@ -246,19 +287,19 @@
                   0.2126 0.7152 0.0722 0 0
                   0.2126 0.7152 0.0722 0 0
                   0      0      0      0 1" />
-        <feConvolveMatrix in="lum" order="3" divisor="1" bias="0.5" preserveAlpha="true" edgeMode="duplicate" result="relief"
-          kernelMatrix="${fmt(-1.1 * gain)} ${fmt(-0.7 * gain)} 0
-                        ${fmt(-0.7 * gain)} 0                   ${fmt(0.7 * gain)}
-                        0                   ${fmt(0.7 * gain)}  ${fmt(1.1 * gain)}" />
-        <feColorMatrix in="relief" type="matrix" result="shadow"
+        <feConvolveMatrix in="lum" order="3" divisor="1" bias="0" preserveAlpha="true" edgeMode="duplicate" result="grain"
+          kernelMatrix="0    -0.45  0
+                        -0.45 2.80 -0.45
+                        0    -0.45  0" />
+        <feColorMatrix in="grain" type="matrix" result="shadow"
           values="0 0 0 0 ${fmt(dr)}
                   0 0 0 0 ${fmt(dg)}
                   0 0 0 0 ${fmt(db)}
                   ${fmt(sDark)} 0 0 0 ${fmt(offDark)}" />
-        <feColorMatrix in="relief" type="matrix" result="light"
-          values="0 0 0 0 ${fmt(lr)}
-                  0 0 0 0 ${fmt(lg)}
-                  0 0 0 0 ${fmt(lb)}
+        <feColorMatrix in="grain" type="matrix" result="light"
+          values="0 0 0 0 ${fmt(hr)}
+                  0 0 0 0 ${fmt(hg)}
+                  0 0 0 0 ${fmt(hb)}
                   ${fmt(sLight)} 0 0 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -268,17 +309,21 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 3: `cinema` (虹彩显色 — Guanine Nanocrystal Iridophore Harmonization)
-    // Preserves video chroma while pulling tones gently toward the desktop surface color!
+    // Mode 3: `cinema` (应激隐身 — Bio-Reflex Typing Camouflage)
+    // Calm state keeps rich habitat-harmonized original colors; typing triggers
+    // instant chameleon reflex: pulls chroma 75% into habitat accent & dims alpha by 55%!
     // -------------------------------------------------------------------------
-    const envPull = clamp((1 - intensity) * 0.30 + 0.08, 0.08, 0.36);
+    const envPull = typing ? 0.75 : clamp((1 - intensity) * 0.28 + 0.08, 0.08, 0.34);
+    const tr = typing ? ar * 0.6 + br * 0.4 : br;
+    const tg = typing ? ag * 0.6 + bgc * 0.4 : bgc;
+    const tb = typing ? ab * 0.6 + bb * 0.4 : bb;
     const diag = (1 - envPull) * 1.08;
-    const alpha = clamp(intensity * 0.88, 0.08, 0.92);
+    const alpha = clamp(intensity * (typing ? 0.38 : 0.88), 0.06, 0.92);
     return `
       <feColorMatrix in="SourceGraphic" type="matrix"
-        values="${fmt(diag)} 0 0 0 ${fmt(envPull * br)}
-                0 ${fmt(diag)} 0 0 ${fmt(envPull * bgc)}
-                0 0 ${fmt(diag)} 0 ${fmt(envPull * bb)}
+        values="${fmt(diag)} 0 0 0 ${fmt(envPull * tr)}
+                0 ${fmt(diag)} 0 0 ${fmt(envPull * tg)}
+                0 0 ${fmt(diag)} 0 ${fmt(envPull * tb)}
                 0 0 0 ${fmt(alpha)} 0" />
     `;
   }
@@ -416,6 +461,7 @@
     lerpColor,
     getLuminance,
     deriveAutoInkColor,
+    deriveHabitatAccent,
     computeAutoScenePatch,
     senseDomEnvironment,
     computeMediaOpacity,
