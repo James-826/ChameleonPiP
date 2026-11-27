@@ -1,4 +1,4 @@
-/* Placeholder shown inside the original webpage video slot while Gecko PiP is active */
+/* Placeholder shown inside the original webpage video slot while ChameleonPiP is active */
 .gecko-pip-placeholder {
   display: flex !important;
   flex-direction: column !important;

@@ -45,7 +45,7 @@ async function ensureOffscreenDocument() {
     await chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: ["USER_MEDIA"],
-      justification: "Capture active tab video frames for borderless Gecko camouflage overlay",
+      justification: "Capture active tab video frames for borderless ChameleonPiP camouflage overlay",
     });
   } catch (err) {
     if (!String(err).includes("Only a single offscreen")) {

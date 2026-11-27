@@ -61,7 +61,7 @@ function startLocalWebSocketHub(port = 51937) {
 
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ app: "GeckoPiP", ok: true }));
+    res.end(JSON.stringify({ app: "ChameleonPiP", ok: true }));
   });
 
   server.on("upgrade", (req, socket) => {
@@ -283,7 +283,7 @@ function setupTray() {
     img = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
   }
   tray = new Tray(img);
-  tray.setToolTip("ChameleonPiP 变色龙投影画中画");
+  tray.setToolTip("ChameleonPiP 变色龙画中画");
 
   tray.on("click", () => toggleMenuPopover());
   tray.on("right-click", () => {
@@ -298,7 +298,7 @@ function setupTray() {
         click: () => applyHostAction({ action: "setClickThrough", value: !uiState.clickThrough }),
       },
       { type: "separator" },
-      { label: "退出 GeckoPiP", click: () => app.quit() },
+      { label: "退出 ChameleonPiP", click: () => app.quit() },
     ]);
     tray.popUpContextMenu(contextMenu);
   });

@@ -107,7 +107,7 @@
         </p>
         <ul>
           <li><strong>AI 摄像头背后防偷窥雷达（Apple Vision）</strong>：仅在您手动点击开启「AI 防窥」时激活前置摄像头，调用 macOS 系统原生 <code>Vision</code> 框架在本地内存中统计画面人脸数量（检测到 ≥2 人时自动触发老板键隐藏）。每一帧画面在计数完成后即刻于内存释放，<strong>绝不拍照、绝不录像、绝不写盘、绝不联网上传</strong>。</li>
-          <li>浏览器扩展通过 <code>tabCapture</code> 捕获的视频帧仅在您的本机回环地址（<code>ws://127.0.0.1:51937</code>）传输至您本地运行的桌面端进行 Metal/WebGL 实时变色融合渲染，数据从不离开您的电脑。</li>
+          <li>浏览器扩展通过 <code>tabCapture</code> 捕获的视频帧仅在您的本机回环地址（<code>ws://127.0.0.1:27182</code>）传输至您本地运行的桌面端进行 Metal/WebGL 实时变色融合渲染，数据从不离开您的电脑。</li>
           <li>桌面端使用 macOS <code>ScreenCaptureKit</code> 采样底层背景亮度时，仅在本地内存计算平均 RGB 亮度值并立即丢弃像素，绝不写入磁盘或网络发送。</li>
         </ul>
 
@@ -147,7 +147,7 @@
         </p>
         <ul>
           <li><strong>On-Device AI Anti-Peek Radar (Apple Vision)</strong>: Activated strictly when you explicitly toggle it ON. Uses macOS native <code>AVFoundation</code> and <code>VNDetectFaceRectanglesRequest</code> purely in RAM to count faces in view (triggering Boss Mode when 2 or more faces are detected). Every camera frame is discarded immediately after inference—never recorded, saved to disk, or transmitted over any network.</li>
-          <li>Video frames captured via <code>tabCapture</code> are streamed strictly over your machine's local loopback interface (<code>ws://127.0.0.1:51937</code>) to your local desktop window for real-time WebGL/Metal rendering and never leave your device.</li>
+          <li>Video frames captured via <code>tabCapture</code> are streamed strictly over your machine's local loopback interface (<code>ws://127.0.0.1:27182</code>) to your local desktop window for real-time WebGL/Metal rendering and never leave your device.</li>
           <li>Ambient color sampling (e.g., via macOS <code>ScreenCaptureKit</code>) computes an in-memory average RGB value locally and discards the sample immediately; nothing is saved to disk or transmitted over the network.</li>
         </ul>
 

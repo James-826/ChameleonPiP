@@ -574,7 +574,7 @@
 
             <div class="signal-row" id="signalRow" style="display:none">
               <button type="button" class="signal-btn" data-sig="老板路过，注意隐蔽">老板路过警告</button>
-              <button type="button" class="signal-btn" data-sig="已切换浮雕模式潜伏">已切浮雕模式</button>
+              <button type="button" class="signal-btn" data-sig="已切换鳞纹浮雕潜伏">已切鳞纹模式</button>
               <button type="button" class="signal-btn" data-sig="开启鼠标穿透，稳如泰山">已开鼠标穿透</button>
               <button type="button" class="signal-btn" data-sig="这局看谁坚持更久">看谁坚持更久</button>
             </div>
@@ -759,7 +759,7 @@
         let videoPlaying = false;
         let lastVideoSignalAt = 0;
         let idlePauseSec = 0;
-        let activeVideoModeLabel = "光影 58%";
+        let activeVideoModeLabel = "拟态 58%";
 
         document.getElementById("titlePk").insertAdjacentHTML("afterbegin", S.SVG_ICONS.swords);
         document.getElementById("titleTiers").insertAdjacentHTML("afterbegin", S.SVG_ICONS.layers);
@@ -888,7 +888,7 @@
                   nickname: profile.nickname,
                   city: profile.city,
                   regionCode: profile.regionCode,
-                  mode: "光影 58%",
+                  mode: "拟态 58%",
                   totalSeconds: profile.totalSeconds,
                 })
               );
@@ -933,7 +933,7 @@
           }
         }
 
-        // Listen to local GeckoGhost desktop window (primary non-ephemeral 27182 + legacy 51937)
+        // Listen to local ChameleonPiP desktop window (primary non-ephemeral 27182 + legacy 51937)
         const BRIDGE_WS_URLS = ["ws://127.0.0.1:27182", "ws://127.0.0.1:51937"];
         let bridgeUrlIdx = 0;
 
@@ -954,7 +954,7 @@
               try {
                 const msg = JSON.parse(ev.data);
                 if (msg.type === "openUpgradeModal") {
-                  openProModal(msg.reason || "升级 Pro 解锁浮雕纹理、彩透电影、鼠标穿透与会议共享隐身！");
+                  openProModal(msg.reason || "全部功能 100% 永久免费开放！欢迎请作者喝杯咖啡支持持续迭代");
                 } else if (msg.type === "videoPlaybackState") {
                   const prev = videoPlaying;
                   videoPlaying = Boolean(msg.playing);
@@ -1022,7 +1022,7 @@
           document.getElementById("pkOppRole").textContent = roomCode ? `房间 #${roomCode}` : "实时对手";
           document.getElementById("pkOppName").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:center">${S.renderFlagSvg(opp.regionCode || "CN")}<span>${opp.nickname}</span></span>`;
           document.getElementById("pkOppMeta").innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;justify-content:center">${S.renderRankCrestSvg(rInfo.level, 16)}<span>${opp.city} · ${rInfo.code} ${rInfo.title}</span></span>`;
-          document.getElementById("pkOppState").textContent = `潜伏中 (${opp.mode || "光影 58%"})`;
+          document.getElementById("pkOppState").textContent = `潜伏中 (${opp.mode || "拟态 58%"})`;
           addFeed(`<strong>[对战开始]</strong> 已匹配对手 <strong>${opp.nickname}</strong> (${opp.city})，计时开始。`);
           renderAll();
         }

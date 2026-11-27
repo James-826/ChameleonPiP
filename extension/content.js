@@ -1,7 +1,7 @@
 /**
- * GeckoPiP Content Script v3.0
+ * ChameleonPiP Content Script v5.5
  * - Full two-way PiP player state & controls sync (Play/Pause, Progress Seek, -10s/+10s, Mute, Speed)
- * - Apple/Arc-grade Glass Borderless PiP Player HUD with continuous 0%->96% Gecko Camouflage Slider
+ * - Apple/Arc-grade Glass Borderless PiP Player HUD with Biomimetic Chameleon Camouflage Slider
  */
 (function () {
   "use strict";
@@ -95,7 +95,7 @@
   function wakeMacGhostViaScheme() {
     const iframe = document.createElement("iframe");
     iframe.style.display = "none";
-    iframe.src = "geckoghost://wakeup";
+    iframe.src = "chameleonpip://wakeup";
     document.documentElement.appendChild(iframe);
     setTimeout(() => iframe.remove(), 1500);
   }
@@ -385,11 +385,11 @@
         .sep { width: 1px; height: 12px; background: rgba(255,255,255,0.14); }
       </style>
       <div class="bar" id="hoverBar">
-        <button type="button" id="btnDesktopGhost" title="开启桌面全局无边框壁虎画中画">
-          <span class="dot"></span><span>桌面壁虎画中画</span>
+        <button type="button" id="btnDesktopGhost" title="开启桌面无边框变色龙小窗">
+          <span class="dot"></span><span>桌面变色龙小窗</span>
         </button>
         <span class="sep"></span>
-        <button type="button" id="btnPageFloat" title="在当前网页内开启无边框壁虎画中画">
+        <button type="button" id="btnPageFloat" title="在当前网页内开启无边框变色龙小窗">
           页内小窗
         </button>
       </div>
@@ -410,8 +410,8 @@
       if (directStreamActive) {
         chrome.runtime.sendMessage({ type: "GECKO_STOP_TAB_STREAM" }).catch(() => {});
         stopDirectVideoStream(false, true);
-        if (desktopLabel) desktopLabel.textContent = "桌面壁虎画中画";
-        showToast("已停止桌面壁虎画中画投送");
+        if (desktopLabel) desktopLabel.textContent = "桌面变色龙小窗";
+        showToast("已停止桌面变色龙小窗投送");
         return;
       }
 
@@ -449,7 +449,7 @@
   function refreshHoverButtonLabel() {
     const lbl = hoverHost?.shadowRoot?.querySelector("#btnDesktopGhost span:last-child");
     if (lbl) {
-      lbl.textContent = directStreamActive ? "停止桌面投送" : "桌面壁虎画中画";
+      lbl.textContent = directStreamActive ? "停止桌面投送" : "桌面变色龙小窗";
     }
   }
 
@@ -726,8 +726,8 @@
         <div class="hud-top" style="z-index:65;padding-top:10px">
           <div class="pill-group">
             <button class="seg-btn" data-mode="projector">拟态</button>
-            <button class="seg-btn" data-mode="emboss">浮雕</button>
-            <button class="seg-btn" data-mode="cinema">彩透</button>
+            <button class="seg-btn" data-mode="emboss">鳞纹</button>
+            <button class="seg-btn" data-mode="cinema">虹彩</button>
           </div>
           <div style="display:flex;gap:4px">
             <button class="icon-btn" data-size="260" style="width:auto;padding:0 6px;font-size:10px" title="小窗">S</button>
@@ -782,7 +782,7 @@
       const placeholder = document.createElement("div");
       placeholder.className = "gecko-pip-placeholder";
       placeholder.innerHTML = `
-        <div class="gecko-pip-placeholder-badge">视频正在右下角无边框壁虎画中画播放中</div>
+        <div class="gecko-pip-placeholder-badge">视频正在右下角无边框变色龙小窗播放中</div>
         <button type="button" class="gecko-pip-placeholder-btn">收回视频原位</button>
       `;
       placeholder
@@ -1084,7 +1084,7 @@
           padding: 6px 8px; font-size: 11px; font-weight: 600; cursor: pointer;
         }
         .t-btn.active { background: rgba(16,185,129,0.22); border-color: #34d399; color: #a7f3d0; }
-        .seg4 { display: grid; grid-template-columns: repeat(4, 1fr); background: #090d13; padding: 2px; border-radius: 7px; gap: 2px; }
+        .seg4 { display: grid; grid-template-columns: repeat(3, 1fr); background: #090d13; padding: 2px; border-radius: 7px; gap: 2px; }
         .sb { appearance: none; border: none; background: transparent; color: #94a3b8; font-size: 11px; padding: 5px 2px; border-radius: 5px; cursor: pointer; }
         .sb.active { background: #1e293b; color: #fff; font-weight: 600; }
         .sl { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #cbd5e1; }
@@ -1102,14 +1102,13 @@
           <button class="t-btn" id="tbThrough">鼠标穿透</button>
         </div>
         <div class="seg4">
-          <button class="sb" data-mode="blend">保护色</button>
-          <button class="sb" data-mode="sketch">线稿</button>
-          <button class="sb" data-mode="pixel">点阵</button>
-          <button class="sb" data-mode="watermark">水印</button>
+          <button class="sb" data-mode="projector">拟态</button>
+          <button class="sb" data-mode="emboss">鳞纹</button>
+          <button class="sb" data-mode="cinema">虹彩</button>
         </div>
         <div class="sl">
-          <div><span>壁虎融色度</span><strong id="tbValStealth">72%</strong></div>
-          <input type="range" id="tbRngStealth" min="0" max="100" value="72" />
+          <div><span>变色融合浓度</span><strong id="tbValStealth">58%</strong></div>
+          <input type="range" id="tbRngStealth" min="10" max="95" value="58" />
         </div>
         <div class="sl">
           <div><span>窗口实度（100%=实心）</span><strong id="tbValOpacity">100%</strong></div>

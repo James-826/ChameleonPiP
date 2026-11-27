@@ -400,7 +400,7 @@ final class VisionAntiPeekRadar: NSObject, AVCaptureVideoDataOutputSampleBufferD
 
 /// Real-time on-device Apple Vision Neural OCR for burned-in video subtitles (Chinese + English)
 final class VisionVideoSubtitleExtractor {
-    private let queue = DispatchQueue(label: "com.geckopip.subtitleocr", qos: .utility)
+    private let queue = DispatchQueue(label: "com.chameleonpip.subtitleocr", qos: .utility)
     private var isBusy = false
     private var lastRunTime: CFTimeInterval = 0
     private var lastNormText: String = ""
@@ -492,7 +492,7 @@ final class UrlPresetTarget: NSObject {
 
 final class LocalWebSocketHub {
     private var listeners: [NWListener] = []
-    private let queue = DispatchQueue(label: "com.geckopip.wshub", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "com.chameleonpip.wshub", qos: .userInteractive)
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var ghostViewIds: Set<ObjectIdentifier> = []
     private var arenaViewIds: Set<ObjectIdentifier> = []
@@ -530,14 +530,14 @@ final class LocalWebSocketHub {
                 let l = try NWListener(using: params)
                 l.stateUpdateHandler = { state in
                     if case .failed(let err) = state {
-                        NSLog("[GeckoGhost] WS listener failed on port \(port): \(err)")
+                        NSLog("[ChameleonPiP] WS listener failed on port \(port): \(err)")
                     }
                 }
                 l.newConnectionHandler = { [weak self] conn in self?.handleNewConnection(conn) }
                 l.start(queue: queue)
                 self.listeners.append(l)
             } catch {
-                NSLog("[GeckoGhost] WS listener error on port \(port): \(error)")
+                NSLog("[ChameleonPiP] WS listener error on port \(port): \(error)")
             }
         }
     }
@@ -1592,8 +1592,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         controlsContainer.addSubview(btnRate)
         controlsContainer.addSubview(btnMute)
 
-        // Row 3 (y = 104): All 3 Chameleon Camouflage Modes (100% FREE!)
-        segMode = NSSegmentedControl(labels: ["变色融合", "浮雕隐身", "彩透变色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
+        // Row 3 (y = 104): All 3 Biomimetic Chameleon Camouflage Modes (100% FREE!)
+        segMode = NSSegmentedControl(labels: ["拟态同色", "鳞纹浮雕", "虹彩显色"], trackingMode: .selectOne, target: self, action: #selector(onModeChanged(_:)))
         segMode.frame = NSRect(x: 14, y: 104, width: 288, height: 24)
         segMode.selectedSegment = 0
         segMode.segmentDistribution = .fillEqually
@@ -3972,7 +3972,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func classifyFrontmostApp() -> (name: String, archetype: String) {
         guard let app = NSWorkspace.shared.frontmostApplication else { return lastExternalApp }
         let bid = (app.bundleIdentifier ?? "").lowercased()
-        if bid == "com.geckopip.ghost" { return lastExternalApp }
+        if bid == "com.chameleonpip.macos" || bid == "com.geckopip.ghost" { return lastExternalApp }
         let name = app.localizedName ?? "桌面"
         let lowName = name.lowercased()
         let result: (String, String)
@@ -4085,6 +4085,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 }
 
+private func migrateLegacyGeckoDefaultsIfNeeded() {
+    let std = UserDefaults.standard
+    if std.bool(forKey: "chameleonMigratedFromGeckoV55") { return }
+    if let legacy = UserDefaults(suiteName: "com.geckopip.ghost") {
+        let keys = [
+            "chameleonFeather",
+            "chameleonHoverReveal",
+            "chameleonStealthSubtitle",
+            "chameleonIsPro",
+            "chameleonLastSearchQuery",
+            "chameleonLastSearchEngine",
+            "chameleonLastSearchUrl",
+            "chameleonSearchHistory"
+        ]
+        for k in keys {
+            if std.object(forKey: k) == nil, let v = legacy.object(forKey: k) {
+                std.set(v, forKey: k)
+            }
+        }
+    }
+    std.set(true, forKey: "chameleonMigratedFromGeckoV55")
+}
+
+migrateLegacyGeckoDefaultsIfNeeded()
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

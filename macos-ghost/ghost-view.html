@@ -259,9 +259,9 @@
     <div class="pip-root" id="pipRoot" data-mode="projector">
       <div class="hud-top">
         <div class="pill-group">
-          <button class="seg-btn active" data-mode="projector" title="变色融合：像变色龙一样融入屏幕底色，红绿/代码原样透出">拟态</button>
-          <button class="seg-btn" data-mode="emboss" title="浮雕隐身：仅保留视频立体纹理，极高隐蔽度">浮雕</button>
-          <button class="seg-btn" data-mode="cinema" title="彩透变色：保留轻度原片色彩并与桌面融合">彩透</button>
+          <button class="seg-btn active" data-mode="projector" title="拟态同色：仿生变色龙色素细胞，底层代码/表格/红绿底色原样透出并同化环境色温">拟态</button>
+          <button class="seg-btn" data-mode="emboss" title="鳞纹浮雕：仿生变色龙颗粒鳞片肌理，平坦色块完全透明，仅留微雕轮廓">鳞纹</button>
+          <button class="seg-btn" data-mode="cinema" title="虹彩显色：仿生变色龙纳米晶格显色，保留原片色彩并自适应同化桌面底色">虹彩</button>
         </div>
         <div style="display:flex;align-items:center;gap:3px">
           <button class="icon-btn" data-scale="0.85" title="缩小窗口 (-)">−</button>
@@ -325,7 +325,7 @@
 
       <div class="idle-card" id="idleCard">
         <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:4px">变色龙画中画已就绪</div>
-        <div style="color:#94a3b8">打开独立「隐蔽搜片浏览器」全网找片（不遮挡小窗），或在 Chrome 视频上直接点「桌面壁虎画中画」：</div>
+        <div style="color:#94a3b8">打开独立「隐蔽搜片浏览器」全网找片（不遮挡小窗），或在浏览器视频上直接点「桌面变色龙小窗」：</div>
         <div class="idle-btns" style="flex-wrap:wrap">
           <button class="cta-btn" id="btnOpenBrowser">打开隐蔽搜片浏览器</button>
           <button class="cta-btn sec" id="btnTryDemo">演示视频</button>
@@ -374,7 +374,7 @@
         const subtitleEl = document.getElementById("subtitleEl");
 
         // -------------------------------------------------------------------
-        // 60-120Hz Apple Metal WebGL Optical Projector Engine
+        // 60-120Hz Apple Metal WebGL Chameleon Biomimetic 3-Layer Skin Engine
         // Eliminates WebKit's slow CPU SVG <filter> completely in WKWebView!
         // -------------------------------------------------------------------
         function createWebGlProjector(canvas) {
@@ -406,6 +406,7 @@
             uniform float uIntensity;
             uniform float uPivot;
             uniform float uFeather;
+            uniform vec3 uBgRgb;
             uniform vec2 uTexel;
 
             void main() {
@@ -427,16 +428,18 @@
 
               vec4 src = texture2D(uTex, vUv);
               float lum = dot(src.rgb, vec3(0.2126, 0.7152, 0.0722));
+              vec3 lightTint = mix(vec3(1.0), clamp(uBgRgb * 1.35 + vec3(0.24), 0.0, 1.0), 0.28);
+              vec3 darkTint = mix(vec3(0.0), uBgRgb * 0.28, 0.22);
 
               if (uMode == 0) {
                 float k = clamp(uIntensity * 0.94, 0.06, 0.94);
                 float cLum = clamp((lum - uPivot) * 1.16 + uPivot, 0.0, 1.0);
                 if (cLum < uPivot) {
                   float aDark = clamp(k * ((uPivot - cLum) / max(0.05, uPivot)), 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(0.0, 0.0, 0.0, aDark);
+                  gl_FragColor = vec4(darkTint * aDark, aDark);
                 } else {
                   float aLight = clamp(k * ((cLum - uPivot) / max(0.05, 1.0 - uPivot)), 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(aLight, aLight, aLight, aLight);
+                  gl_FragColor = vec4(lightTint * aLight, aLight);
                 }
                 return;
               }
@@ -452,17 +455,21 @@
                   gl_FragColor = vec4(0.0);
                 } else if (diff < 0.0) {
                   float a = clamp(-diff * uIntensity * 1.35, 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+                  gl_FragColor = vec4(darkTint * a, a);
                 } else {
                   float a = clamp(diff * uIntensity * 1.35, 0.0, 0.95) * mask;
-                  gl_FragColor = vec4(a, a, a, a);
+                  gl_FragColor = vec4(lightTint * a, a);
                 }
                 return;
               }
 
-              float a = clamp(uIntensity * 0.88, 0.08, 0.92) * mask;
-              vec3 rgb = clamp(src.rgb * 1.08, 0.0, 1.0);
-              gl_FragColor = vec4(rgb * a, a);
+              float chroma = max(src.r, max(src.g, src.b)) - min(src.r, min(src.g, src.b));
+              float envPull = clamp((1.0 - uIntensity) * 0.44 + 0.10, 0.10, 0.50);
+              vec3 boosted = clamp(src.rgb * 1.08, 0.0, 1.0);
+              vec3 harmonized = mix(boosted, mix(boosted, uBgRgb, 0.65), envPull);
+              float salience = clamp(abs(lum - uPivot) * 1.55 + chroma * 0.90 + 0.30, 0.28, 1.0);
+              float a = clamp(uIntensity * 0.90 * mix(salience, 1.0, uIntensity * 0.55), 0.06, 0.92) * mask;
+              gl_FragColor = vec4(harmonized * a, a);
             }
           `;
 
@@ -501,6 +508,7 @@
           const uIntensity = gl.getUniformLocation(prog, "uIntensity");
           const uPivot = gl.getUniformLocation(prog, "uPivot");
           const uFeather = gl.getUniformLocation(prog, "uFeather");
+          const uBgRgb = gl.getUniformLocation(prog, "uBgRgb");
           const uTexel = gl.getUniformLocation(prog, "uTexel");
           let hasTexture = false;
           let texW = 512;
@@ -520,12 +528,14 @@
               if (lum > 0.86) pivot = 0.72;
               else if (lum < 0.14) pivot = 0.28;
             }
+            const bgRgb = Core.hexToRgb(st.bgColor || "#505050");
             gl.clearColor(0.0, 0.0, 0.0, 0.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.uniform1i(uMode, m);
             gl.uniform1f(uIntensity, Core.clamp(Number(st.stealth ?? 58) / 100, 0.08, 0.96));
             gl.uniform1f(uPivot, pivot);
             gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.85));
+            gl.uniform3f(uBgRgb, bgRgb.r / 255, bgRgb.g / 255, bgRgb.b / 255);
             gl.uniform2f(uTexel, 1 / Math.max(1, texW), 1 / Math.max(1, texH));
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             gl.flush();
@@ -646,7 +656,7 @@
               JSON.stringify({
                 type: "videoPlaybackState",
                 playing,
-                mode: `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`,
+                mode: `${state.mode === "emboss" ? "鳞纹" : state.mode === "cinema" ? "虹彩" : "拟态"} ${state.stealth}%`,
                 stats: p
                   ? {
                       currentStreakSeconds: p.currentStreakSeconds || 0,
@@ -1317,7 +1327,7 @@
         }
         syncMembershipWithNative();
 
-        // All 3 Chameleon visual modes (拟态 / 浮雕 / 彩透) are 100% FREE forever!
+        // All 3 Chameleon visual modes (拟态 / 鳞纹 / 虹彩) are 100% FREE forever!
         document.querySelectorAll(".seg-btn").forEach((b) => {
           b.addEventListener("click", () => {
             broadcastStateUpdate({ mode: b.dataset.mode });
@@ -1490,7 +1500,7 @@
           }
 
           if (isActivelyPlaying && tickCount % 12 === 0) {
-            const modeLabel = `${state.mode === "emboss" ? "浮雕" : state.mode === "cinema" ? "彩透" : "光影"} ${state.stealth}%`;
+            const modeLabel = `${state.mode === "emboss" ? "鳞纹" : state.mode === "cinema" ? "虹彩" : "拟态"} ${state.stealth}%`;
             fetch(`${S.getApiBase()}/api/heartbeat`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },

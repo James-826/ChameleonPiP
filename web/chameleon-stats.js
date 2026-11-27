@@ -237,16 +237,16 @@
   ];
 
   const FALLBACK_RIVALS = [
-    { userId: "seed-sh-1", nickname: "Lin_Optics", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "光影 55%", bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, live: true },
-    { userId: "seed-sz-1", nickname: "Nanshan_Ghost", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "浮雕 62%", bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, live: true },
-    { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "光影 48%", bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, live: true },
-    { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "彩透 42%", bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, live: true },
-    { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "光影 60%", bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, live: true },
-    { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "浮雕 58%", bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, live: true },
-    { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "光影 38%", bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, live: false },
-    { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "浮雕 50%", bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, live: true },
-    { userId: "seed-sh-2", nickname: "Caohejing_Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "光影 58%", bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, live: true },
-    { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "浮雕 45%", bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, live: true },
+    { userId: "seed-sh-1", nickname: "Lin_Chameleon", city: "上海", country: "中国", regionCode: "CN", industry: "AI / 算法", mode: "拟态 55%", bestStreakSeconds: 14820, todaySeconds: 19400, totalSeconds: 1290000, pkElo: 1680, live: true },
+    { userId: "seed-sz-1", nickname: "Nanshan_Coder", city: "深圳", country: "中国", regionCode: "CN", industry: "互联网", mode: "鳞纹 62%", bestStreakSeconds: 13260, todaySeconds: 17900, totalSeconds: 1152000, pkElo: 1620, live: true },
+    { userId: "seed-tk-1", nickname: "Shibuya_Camo", city: "东京", country: "日本", regionCode: "JP", industry: "游戏引擎", mode: "拟态 48%", bestStreakSeconds: 12540, todaySeconds: 16800, totalSeconds: 1104000, pkElo: 1595, live: true },
+    { userId: "seed-sv-1", nickname: "Cupertino_Dev", city: "硅谷", country: "美国", regionCode: "US", industry: "系统架构", mode: "虹彩 42%", bestStreakSeconds: 11100, todaySeconds: 15200, totalSeconds: 876000, pkElo: 1540, live: true },
+    { userId: "seed-bj-1", nickname: "Haidian_Runner", city: "北京", country: "中国", regionCode: "CN", industry: "互联网", mode: "拟态 60%", bestStreakSeconds: 9840, todaySeconds: 14500, totalSeconds: 774000, pkElo: 1495, live: true },
+    { userId: "seed-hz-1", nickname: "Xixi_Shader", city: "杭州", country: "中国", regionCode: "CN", industry: "电商平台", mode: "鳞纹 58%", bestStreakSeconds: 8760, todaySeconds: 13100, totalSeconds: 588000, pkElo: 1450, live: true },
+    { userId: "seed-sg-1", nickname: "MarinaQuant", city: "新加坡", country: "新加坡", regionCode: "SG", industry: "量化金融", mode: "拟态 38%", bestStreakSeconds: 7920, todaySeconds: 11800, totalSeconds: 492000, pkElo: 1420, live: false },
+    { userId: "seed-ld-1", nickname: "CanaryWharf_K", city: "伦敦", country: "英国", regionCode: "UK", industry: "金融投行", mode: "鳞纹 50%", bestStreakSeconds: 6840, todaySeconds: 10200, totalSeconds: 384000, pkElo: 1385, live: true },
+    { userId: "seed-sh-2", nickname: "Caohejing_Zero", city: "上海", country: "中国", regionCode: "CN", industry: "游戏引擎", mode: "拟态 58%", bestStreakSeconds: 5520, todaySeconds: 8900, totalSeconds: 306000, pkElo: 1350, live: true },
+    { userId: "seed-sh-3", nickname: "Lujiazui_Macro", city: "上海", country: "中国", regionCode: "CN", industry: "量化金融", mode: "鳞纹 45%", bestStreakSeconds: 3780, todaySeconds: 6400, totalSeconds: 204000, pkElo: 1310, live: true },
   ];
 
   function todayKey() {
@@ -351,18 +351,43 @@
   const DEVICE_ID_STORAGE_KEY = "chameleon_device_id_v1";
 
   const PRO_FEATURE_CATALOG = [
-    { key: "optical_projector", name: "变色龙拟态融合 + 鼠标穿透 (⌃⇧M) + 老板键", free: true, pro: true },
-    { key: "optical_modes", name: "浮雕隐身 (Emboss) & 彩透变色 (Cinema) 进阶模式", free: false, pro: true },
-    { key: "screen_stealth", name: "录屏 / 腾讯会议 / 飞书共享屏幕自动隐身", free: false, pro: true },
-    { key: "pk_unlimited", name: "1v1 线上耐力 PK 对战", free: "每日 3 局", pro: "无限畅玩" },
-    { key: "room_pk", name: "创建 4 位暗号同事约战房 & 百人淘汰赛", free: false, pro: true },
-    { key: "pro_badge", name: "全球/同城榜 PRO 鎏金专属徽章", free: false, pro: true },
+    { key: "chameleon_modes", name: "全部 3 种仿生变色模式（拟态同色 / 鳞纹浮雕 / 虹彩显色）", free: "永久免费", pro: "永久免费" },
+    { key: "anti_peek_radar", name: "AI 摄像头背后防偷窥雷达（Apple Vision 100% 本地）", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
+    { key: "screen_stealth", name: "腾讯会议 / 飞书 / Zoom / 录屏系统级共享隐身", free: "永久免费 · 不限时", pro: "永久免费 · 不限时" },
+    { key: "built_in_web", name: "免插件网页直连播放 + 代码终端日志伪装字幕条", free: "永久免费", pro: "永久免费" },
+    { key: "pk_unlimited", name: "无限 1v1 耐力 PK + 4位暗号同事房 + 百人淘汰赛", free: "永久免费 · 无限畅玩", pro: "永久免费 · 无限畅玩" },
+    { key: "pro_badge", name: "全球 / 同城排行榜专属 SUP · VIP · MAX 鎏金支持者铭牌", free: "标准段位徽章", pro: "点亮专属支持者金标" },
   ];
 
   const PRICING_PLANS = [
-    { id: "monthly", name: "Pro 月度会员", priceCny: "¥9.9", priceUsd: "$3.99", period: "/ 月", tag: "灵活尝鲜", desc: "解锁浮雕隐身/彩透变色、会议共享隐身、无限 PK，最多 2 台设备" },
-    { id: "yearly", name: "Pro 年度会员", priceCny: "¥49", priceUsd: "$19.9", period: "/ 年", tag: "最受欢迎 · 省 58%", recommended: true, desc: "折合仅 ¥4/月，全年畅享全功能与优先更新" },
-    { id: "lifetime", name: "早鸟买断版 MAX", priceCny: "¥99", priceUsd: "$39", period: "终身买断", tag: "限量早鸟", desc: "一次付费永久使用，支持 3 台设备 + 专属 MAX 徽章" },
+    {
+      id: "coffee",
+      name: "随心赞赏 · 一杯冰美式",
+      priceCny: "¥9.9",
+      priceUsd: "$2.99",
+      period: "纯自愿赞赏",
+      tag: "全功能已免费 · 感谢心意",
+      desc: "所有功能均已 100% 永久免费开放。若它让你上班快乐了一点点，请作者喝杯美式并点亮榜单 SUP 金标",
+    },
+    {
+      id: "latte",
+      name: "铁杆支持 · 双杯拿铁",
+      priceCny: "¥19.9",
+      priceUsd: "$5.99",
+      period: "纯自愿赞赏",
+      tag: "最受欢迎 · 助力持续迭代",
+      recommended: true,
+      desc: "全功能永久免费无套路。支持服务器日常开销、点亮专属 VIP 鎏金徽章并优先响应你的新点子",
+    },
+    {
+      id: "patron",
+      name: "创始赞助 · 荣誉殿堂",
+      priceCny: "¥49",
+      priceUsd: "$14.9",
+      period: "纯自愿赞赏",
+      tag: "致谢独立开源赞助人",
+      desc: "纯粹的支持与认可，点亮榜单专属 MAX 鎏金标识并列入官网致谢支持者名单",
+    },
   ];
 
   function getDeviceId() {
@@ -383,12 +408,12 @@
       tier: "free",
       isPro: false,
       plan: "free",
-      planName: "Free 免费版",
+      planName: "全功能免费版",
       expiresAt: null,
       trialUsed: false,
-      dailyPkLimit: 3,
+      dailyPkLimit: -1,
       dailyPkUsed: 0,
-      dailyPkRemaining: 3,
+      dailyPkRemaining: 999,
       updatedAt: 0,
     };
   }
@@ -438,10 +463,8 @@
     return false;
   }
 
-  function hasFeature(featureKey, m) {
-    const pro = isProMember(m);
-    if (featureKey === "optical_projector" || featureKey === "projector") return true;
-    return pro;
+  function hasFeature() {
+    return true;
   }
 
   async function refreshMembership(userId) {
@@ -457,10 +480,10 @@
     return loadMembership();
   }
 
-  async function startFreeTrial(userId) {
+  async function claimHonorSupporter(userId) {
     const uid = userId || loadProfile().userId;
     try {
-      const res = await fetch(`${getApiBase()}/api/license/trial`, {
+      const res = await fetch(`${getApiBase()}/api/supporter/honor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: uid }),
@@ -469,8 +492,12 @@
       if (data?.entitlement) saveMembership(data.entitlement);
       return data;
     } catch (_) {
-      return { ok: false, message: "网络异常，无法连接鉴权服务器，请稍后再试。" };
+      return { ok: false, message: "网络异常，无法连接服务器，请稍后再试。" };
     }
+  }
+
+  async function startFreeTrial(userId) {
+    return claimHonorSupporter(userId);
   }
 
   async function activateLicenseKey(key, userId) {
@@ -540,12 +567,14 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
-  function renderProBadgeSvg(tier = "pro") {
-    const isMax = tier === "lifetime";
-    const label = isMax ? "MAX" : "PRO";
-    const gStart = isMax ? "#fde68a" : "#fcd34d";
-    const gMid = isMax ? "#f59e0b" : "#f59e0b";
-    const gEnd = isMax ? "#d97706" : "#b45309";
+  function renderProBadgeSvg(tier = "pro", plan = "") {
+    const isPatron = plan === "patron" || (tier === "lifetime" && plan !== "coffee" && plan !== "latte");
+    const isLatte = plan === "latte";
+    const isCoffee = plan === "coffee";
+    const label = isPatron ? "MAX" : isLatte ? "VIP" : isCoffee ? "SUP" : "PRO";
+    const gStart = isPatron ? "#fef08a" : isLatte ? "#fde68a" : "#fcd34d";
+    const gMid = "#f59e0b";
+    const gEnd = isPatron ? "#d97706" : "#b45309";
     return `<svg viewBox="0 0 34 15" width="34" height="15" style="flex-shrink:0;vertical-align:middle" aria-label="${label}">
       <defs>
         <linearGradient id="pg-${label}" x1="0" y1="0" x2="1" y2="1">
@@ -578,7 +607,7 @@
         country: r.country,
         regionCode: r.regionCode || "CN",
         industry: r.industry || "互联网",
-        mode: r.mode || "光影 58%",
+        mode: r.mode || "拟态 58%",
         streak: Math.max(r.bestStreakSeconds || 0, r.currentStreakSeconds || 0),
         today: r.todaySeconds || 0,
         pkElo: r.pkElo || 1200,
@@ -606,7 +635,7 @@
       country: profile.country,
       regionCode: profile.regionCode || "CN",
       industry: profile.industry || "互联网",
-      mode: "光影 58%",
+      mode: "拟态 58%",
       bestStreakSeconds: meBest,
       todaySeconds: profile.todaySeconds || 0,
       totalSeconds: profile.totalSeconds || 0,
@@ -646,6 +675,7 @@
     isProMember,
     hasFeature,
     refreshMembership,
+    claimHonorSupporter,
     startFreeTrial,
     activateLicenseKey,
     fetchFuelStatus,

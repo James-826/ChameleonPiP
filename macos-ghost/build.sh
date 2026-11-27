@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_BUNDLE="$ROOT_DIR/GeckoGhost.app"
+APP_BUNDLE="$ROOT_DIR/ChameleonPiP.app"
 CONTENTS="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS/MacOS"
 RES_DIR="$CONTENTS/Resources"
@@ -15,21 +15,21 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>GeckoGhost</string>
+  <string>ChameleonPiP</string>
   <key>CFBundleIdentifier</key>
-  <string>com.geckopip.ghost</string>
+  <string>com.chameleonpip.macos</string>
   <key>CFBundleName</key>
-  <string>GeckoGhost</string>
+  <string>ChameleonPiP</string>
   <key>CFBundleDisplayName</key>
-  <string>变色龙画中画 ChameleonPiP</string>
+  <string>ChameleonPiP 变色龙画中画</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>5.4.0</string>
+  <string>5.5.0</string>
   <key>CFBundleVersion</key>
-  <string>7</string>
+  <string>8</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSHighResolutionCapable</key>
@@ -40,9 +40,10 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
   <array>
     <dict>
       <key>CFBundleURLName</key>
-      <string>com.geckopip.ghost.url</string>
+      <string>com.chameleonpip.macos.url</string>
       <key>CFBundleURLSchemes</key>
       <array>
+        <string>chameleonpip</string>
         <string>geckoghost</string>
       </array>
     </dict>
@@ -84,10 +85,12 @@ cp "$ROOT_DIR/extension/gecko-core.js" "$ROOT_DIR/desktop/gecko-core.js"
 cp "$ROOT_DIR/extension/chameleon-stats.js" "$ROOT_DIR/desktop/chameleon-stats.js"
 cp "$ROOT_DIR/extension/icons/"*.png "$ROOT_DIR/desktop/icons/"
 
-echo "Stopping any old running GeckoGhost process..."
+echo "Stopping any old running ChameleonPiP / GeckoGhost process..."
+pkill -x ChameleonPiP >/dev/null 2>&1 || true
 pkill -x GeckoGhost >/dev/null 2>&1 || true
+rm -rf "$ROOT_DIR/GeckoGhost.app"
 
-echo "Compiling ChameleonPiP v5.4 native macOS binary (Metal + Vision Anti-Peek + Built-in Web Player)..."
+echo "Compiling ChameleonPiP v5.5 native macOS binary (Metal Biomimetic Chameleon + Vision Anti-Peek + Built-in Web Player)..."
 swiftc -O -swift-version 5 \
   -framework Cocoa \
   -framework QuartzCore \
@@ -100,33 +103,39 @@ swiftc -O -swift-version 5 \
   -framework Vision \
   -framework CoreMedia \
   -framework CoreVideo \
-  "$ROOT_DIR/macos-ghost/GeckoGhost.swift" \
-  -o "$MACOS_DIR/GeckoGhost"
+  "$ROOT_DIR/macos-ghost/ChameleonPiP.swift" \
+  -o "$MACOS_DIR/ChameleonPiP"
 
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
 
-# Register geckoghost:// custom URL scheme in macOS LaunchServices so Chrome can auto-launch it!
+# Register chameleonpip:// (+ legacy geckoghost://) custom URL schemes in macOS LaunchServices
 LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [ -x "$LSREG" ]; then
+  if [ -d "/Applications/GeckoGhost.app" ]; then
+    "$LSREG" -u "/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  fi
+  if [ -d "$HOME/Applications/GeckoGhost.app" ]; then
+    "$LSREG" -u "$HOME/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  fi
   "$LSREG" -f "$APP_BUNDLE" >/dev/null 2>&1 || true
 fi
 
 if [ -w "/Applications" ]; then
-  rm -rf "/Applications/GeckoGhost.app"
-  cp -R "$APP_BUNDLE" "/Applications/GeckoGhost.app"
-  codesign --force --deep --sign - "/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  rm -rf "/Applications/GeckoGhost.app" "$HOME/Applications/GeckoGhost.app" "/Applications/ChameleonPiP.app"
+  cp -R "$APP_BUNDLE" "/Applications/ChameleonPiP.app"
+  codesign --force --deep --sign - "/Applications/ChameleonPiP.app" >/dev/null 2>&1 || true
   if [ -x "$LSREG" ]; then
-    "$LSREG" -f "/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+    "$LSREG" -f "/Applications/ChameleonPiP.app" >/dev/null 2>&1 || true
   fi
-  echo "✅ Built & installed to /Applications/GeckoGhost.app (+ LaunchServices geckoghost://)"
+  echo "OK: Built & installed to /Applications/ChameleonPiP.app (+ LaunchServices chameleonpip://)"
 elif [ -d "$HOME/Applications" ] || mkdir -p "$HOME/Applications" 2>/dev/null; then
-  rm -rf "$HOME/Applications/GeckoGhost.app"
-  cp -R "$APP_BUNDLE" "$HOME/Applications/GeckoGhost.app"
-  codesign --force --deep --sign - "$HOME/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+  rm -rf "$HOME/Applications/GeckoGhost.app" "$HOME/Applications/ChameleonPiP.app"
+  cp -R "$APP_BUNDLE" "$HOME/Applications/ChameleonPiP.app"
+  codesign --force --deep --sign - "$HOME/Applications/ChameleonPiP.app" >/dev/null 2>&1 || true
   if [ -x "$LSREG" ]; then
-    "$LSREG" -f "$HOME/Applications/GeckoGhost.app" >/dev/null 2>&1 || true
+    "$LSREG" -f "$HOME/Applications/ChameleonPiP.app" >/dev/null 2>&1 || true
   fi
-  echo "✅ Built & installed to ~/Applications/GeckoGhost.app (+ LaunchServices geckoghost://)"
+  echo "OK: Built & installed to ~/Applications/ChameleonPiP.app (+ LaunchServices chameleonpip://)"
 else
-  echo "✅ Built & registered geckoghost:// scheme: $APP_BUNDLE"
+  echo "OK: Built & registered chameleonpip:// scheme: $APP_BUNDLE"
 fi

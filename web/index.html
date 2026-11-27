@@ -393,9 +393,9 @@
             </div>
             <div class="sandbox-ctrl">
               <div class="seg" id="sandboxModes">
-                <button type="button" class="active" data-mode="projector" data-zh="变色融合" data-en="Chameleon">变色融合</button>
-                <button type="button" data-mode="emboss" data-zh="浮雕隐身" data-en="Emboss">浮雕隐身</button>
-                <button type="button" data-mode="cinema" data-zh="彩透变色" data-en="Cinema">彩透变色</button>
+                <button type="button" class="active" data-mode="projector" data-zh="拟态同色" data-en="Habitat">拟态同色</button>
+                <button type="button" data-mode="emboss" data-zh="鳞纹浮雕" data-en="Scale">鳞纹浮雕</button>
+                <button type="button" data-mode="cinema" data-zh="虹彩显色" data-en="Iridescent">虹彩显色</button>
               </div>
               <button type="button" class="btn btn-sm" id="btnDemoLogSub" style="padding:4px 10px;font-size:11.5px" data-zh="日志字幕预览" data-en="Log Subtitles">日志字幕预览</button>
               <label class="slider-pill">
@@ -408,7 +408,7 @@
 
           <div class="sandbox-stage" id="sandboxStage">
             <div class="pane-code">
-              <div class="c-cm">// shader/optical_projector.glsl</div>
+              <div class="c-cm">// shader/chameleon_skin.glsl</div>
               <div><span class="c-kw">uniform</span> sampler2D uTex;</div>
               <div><span class="c-kw">uniform</span> <span class="c-fn">float</span> uIntensity;</div>
               <div><span class="c-kw">void</span> <span class="c-fn">main</span>() {</div>
@@ -458,8 +458,8 @@
                 <span style="color:#64748b">[14:22:08]</span> <span style="color:#34d399;font-weight:700">[INFO]</span> <span style="color:#79c0ff">worker::sync</span> — 字幕已伪装为终端编译日志，静音看剧零违和
               </div>
             </div>
-            <div class="drag-hint" data-zh="按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果" data-en="Drag the live projected video anywhere across the code, sheet, and color blocks">
-              按住上方投影画面自由拖动，实时对比代码 / 表格 / 红绿底色透传效果
+            <div class="drag-hint" data-zh="按住上方变色龙小窗自由拖动，实时对比代码 / 表格 / 红绿底色透传效果" data-en="Drag the live chameleon video anywhere across the code, sheet, and color blocks">
+              按住上方变色龙小窗自由拖动，实时对比代码 / 表格 / 红绿底色透传效果
             </div>
           </div>
         </div>
@@ -512,8 +512,8 @@
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             </div>
             <h3><span data-zh="60fps 变色龙拟态（3 模式全免费）" data-en="60fps Camouflage (All 3 Modes Free)">60fps 变色龙拟态（3 模式全免费）</span></h3>
-            <p data-zh="变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。" data-en="All 3 camouflage shaders (Chameleon, Emboss, Cinema) are 100% free forever. Underlying code, Excel grids, and vivid backgrounds shine straight through.">
-              变色融合、浮雕隐身、彩透变色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。
+            <p data-zh="拟态同色、鳞纹浮雕、虹彩显色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。" data-en="All 3 biomimetic shaders (Habitat, Scale, Iridescent) are 100% free forever. Underlying code, Excel grids, and vivid backgrounds shine straight through.">
+              拟态同色、鳞纹浮雕、虹彩显色全部免费开放！底层红绿背景、IDE 代码高亮与 Excel 表格 100% 原色透出，搭配鼠标穿透 ⌃⇧M 可隔着视频流畅写代码。
             </p>
           </div>
 
@@ -580,10 +580,10 @@
         <div class="dl-grid">
           <div class="dl-card featured">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.4（推荐 · 可免插件直连）</span>
-              <h3 data-zh="ChameleonPiP macOS 桌面端（GeckoGhost.app）" data-en="ChameleonPiP for macOS (Native App)">ChameleonPiP macOS 桌面端（GeckoGhost.app）</h3>
-              <p data-zh="原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、免插件网页链接直连播放、代码日志字幕条、刘海灵动岛与会议共享隐身。" data-en="Native Swift + Apple Metal + Apple Vision app featuring AI anti-peek radar, built-in web URL player, disguised terminal-log subtitles, Notch Dynamic Island, and screen-share stealth.">
-                原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、免插件网页链接直连播放、代码日志字幕条、刘海灵动岛与会议共享隐身。
+              <span class="ver-pill" style="width:fit-content">macOS 原生客户端 · v5.5（推荐 · 免插件搜片直连）</span>
+              <h3 data-zh="ChameleonPiP macOS 桌面端（ChameleonPiP.app）" data-en="ChameleonPiP for macOS (ChameleonPiP.app)">ChameleonPiP macOS 桌面端（ChameleonPiP.app）</h3>
+              <p data-zh="原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、独立隐蔽搜片浏览器、视频硬字幕 OCR 终端日志条、刘海灵动岛与会议共享隐身。" data-en="Native Swift + Apple Metal + Apple Vision app featuring AI anti-peek radar, stealth search browser, video OCR terminal-log subtitles, Notch Dynamic Island, and screen-share stealth.">
+                原生 Swift + Apple Metal + Apple Vision 引擎：内置 AI 背后防偷窥雷达、独立隐蔽搜片浏览器、视频硬字幕 OCR 终端日志条、刘海灵动岛与会议共享隐身。
               </p>
               <div class="dl-specs">
                 <span>macOS 13.0+</span><span>Apple Silicon &amp; Intel</span><span>解压即用（~3 MB）</span>
@@ -594,14 +594,14 @@
             </div>
             <div class="install-steps">
               <div class="install-steps-title" data-zh="2 步 10 秒运行说明" data-en="2-Step Setup (10 Seconds)">2 步 10 秒运行说明</div>
-              <div class="step-row"><span class="step-num">1</span><span data-zh="解压后把 GeckoGhost.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。" data-en="Unzip and drag GeckoGhost.app into Applications, then open it (the Dynamic Island appears beside your notch).">解压后把 GeckoGhost.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。</span></div>
+              <div class="step-row"><span class="step-num">1</span><span data-zh="解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。" data-en="Unzip and drag ChameleonPiP.app into Applications, then open it (the Dynamic Island appears beside your notch).">解压后把 ChameleonPiP.app 拖入「应用程序」文件夹双击打开（屏幕顶部摄像头旁会出现变色龙灵动岛）。</span></div>
               <div class="step-row"><span class="step-num">2</span><span data-zh="首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。" data-en="If macOS Gatekeeper prompts on first launch: Right-click the app -> Open, or allow it in System Settings -> Privacy &amp; Security.">首次打开如遇 macOS 安全提示：右键点击图标选「打开」，或在系统设置 → 隐私与安全性点击「仍要打开」即可。</span></div>
             </div>
           </div>
 
           <div class="dl-card">
             <div style="display:flex;flex-direction:column;gap:8px">
-              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 可选伴侣扩展 · v5.4</span>
+              <span class="ver-pill" style="width:fit-content;background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:#7dd3fc">Chrome / Edge 可选伴侣扩展 · v5.5</span>
               <h3 data-zh="ChameleonPiP 浏览器视频投送扩展" data-en="ChameleonPiP Browser Extension">ChameleonPiP 浏览器视频投送扩展</h3>
               <p data-zh="支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。" data-en="Works on YouTube, Bilibili, Twitch, and any HTML5 video. Press ⌃⇧G to cast at 60fps with instant tab-level mute and subtitle sync.">
                 支持 B站、YouTube、抖音、直播与任意 HTML5 网页视频，一键 ⌃⇧G 投送到桌面端，内置标签页级瞬间静音与网页字幕同步。
@@ -846,7 +846,7 @@
         }
 
         // -----------------------------------------------------------------
-        // Live 60fps WebGL Optical Projector Hero Playground
+        // Live 60fps WebGL Biomimetic Chameleon Skin Hero Playground
         // -----------------------------------------------------------------
         let demoMode = "projector";
         let demoIntensity = 58;
@@ -893,8 +893,10 @@
                 else { float a = clamp(d * uInt * 1.35, 0.0, 0.94) * mask; gl_FragColor = vec4(a,a,a,a); }
                 return;
               }
-              float a = clamp(uInt * 0.85, 0.1, 0.9) * mask;
-              gl_FragColor = vec4(c.rgb * 1.08 * a, a);
+              float ch = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+              float sal = clamp(abs(lum - 0.5) * 1.5 + ch * 0.9 + 0.32, 0.30, 1.0);
+              float a = clamp(uInt * 0.88 * mix(sal, 1.0, uInt * 0.5), 0.08, 0.92) * mask;
+              gl_FragColor = vec4(c.rgb * 1.06 * a, a);
             }
           `;
           const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };

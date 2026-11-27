@@ -5,7 +5,7 @@
 ---
 
 ## 1. 待上传安装包
-- **Chrome / Edge 商店专用压缩包**：`release-bundles/ChameleonPiP-Chrome-Web-Store-v5.2.zip`（已剔除 `.DS_Store` 和开发冗余文件，`manifest_version: 3`，版本 `5.2.0`）
+- **Chrome / Edge 商店专用压缩包**：`release-bundles/ChameleonPiP-Chrome-Extension-v5.5.zip`（已剔除 `.DS_Store` 和开发冗余文件，`manifest_version: 3`，版本 `5.5.0`）
 - **图标素材**：`extension/icons/icon128.png`（商店主图标 128×128 PNG）
 - **商店截图**：可在官网与排行榜截图（1280×800 PNG，见 `store-submission/`）
 
@@ -63,7 +63,7 @@ KEY FEATURES:
 审核员最看重这部分，直接按以下内容填入即可大幅提升一次过审率：
 
 - **Single Purpose Description（单一用途声明）**：
-  > Provides an optical transparent Picture-in-Picture (PiP) video overlay and playback controller for HTML5 videos across web pages, with optional local desktop window casting and playback duration rankings.
+  > Provides a chameleon camouflage Picture-in-Picture (PiP) video overlay and playback controller for HTML5 videos across web pages, with optional local desktop window casting and playback duration rankings.
 
 - **Permission Justifications（逐项权限理由）**：
   - **`activeTab`**: Needed when the user explicitly clicks the extension icon or hotkey to locate the active `<video>` element on the current page.
@@ -72,7 +72,7 @@ KEY FEATURES:
   - **`scripting`**: Injects the content script on demand if the user opens ChameleonPiP on a tab loaded before extension installation.
   - **`storage`**: Saves user preferences locally (projection mode, intensity, feathering, hover-reveal toggle, and license status).
   - **`tabs`**: Enables instant tab-level mute/unmute synchronization (`chrome.tabs.update`) and cleans up capture cleanly when the source tab closes.
-  - **`host_permissions` (`<all_urls>`)**: Allows users to enable optical PiP and detect `<video>` elements on any video website they choose to watch.
+  - **`host_permissions` (`<all_urls>`)**: Allows users to enable chameleon camouflage PiP and detect `<video>` elements on any video website they choose to watch.
 
 - **Privacy Policy URL（隐私政策地址）**：
   - 正式官方地址：`https://chameleonpip.site/privacy.html`

@@ -1,12 +1,12 @@
 /**
- * GeckoPiP Core Engine v4.0 — Optical Projector Engine (光学投影融合引擎)
+ * ChameleonPiP Core Engine v5.5 — Biomimetic Chameleon Skin Camouflage Engine
  *
- * Physics principle:
- * Instead of painting a flat box color over the desktop, transforms the video into pure
- * optical Light (RGB=1,1,1 where L > pivot) and Shadow (RGB=0,0,0 where L < pivot) alpha layers.
- * Whatever is underneath on the user's desktop (red/green wallpaper, colored code, white doc,
- * spreadsheets) shines straight through in its OWN real colors while modulated by the video's
- * full light, shadow, facial expressions, texture, and subtitles!
+ * Biomimetic principle:
+ * Instead of painting a flat box color over the desktop, modulates the video into
+ * Chameleon Light (ambient-tinted highlights) and Shadow alpha layers so whatever
+ * is underneath on the user's desktop (red/green wallpaper, colored code, white doc,
+ * spreadsheets) shines straight through in its OWN real colors while adapting to
+ * environmental warmth, texture, and subtitles.
  */
 (function (global) {
   "use strict";
@@ -17,7 +17,7 @@
     autoSense: true, // Auto-adjusts light/shadow pivot for extreme white (#fff) or pitch black (#000) surfaces
     displayTarget: "ghost",
     bgColor: "#505050",
-    mode: "projector", // 'projector' (光影投影) | 'emboss' (浮雕纹理) | 'cinema' (彩透投影)
+    mode: "projector", // 'projector' (拟态同色) | 'emboss' (鳞纹浮雕) | 'cinema' (虹彩显色)
     stealth: 58, // 投影浓度 (Projector Intensity: 12% 极淡微影 -> 58% 自然融合 -> 95% 浓郁清晰)
     feather: 28, // 镜头边缘柔化 (0% 清晰圆角 -> 80% 羽化无界)
     detail: 72,
@@ -159,23 +159,33 @@
   }
 
   /**
-   * Builds GPU-accelerated Bipolar Optical Projector SVG <filter> primitives.
+   * Builds GPU-accelerated Biomimetic Chameleon Skin SVG <filter> primitives.
    *
    * How it works:
-   * - Casts pure optical LIGHT (RGB = 1,1,1) for video highlights (L > pivot)
-   *   and pure optical SHADOW (RGB = 0,0,0) for video darks (L < pivot)!
-   * - Underlying desktop pixels (e.g. half Red & half Green, VS Code syntax, white docs)
-   *   keep 100% of their own hue/color while modulated by the video's texture & shades!
+   * - Modulates video highlights & shadows with ambient desktop color temperature tint
+   *   so underlying pixels (e.g. half Red & half Green, VS Code syntax, white docs)
+   *   keep 100% of their own hue/color while blending like real chameleon skin!
    */
   function buildFilterPrimitives(state, options = {}) {
     if (options.isPeeking) {
       return `<feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />`;
     }
 
-    // `stealth` stores Projector Intensity (10% subtle -> 95% strong)
+    // `stealth` stores Camouflage Intensity (10% subtle -> 95% strong)
     const intensity = clamp(Number(state.stealth ?? 58) / 100, 0.08, 0.96);
     const detailStrength = clamp(Number(state.detail ?? 72) / 100, 0, 1.2);
     const mode = state.mode || "projector";
+
+    const bg = hexToRgb(state.bgColor || "#505050");
+    const br = bg.r / 255;
+    const bgc = bg.g / 255;
+    const bb = bg.b / 255;
+    const lr = 0.72 + 0.28 * clamp(br * 1.35 + 0.24, 0, 1);
+    const lg = 0.72 + 0.28 * clamp(bgc * 1.35 + 0.24, 0, 1);
+    const lb = 0.72 + 0.28 * clamp(bb * 1.35 + 0.24, 0, 1);
+    const dr = 0.06 * br;
+    const dg = 0.06 * bgc;
+    const db = 0.06 * bb;
 
     // Auto-adapt neutral pivot slightly when over pure white (#fff) or pitch black (#000)
     // while keeping symmetric 0.48 on colorful / mixed / red-green / editor surfaces!
@@ -187,9 +197,8 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 1: `projector` (光影投影 — Pure GPU 60-120fps Light & Shadow Projector!)
-    // Underlying red stays red, green stays green; video light & shadow projects onto it!
-    // Uses pure <feColorMatrix> + <feMerge> (zero spatial convolution = locked 60fps GPU!)
+    // Mode 1: `projector` (拟态同色 — Chromatophore Habitat Blend)
+    // Underlying red stays red, green stays green; highlights & shadows adopt subtle ambient tint!
     // -------------------------------------------------------------------------
     if (mode === "projector") {
       const k = clamp(intensity * 0.94, 0.06, 0.94);
@@ -201,14 +210,14 @@
 
       return `
         <feColorMatrix in="SourceGraphic" type="matrix" result="shadow"
-          values="0 0 0 0 0
-                  0 0 0 0 0
-                  0 0 0 0 0
+          values="0 0 0 0 ${fmt(dr)}
+                  0 0 0 0 ${fmt(dg)}
+                  0 0 0 0 ${fmt(db)}
                   ${fmt(0.2126 * sDark)} ${fmt(0.7152 * sDark)} ${fmt(0.0722 * sDark)} 0 ${fmt(offDark)}" />
         <feColorMatrix in="SourceGraphic" type="matrix" result="light"
-          values="0 0 0 0 1
-                  0 0 0 0 1
-                  0 0 0 0 1
+          values="0 0 0 0 ${fmt(lr)}
+                  0 0 0 0 ${fmt(lg)}
+                  0 0 0 0 ${fmt(lb)}
                   ${fmt(0.2126 * sLight)} ${fmt(0.7152 * sLight)} ${fmt(0.0722 * sLight)} 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -218,9 +227,9 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 2: `emboss` (浮雕纹理 — 3D Glass/Surface Relief Texture Etched Into Background!)
+    // Mode 2: `emboss` (鳞纹浮雕 — Dermal Tubercle Scale Micro-Relief)
     // Directional 3x3 emboss kernel: flat areas = 0.5 -> Alpha = 0.000 (100% pure background!),
-    // sunlit edges cast white light (1,1,1), shadowed edges cast dark shadow (0,0,0)!
+    // sunlit scale ridges cast ambient highlight tint, shadowed edges cast ambient shadow tint!
     // -------------------------------------------------------------------------
     if (mode === "emboss") {
       const gain = clamp(1.1 + intensity * 2.2, 0.8, 3.4);
@@ -242,14 +251,14 @@
                         ${fmt(-0.7 * gain)} 0                   ${fmt(0.7 * gain)}
                         0                   ${fmt(0.7 * gain)}  ${fmt(1.1 * gain)}" />
         <feColorMatrix in="relief" type="matrix" result="shadow"
-          values="0 0 0 0 0
-                  0 0 0 0 0
-                  0 0 0 0 0
+          values="0 0 0 0 ${fmt(dr)}
+                  0 0 0 0 ${fmt(dg)}
+                  0 0 0 0 ${fmt(db)}
                   ${fmt(sDark)} 0 0 0 ${fmt(offDark)}" />
         <feColorMatrix in="relief" type="matrix" result="light"
-          values="0 0 0 0 1
-                  0 0 0 0 1
-                  0 0 0 0 1
+          values="0 0 0 0 ${fmt(lr)}
+                  0 0 0 0 ${fmt(lg)}
+                  0 0 0 0 ${fmt(lb)}
                   ${fmt(sLight)} 0 0 0 ${fmt(offLight)}" />
         <feMerge>
           <feMergeNode in="shadow" />
@@ -259,16 +268,18 @@
     }
 
     // -------------------------------------------------------------------------
-    // Mode 3: `cinema` (彩透投影 — Color Slide Projector: Video Colors + Underlying Surface!)
-    // Preserves video's own RGB chroma while letting underlying red/green/desktop shine through!
+    // Mode 3: `cinema` (虹彩显色 — Guanine Nanocrystal Iridophore Harmonization)
+    // Preserves video chroma while pulling tones gently toward the desktop surface color!
     // -------------------------------------------------------------------------
+    const envPull = clamp((1 - intensity) * 0.30 + 0.08, 0.08, 0.36);
+    const diag = (1 - envPull) * 1.08;
     const alpha = clamp(intensity * 0.88, 0.08, 0.92);
     return `
       <feColorMatrix in="SourceGraphic" type="matrix"
-        values="1.08 0    0    0 0
-                0    1.08 0    0 0
-                0    0    1.08 0 0
-                0    0    0    ${fmt(alpha)} 0" />
+        values="${fmt(diag)} 0 0 0 ${fmt(envPull * br)}
+                0 ${fmt(diag)} 0 0 ${fmt(envPull * bgc)}
+                0 0 ${fmt(diag)} 0 ${fmt(envPull * bb)}
+                0 0 0 ${fmt(alpha)} 0" />
     `;
   }
 

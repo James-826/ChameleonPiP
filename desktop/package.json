@@ -1,7 +1,7 @@
 {
-  "name": "geckopip-desktop",
-  "version": "3.5.0",
-  "description": "GeckoPiP Cross-Platform Borderless Chameleon PiP for macOS Menu Bar & Windows System Tray",
+  "name": "chameleonpip-desktop",
+  "version": "5.5.0",
+  "description": "ChameleonPiP Cross-Platform Borderless Chameleon PiP for macOS Menu Bar & Windows System Tray",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,8 +13,8 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
-    "appId": "com.geckopip.desktop",
-    "productName": "GeckoPiP",
+    "appId": "com.chameleonpip.desktop",
+    "productName": "ChameleonPiP",
     "files": [
       "main.js",
       "preload.js",

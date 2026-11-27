@@ -72,7 +72,7 @@
     try {
       const iframe = document.createElement("iframe");
       iframe.style.cssText = "display:none;width:0;height:0;border:0;";
-      iframe.src = `geckoghost://${action}`;
+      iframe.src = `chameleonpip://${action}`;
       document.body.appendChild(iframe);
       setTimeout(() => iframe.remove(), 1200);
     } catch (_) {}
@@ -298,7 +298,7 @@
     if (streamingTabId) {
       els.statusText.textContent = ghostWsConnected
         ? "桌面无边框画中画运行中"
-        : "正在唤醒桌面端 GeckoGhost.app…";
+        : "正在唤醒桌面端 ChameleonPiP.app…";
       els.btnMacGhost.innerHTML = `<span>停止桌面无边框画中画</span><span class="kbd">⌃⇧G</span>`;
       els.btnMacGhost.classList.add("active");
     } else if (parasiteOpen) {
@@ -461,7 +461,7 @@
     updateState({ autoSense: els.chkAutoSense.checked });
   });
 
-  // All 3 Chameleon visual modes (变色融合 / 浮雕隐身 / 彩透变色) are 100% FREE forever!
+  // All 3 Chameleon visual modes (拟态同色 / 鳞纹浮雕 / 虹彩显色) are 100% FREE forever!
   document.querySelectorAll(".mode-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       updateState({ mode: tab.dataset.mode });

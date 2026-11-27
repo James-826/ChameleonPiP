@@ -14,8 +14,8 @@
     siteUrl: "https://chameleonpip.site",
     githubRepoUrl: "https://github.com/James-826/ChameleonPiP",
     downloads: {
-      macAppZip: "https://chameleonpip.site/downloads/ChameleonPiP-macOS-App-v5.4.zip",
-      chromeExtZip: "https://chameleonpip.site/downloads/ChameleonPiP-Chrome-Extension-v5.4.zip",
+      macAppZip: "https://chameleonpip.site/downloads/ChameleonPiP-macOS-App-v5.5.zip?v=5.5.0",
+      chromeExtZip: "https://chameleonpip.site/downloads/ChameleonPiP-Chrome-Extension-v5.5.zip?v=5.5.0",
       chromeWebStore: "", // Fill after Chrome Web Store approval
       edgeAddons: "",     // Fill after Microsoft Edge Add-ons approval
     },

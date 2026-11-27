@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ChameleonPiP 5.0 变色龙 — 光学投影融合体验台</title>
+    <title>ChameleonPiP 5.5 变色龙 — 仿生变色融合体验台</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -270,7 +270,7 @@
         font-size: 12px;
       }
 
-      /* OPTICAL PROJECTOR WINDOW (0% background fill — 100% projected light & shadow!) */
+      /* CHAMELEON BIOMIMETIC WINDOW (0% background fill — 100% skin camouflage!) */
       .ghost-pip {
         position: absolute;
         left: 76px;
@@ -419,8 +419,8 @@
       <div class="brand-row">
         <img src="../extension/icons/icon128.png?v=5.2" alt="ChameleonPiP" />
         <div>
-          <h1>ChameleonPiP 变色龙光学投影</h1>
-          <p>像变色龙与投影仪结合：底色原样透出 + 视频光影纹理</p>
+          <h1>ChameleonPiP 变色龙仿生隐身</h1>
+          <p>像变色龙与皮肤融合：底色原样透出 + 仿生肌理调色</p>
         </div>
       </div>
 
@@ -430,11 +430,11 @@
       </a>
 
       <div class="card">
-        <div class="card-title"><span>三种光学投影模式</span></div>
+        <div class="card-title"><span>三种变色龙仿生模式</span></div>
         <div class="seg-3">
-          <button class="seg-b mode-sync active" data-mode="projector">光影投影</button>
-          <button class="seg-b mode-sync" data-mode="emboss">浮雕纹理</button>
-          <button class="seg-b mode-sync" data-mode="cinema">彩透投影</button>
+          <button class="seg-b mode-sync active" data-mode="projector">拟态同色</button>
+          <button class="seg-b mode-sync" data-mode="emboss">鳞纹浮雕</button>
+          <button class="seg-b mode-sync" data-mode="cinema">虹彩显色</button>
         </div>
 
         <div class="slider-group" style="margin-top:4px">
@@ -517,7 +517,7 @@
         <!-- Clean Apple Vibrancy Menu Bar Popover with Real-Time Video Scrubber -->
         <div class="menubar-popover" id="topBarPopover">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <strong style="font-size:12px;color:#fff">光学投影画中画</strong>
+            <strong style="font-size:12px;color:#fff">变色龙画中画</strong>
             <span style="font-size:10px;color:rgba(255,255,255,0.55)">60 FPS 实时同步</span>
           </div>
 
@@ -543,9 +543,9 @@
             <button class="pop-tile" id="popBtnThrough"><span>鼠标穿透</span><span>●</span></button>
           </div>
           <div class="seg-3">
-            <button class="seg-b mode-sync active" data-mode="projector">光影投影</button>
-            <button class="seg-b mode-sync" data-mode="emboss">浮雕纹理</button>
-            <button class="seg-b mode-sync" data-mode="cinema">彩透投影</button>
+            <button class="seg-b mode-sync active" data-mode="projector">拟态同色</button>
+            <button class="seg-b mode-sync" data-mode="emboss">鳞纹浮雕</button>
+            <button class="seg-b mode-sync" data-mode="cinema">虹彩显色</button>
           </div>
           <div class="slider-group">
             <div><span style="font-size:11px">投影浓度</span><strong id="popLblStealth">58%</strong></div>
@@ -603,13 +603,13 @@ export class AdaptiveScheduler {
             </div>
           </div>
 
-          <!-- Optical Projector PiP Window (initially straddling Red & Green!) -->
+          <!-- Chameleon Biomimetic PiP Window (initially straddling Red & Green!) -->
           <div class="ghost-pip" id="ghostPip">
             <div class="pip-hud-top">
               <div class="pip-pills">
-                <button class="pip-seg mode-sync active" data-mode="projector">光影</button>
-                <button class="pip-seg mode-sync" data-mode="emboss">浮雕</button>
-                <button class="pip-seg mode-sync" data-mode="cinema">彩透</button>
+                <button class="pip-seg mode-sync active" data-mode="projector">拟态</button>
+                <button class="pip-seg mode-sync" data-mode="emboss">鳞纹</button>
+                <button class="pip-seg mode-sync" data-mode="cinema">虹彩</button>
               </div>
               <div style="display:flex;gap:4px">
                 <button class="pip-icon-btn" data-size="260">S</button>
@@ -714,9 +714,9 @@ export class AdaptiveScheduler {
         });
 
         const subs = [
-          "「左边红背景投出红光影，右边绿背景投出绿光影！」",
+          "「左边红背景呈红色拟态，右边绿背景呈绿色拟态！」",
           "「拖到上方代码或右侧白文档，纹理随处无缝融合！」",
-          "「试试切换【光影投影】与【浮雕纹理】感受立体雕刻感！」",
+          "「试试切换【拟态同色】【鳞纹浮雕】与【虹彩显色】感受仿生变色！」",
         ];
 
         let t = 8;
