@@ -609,15 +609,24 @@ final class LocalWebSocketHub {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate {
     private var panel: GhostPanel!
     private var webView: WKWebView!
     private var builtInWebView: FirstMouseWebView?
     private var isBuiltInWebActive: Bool = false
     private var builtInVideoIsolated: Bool = false
     private var currentBuiltInUrl: String = ""
-    private var isStealthTerminalOpen: Bool = true
     private var cachedBiliCookie: String = ""
+
+    // Independent Full-Web Stealth Search Browser Window (never covers the small PiP window!)
+    private var searchWindow: NSWindow?
+    private var searchToolbarView: FlippedControlsView?
+    private var searchOmnibox: NSTextField?
+    private var segSearchEngine: NSSegmentedControl?
+    private var btnBrowserGray: IslandPillButton?
+    private var searchWebView: FirstMouseWebView?
+    private var browserGrayCamo: Bool = true
+    private var wasSearchWindowOpenBeforeBoss: Bool = false
 
     // Pure-AppKit Compact Dynamic Island (316 x 240pt — fast, compact, 100% native, never blank!)
     private var islandPanel: GhostPanel!
@@ -699,6 +708,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        setupStandardMainMenu()
         appNapActivity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
             reason: "ChameleonPiP 60fps Real-Time Video Camouflage"
@@ -729,8 +739,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return true
     }
 
+    private func setupStandardMainMenu() {
+        let mainMenu = NSMenu()
+        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        mainMenu.addItem(editItem)
+        mainMenu.setSubmenu(editMenu, for: editItem)
+        NSApp.mainMenu = mainMenu
+    }
+
     private func updatePanelSharingType() {
         panel?.sharingType = hideFromCapture ? .none : .readOnly
+        searchWindow?.sharingType = hideFromCapture ? .none : .readOnly
     }
 
     private func configureAntiPeekRadarCallbacks() {
@@ -944,29 +972,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     return event
                 }
 
-                // In Stealth Terminal Search/Feed Hub, allow interactive typing, category switching & scrolling!
-                if self.isStealthTerminalOpen && !self.isBuiltInWebActive {
-                    let termPad: CGFloat = 10
-                    let nearL = loc.x <= termPad
-                    let nearR = loc.x >= b.width - termPad
-                    let nearB = loc.y <= termPad
-                    let nearT = loc.y >= b.height - termPad
-                    var dir = ""
-                    if nearT { dir += "n" } else if nearB { dir += "s" }
-                    if nearL { dir += "w" } else if nearR { dir += "e" }
-                    if !dir.isEmpty {
-                        self.startNativeResize(dir: dir)
-                        return nil
-                    }
-                    if loc.y >= b.height - 32 && loc.x < b.width - 150 {
-                        self.startNativeDrag(offset: loc)
-                        return nil
-                    }
-                    self.panel.makeKey()
-                    return event
-                }
-
-                // Let HUD buttons (top bar: 穿透/日志/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
+                // Let HUD buttons (top bar: 穿透/搜片/日志/老板键/模式/尺寸, bottom bar: 播放/静音/进度条) receive clicks first!
                 let inTopHudButtons = hudVisible && loc.y >= b.height - 46 && loc.y <= b.height - 8 && loc.x >= 10 && loc.x <= b.width - 10
                 let inBottomHudButtons = hudVisible && loc.y >= 8 && loc.y <= 66 && loc.x >= 10 && loc.x <= b.width - 10
                 if inTopHudButtons || inBottomHudButtons {
@@ -1248,9 +1254,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         btnRadar = IslandPillButton(frame: NSRect(x: 14, y: 168, width: 72, height: 25), title: "AI防窥")
         btnRadar.onClick = { [weak self] in self?.toggleAntiPeekRadar() }
 
-        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "终端搜片")
+        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "搜片浏览")
         btnWebUrl.onClick = { [weak self] in
-            self?.openStealthTerminalPanel()
+            self?.openSearchBrowserWindow()
         }
 
         btnStealthSub = IslandPillButton(frame: NSRect(x: 160, y: 168, width: 64, height: 25), title: "日志字幕")
@@ -1414,8 +1420,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lblBrand?.textColor = NSColor(calibratedWhite: 1.0, alpha: 0.82)
         }
 
-        btnWebUrl?.isActiveTint = isBuiltInWebActive || isStealthTerminalOpen
-        btnWebUrl?.title = isBuiltInWebActive ? "切源/搜片" : "终端搜片"
+        btnWebUrl?.isActiveTint = (searchWindow?.isVisible ?? false) || isBuiltInWebActive
+        btnWebUrl?.title = (searchWindow?.isVisible ?? false) ? "搜片中" : "搜片浏览"
         btnStealthSub?.isActiveTint = stealthSubtitleEnabled
         btnStealthSub?.title = stealthSubtitleEnabled ? "日志 ON" : "日志字幕"
 
@@ -1594,12 +1600,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             hasActiveVideoPlaying = false
             currentStreakSec = 0
             islandShell?.isPlayerPaused = true
+            wasSearchWindowOpenBeforeBoss = (searchWindow?.isVisible ?? false)
+            searchWindow?.orderOut(nil)
             wsHub.sendTextToArena("{\"type\":\"bossTriggered\"}")
             broadcastPlaybackStateToArena()
         } else {
             bossTriggeredByRadar = false
             radarAlertActive = false
             islandShell?.isRadarAlert = false
+            if wasSearchWindowOpenBeforeBoss {
+                wasSearchWindowOpenBeforeBoss = false
+                searchWindow?.orderFrontRegardless()
+            }
         }
         webView.evaluateJavaScript("window.GeckoNativeBridge?.setBossMode(\(bossMode));", completionHandler: nil)
         builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.setBossMode(\(bossMode));", completionHandler: nil)
@@ -1622,7 +1634,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         NSApp.activate(ignoringOtherApps: true)
         if openPanel.runModal() == .OK, let url = openPanel.url {
             exitBuiltInWebMode()
-            isStealthTerminalOpen = false
             let escaped = url.absoluteString.replacingOccurrences(of: "'", with: "%27")
             webView.evaluateJavaScript("window.GeckoNativeBridge?.loadLocalVideo('\(escaped)');", completionHandler: nil)
         }
@@ -1729,6 +1740,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
             let bw = FirstMouseWebView(frame: panel.contentView!.bounds, configuration: cfg)
             bw.autoresizingMask = [.width, .height]
+            bw.uiDelegate = self
             bw.setValue(false, forKey: "drawsBackground")
             bw.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
             panel.contentView?.addSubview(bw)
@@ -1776,33 +1788,530 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         syncNativeIslandControls()
     }
 
-    // MARK: - Stealth Terminal Video Search & Trending Hub
-    private func openStealthTerminalPanel() {
+    // MARK: - Independent Full-Web Stealth Search Browser Window (Zero PiP Overlap!)
+    private func openSearchBrowserWindow() {
         setIslandExpanded(false)
-        isVisible = true
         if bossMode { setBoss(false) }
-        exitBuiltInWebMode()
-        isStealthTerminalOpen = true
-        ensurePanelMinSizeForTerminal()
-        panel.makeKeyAndOrderFront(nil)
-        webView.evaluateJavaScript("window.GeckoNativeBridge?.openStealthTerminal();", completionHandler: nil)
+
+        if searchWindow == nil {
+            let screenVis = (panel.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            let w: CGFloat = min(640, screenVis.width - 40)
+            let h: CGFloat = min(476, screenVis.height - 80)
+            let x = round(screenVis.midX - w * 0.5)
+            let y = max(screenVis.minY + 16, screenVis.maxY - h - 14)
+
+            let win = NSWindow(
+                contentRect: NSRect(x: x, y: y, width: w, height: h),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            win.title = "ChameleonPiP 隐蔽搜片微浏览器 — 全网搜片 · 点右上「投送到小窗」"
+            win.appearance = NSAppearance(named: .darkAqua)
+            win.backgroundColor = NSColor(calibratedRed: 0.06, green: 0.08, blue: 0.12, alpha: 1.0)
+            win.minSize = NSSize(width: 480, height: 340)
+            win.level = .floating
+            win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            win.sharingType = hideFromCapture ? .none : .readOnly
+            win.isReleasedWhenClosed = false
+            win.delegate = self
+
+            let contentRoot = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+            contentRoot.autoresizingMask = [.width, .height]
+            win.contentView = contentRoot
+
+            let tbH: CGFloat = 76
+            let tb = FlippedControlsView(frame: NSRect(x: 0, y: h - tbH, width: w, height: tbH))
+            tb.autoresizingMask = [.width, .minYMargin]
+            tb.wantsLayer = true
+            tb.layer?.backgroundColor = NSColor(calibratedRed: 0.07, green: 0.09, blue: 0.14, alpha: 0.98).cgColor
+
+            // Row 1 (y = 8): Navigation + Full-Width Omnibox + Go + Project
+            let btnBack = IslandPillButton(frame: NSRect(x: 10, y: 9, width: 28, height: 26), title: "←")
+            btnBack.autoresizingMask = [.maxXMargin]
+            btnBack.onClick = { [weak self] in self?.searchWebView?.goBack() }
+
+            let btnFwd = IslandPillButton(frame: NSRect(x: 42, y: 9, width: 28, height: 26), title: "→")
+            btnFwd.autoresizingMask = [.maxXMargin]
+            btnFwd.onClick = { [weak self] in self?.searchWebView?.goForward() }
+
+            let btnRel = IslandPillButton(frame: NSRect(x: 74, y: 9, width: 28, height: 26), title: "↻")
+            btnRel.autoresizingMask = [.maxXMargin]
+            btnRel.onClick = { [weak self] in self?.searchWebView?.reload() }
+
+            let btnHome = IslandPillButton(frame: NSRect(x: 106, y: 9, width: 44, height: 26), title: "热榜")
+            btnHome.autoresizingMask = [.maxXMargin]
+            btnHome.onClick = { [weak self] in self?.loadStealthStartPageInSearchWebView() }
+
+            let omni = NSTextField(frame: NSRect(x: 156, y: 9, width: w - 318, height: 26))
+            omni.autoresizingMask = [.width]
+            omni.bezelStyle = .roundedBezel
+            omni.drawsBackground = true
+            omni.backgroundColor = NSColor(calibratedWhite: 0.14, alpha: 1.0)
+            omni.textColor = .white
+            omni.font = NSFont.systemFont(ofSize: 12.0)
+            omni.focusRingType = .none
+            omni.placeholderString = "输入关键词全网搜片，或粘贴 B站/YouTube/抖音/网页链接回车..."
+            omni.target = self
+            omni.action = #selector(onOmniboxSubmit(_:))
+
+            let btnGo = IslandPillButton(frame: NSRect(x: w - 156, y: 9, width: 46, height: 26), title: "搜索")
+            btnGo.autoresizingMask = [.minXMargin]
+            btnGo.onClick = { [weak self] in
+                guard let self = self, let o = self.searchOmnibox else { return }
+                self.onOmniboxSubmit(o)
+            }
+
+            let btnProj = IslandPillButton(frame: NSRect(x: w - 106, y: 9, width: 96, height: 26), title: "投送到小窗 ▶", primary: true)
+            btnProj.autoresizingMask = [.minXMargin]
+            btnProj.onClick = { [weak self] in self?.projectSearchBrowserToSmallWindow() }
+
+            tb.addSubview(btnBack)
+            tb.addSubview(btnFwd)
+            tb.addSubview(btnRel)
+            tb.addSubview(btnHome)
+            tb.addSubview(omni)
+            tb.addSubview(btnGo)
+            tb.addSubview(btnProj)
+
+            // Row 2 (y = 43): Engine Switcher + Grayscale Camouflage + Shortcut Hint
+            let seg = NSSegmentedControl(
+                labels: ["B站", "必应全网", "百度", "YouTube", "抖音"],
+                trackingMode: .selectOne,
+                target: self,
+                action: #selector(onSearchEngineChanged(_:))
+            )
+            seg.frame = NSRect(x: 10, y: 43, width: 296, height: 24)
+            seg.selectedSegment = 0
+            seg.font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+
+            let btnGray = IslandPillButton(frame: NSRect(x: 314, y: 43, width: 88, height: 24), title: "灰度伪装 ON")
+            btnGray.isActiveTint = browserGrayCamo
+            btnGray.onClick = { [weak self] in self?.toggleBrowserGrayCamo() }
+
+            let lblHint = Self.makeLabel("打开视频点「投送到小窗」 · ⌃⇧S 显隐", frame: NSRect(x: 410, y: 47, width: w - 420, height: 16), alpha: 0.65)
+            lblHint.autoresizingMask = [.width]
+
+            tb.addSubview(seg)
+            tb.addSubview(btnGray)
+            tb.addSubview(lblHint)
+
+            contentRoot.addSubview(tb)
+            self.searchToolbarView = tb
+            self.searchOmnibox = omni
+            self.segSearchEngine = seg
+            self.btnBrowserGray = btnGray
+            self.searchWindow = win
+        }
+
+        if searchWebView == nil {
+            createAndAttachSearchWebView()
+            loadStealthStartPageInSearchWebView()
+        }
+
+        searchWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         syncNativeIslandControls()
     }
 
-    private func ensurePanelMinSizeForTerminal() {
-        var f = panel.frame
-        let nw = max(f.width, 436)
-        let nh = max(f.height, 266)
-        if nw != f.width || nh != f.height {
-            f.origin.y -= (nh - f.height) * 0.5
-            f.origin.x -= (nw - f.width) * 0.5
-            if let vis = (panel.screen ?? NSScreen.main)?.visibleFrame {
-                f.origin.x = max(vis.minX + 8, min(vis.maxX - nw - 8, f.origin.x))
-                f.origin.y = max(vis.minY + 8, min(vis.maxY - nh - 8, f.origin.y))
+    func windowWillClose(_ notification: Notification) {
+        if (notification.object as? NSWindow) === searchWindow {
+            DispatchQueue.main.async { [weak self] in
+                self?.syncNativeIslandControls()
             }
-            f.size = NSSize(width: nw, height: nh)
-            panel.setFrame(f, display: true, animate: true)
         }
+    }
+
+    private func createAndAttachSearchWebView() {
+        guard let contentRoot = searchWindow?.contentView else { return }
+        let tbH: CGFloat = 76
+        let h = max(120, contentRoot.bounds.height - tbH)
+        let cfg = WKWebViewConfiguration()
+        cfg.userContentController.add(self, name: "ghostAction")
+        cfg.mediaTypesRequiringUserActionForPlayback = []
+        cfg.allowsAirPlayForMediaPlayback = false
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: Self.searchBrowserHelperScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+
+        let swv = FirstMouseWebView(frame: NSRect(x: 0, y: 0, width: contentRoot.bounds.width, height: h), configuration: cfg)
+        swv.autoresizingMask = [.width, .height]
+        swv.uiDelegate = self
+        swv.navigationDelegate = self
+        swv.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
+        contentRoot.addSubview(swv)
+        self.searchWebView = swv
+    }
+
+    private func loadStealthStartPageInSearchWebView() {
+        if searchWebView == nil { createAndAttachSearchWebView() }
+        searchOmnibox?.stringValue = ""
+        searchWebView?.loadHTMLString(Self.stealthStartPageHtml(), baseURL: nil)
+    }
+
+    private func syncGrayCamoInSearchWebView() {
+        let on = browserGrayCamo ? "true" : "false"
+        searchWebView?.evaluateJavaScript(
+            "document.documentElement?.classList.toggle('chm-gray-browse', \(on));",
+            completionHandler: nil
+        )
+    }
+
+    private func toggleBrowserGrayCamo() {
+        browserGrayCamo.toggle()
+        btnBrowserGray?.isActiveTint = browserGrayCamo
+        btnBrowserGray?.title = browserGrayCamo ? "灰度伪装 ON" : "灰度伪装 OFF"
+        syncGrayCamoInSearchWebView()
+    }
+
+    @objc private func onSearchEngineChanged(_ sender: NSSegmentedControl) {
+        let txt = (searchOmnibox?.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !txt.isEmpty && !txt.lowercased().hasPrefix("http://") && !txt.lowercased().hasPrefix("https://") {
+            navigateOmniboxText(txt)
+        }
+    }
+
+    @objc private func onOmniboxSubmit(_ sender: NSTextField) {
+        let raw = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty {
+            loadStealthStartPageInSearchWebView()
+            return
+        }
+        navigateOmniboxText(raw)
+    }
+
+    private func navigateOmniboxText(_ raw: String) {
+        if searchWebView == nil { createAndAttachSearchWebView() }
+        let lower = raw.lowercased()
+        let isUrl = lower.hasPrefix("http://") || lower.hasPrefix("https://") ||
+            lower.hasPrefix("www.") || (raw.contains(".") && !raw.contains(" "))
+        let upper = raw.uppercased()
+        let isBv = upper.hasPrefix("BV") && raw.count >= 12 && !raw.contains(" ")
+
+        let targetStr: String
+        if isBv {
+            targetStr = "https://www.bilibili.com/video/\(raw)"
+        } else if isUrl {
+            targetStr = (lower.hasPrefix("http://") || lower.hasPrefix("https://")) ? raw : "https://\(raw)"
+        } else {
+            let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? raw
+            let idx = segSearchEngine?.selectedSegment ?? 0
+            switch idx {
+            case 1: targetStr = "https://cn.bing.com/search?q=\(encoded)"
+            case 2: targetStr = "https://www.baidu.com/s?wd=\(encoded)"
+            case 3: targetStr = "https://www.youtube.com/results?search_query=\(encoded)"
+            case 4: targetStr = "https://www.douyin.com/search/\(encoded)"
+            default: targetStr = "https://search.bilibili.com/all?keyword=\(encoded)"
+            }
+        }
+        if let url = URL(string: targetStr) {
+            searchWebView?.load(URLRequest(url: url))
+        }
+    }
+
+    private func projectSearchBrowserToSmallWindow() {
+        guard let swv = searchWebView, let curUrl = swv.url,
+              let scheme = curUrl.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            searchWebView?.evaluateJavaScript(
+                "window.setStartPageHint?.('请先点击下方任意视频条目或搜索并打开具体视频网页，再点右上「投送到小窗 ▶」');",
+                completionHandler: nil
+            )
+            return
+        }
+
+        // Clean up previous built-in WebView if present
+        if let oldBw = builtInWebView {
+            oldBw.evaluateJavaScript("document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
+            oldBw.removeFromSuperview()
+            builtInWebView = nil
+        }
+
+        // Turn off search-mode overlay & grayscale browsing before promoting WebView to GhostPanel!
+        swv.evaluateJavaScript(
+            "document.documentElement?.classList.remove('chm-gray-browse'); window.__CHAMELEON_SET_SRCH_MODE__?.(false);",
+            completionHandler: nil
+        )
+
+        // Attach isolator script dynamically for future navigations inside builtInWebView
+        if let coreURL = Bundle.main.url(forResource: "gecko-core", withExtension: "js"),
+           let coreSrc = try? String(contentsOf: coreURL, encoding: .utf8) {
+            swv.configuration.userContentController.addUserScript(
+                WKUserScript(source: coreSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            )
+            let isoSrc = Self.builtInIsolatorScript()
+            swv.configuration.userContentController.addUserScript(
+                WKUserScript(source: isoSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            )
+            swv.evaluateJavaScript(coreSrc + "\n" + isoSrc, completionHandler: nil)
+        }
+
+        // 0-reload view reparenting from searchWindow -> bottom-right GhostPanel!
+        swv.removeFromSuperview()
+        swv.frame = panel.contentView!.bounds
+        swv.autoresizingMask = [.width, .height]
+        panel.contentView?.addSubview(swv)
+
+        builtInWebView = swv
+        searchWebView = nil
+        currentBuiltInUrl = curUrl.absoluteString
+        isBuiltInWebActive = true
+        builtInVideoIsolated = false
+        webView.isHidden = true
+        builtInWebView?.isHidden = false
+        isVisible = true
+        if bossMode { setBoss(false) }
+
+        searchWindow?.orderOut(nil)
+        panel.orderFrontRegardless()
+        syncNativeIslandControls()
+
+        let patch = "{\"mode\":\"\(currentMode)\",\"stealth\":\(currentStealth),\"stealthSubtitle\":\(stealthSubtitleEnabled ? "true" : "false"),\"hoverReveal\":\(hoverRevealEnabled ? "true" : "false")}"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.builtInWebView?.evaluateJavaScript(
+                "window.ChameleonBuiltInBridge?.applyPatch(\(patch)); window.ChameleonBuiltInBridge?.forceIsolateNow?.();",
+                completionHandler: nil
+            )
+        }
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if navigationAction.targetFrame == nil {
+            webView.load(navigationAction.request)
+        }
+        return nil
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard webView === searchWebView, let u = webView.url else { return }
+        if u.scheme == "http" || u.scheme == "https" {
+            searchOmnibox?.stringValue = u.absoluteString
+        } else {
+            searchOmnibox?.stringValue = ""
+        }
+        syncGrayCamoInSearchWebView()
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView === searchWebView {
+            syncGrayCamoInSearchWebView()
+            if let u = webView.url, u.scheme == "http" || u.scheme == "https" {
+                searchOmnibox?.stringValue = u.absoluteString
+            }
+        }
+    }
+
+    private func pushStealthFeedToWebView(reqId: String, items: [[String: String]], error: String?) {
+        var payload: [String: Any] = ["reqId": reqId, "items": items]
+        if let err = error { payload["error"] = err }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let json = String(data: data, encoding: .utf8) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.searchWebView?.evaluateJavaScript("window.onStealthHomeFeedResult?.(\(json));", completionHandler: nil)
+        }
+    }
+
+    private static func searchBrowserHelperScript() -> String {
+        return """
+        (function() {
+          if (window.__CHAMELEON_SRCH_HELPER__) return;
+          window.__CHAMELEON_SRCH_HELPER__ = true;
+          const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
+          let srchOverlayEnabled = true;
+
+          const st = document.createElement('style');
+          st.textContent = `
+            html.chm-gray-browse img,
+            html.chm-gray-browse video,
+            html.chm-gray-browse [style*="background-image"] {
+              filter: grayscale(0.88) contrast(0.95) opacity(0.76) !important;
+              transition: filter 0.16s ease, opacity 0.16s ease;
+            }
+            html.chm-gray-browse img:hover,
+            html.chm-gray-browse video:hover {
+              filter: none !important;
+              opacity: 1 !important;
+            }
+            .bili-mini-mask, .login-panel-popover, .lt-row, .bili-Layout-header, ytd-consent-bump-v2-lightbox { display: none !important; }
+            #chm-srch-proj-btn {
+              position: fixed; top: 12px; right: 14px; z-index: 2147483647;
+              appearance: none; border: 1px solid rgba(52,211,153,0.65);
+              background: linear-gradient(135deg, rgba(5,150,105,0.94), rgba(13,148,136,0.94));
+              color: #fff; font: 700 11.5px -apple-system, 'PingFang SC', sans-serif;
+              padding: 6px 12px; border-radius: 999px; cursor: pointer;
+              box-shadow: 0 8px 24px rgba(0,0,0,0.45); display: none;
+            }
+            #chm-srch-proj-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+          `;
+          document.head?.appendChild(st);
+
+          const btn = document.createElement('button');
+          btn.id = 'chm-srch-proj-btn';
+          btn.textContent = '投送到右下小窗 ▶';
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            post({ action: 'projectFromSearchBrowser' });
+          });
+          document.body?.appendChild(btn);
+
+          window.__CHAMELEON_SET_SRCH_MODE__ = (active) => {
+            srchOverlayEnabled = Boolean(active);
+            if (!srchOverlayEnabled) btn.remove();
+          };
+
+          setInterval(() => {
+            if (!srchOverlayEnabled || window.__CHAMELEON_BUILTIN_LOADED__) {
+              btn.style.display = 'none';
+              return;
+            }
+            if (!location.href.startsWith('http')) {
+              btn.style.display = 'none';
+              return;
+            }
+            const hasVid = Array.from(document.querySelectorAll('video')).some(v => {
+              const r = v.getBoundingClientRect();
+              return (r.width >= 160 && r.height >= 90) || v.readyState >= 1;
+            });
+            btn.style.display = hasVid ? 'inline-flex' : 'none';
+          }, 500);
+        })();
+        """
+    }
+
+    private static func stealthStartPageHtml() -> String {
+        return """
+        <!doctype html>
+        <html lang="zh-CN">
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            html, body {
+              width: 100%; height: 100%; background: #0d1117; color: #c9d1d9;
+              font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "SF Mono", "PingFang SC", monospace;
+              overflow: hidden;
+            }
+            .wrap { display: flex; flex-direction: column; height: 100%; }
+            .bar {
+              display: flex; align-items: center; justify-content: space-between;
+              padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+              background: rgba(255,255,255,0.02); flex-shrink: 0; gap: 8px;
+            }
+            .tabs, .sites { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+            .tab, .site {
+              appearance: none; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+              color: #8b949e; font: inherit; font-size: 11px; padding: 3px 8px; border-radius: 5px; cursor: pointer;
+            }
+            .tab:hover, .site:hover { color: #fff; border-color: rgba(52,211,153,0.45); }
+            .tab.active { color: #6ee7b7; background: rgba(16,185,129,0.16); border-color: rgba(52,211,153,0.5); font-weight: 600; }
+            .site { color: #79c0ff; }
+            .hint-banner {
+              padding: 6px 12px; font-size: 10.5px; color: #6ee7b7;
+              background: rgba(16,185,129,0.08); border-bottom: 1px solid rgba(52,211,153,0.18);
+              display: none; flex-shrink: 0;
+            }
+            .list { flex: 1; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+            .row {
+              display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+              font-size: 11.5px; cursor: pointer; border-left: 2px solid transparent;
+            }
+            .row:hover { background: rgba(52,211,153,0.10); border-left-color: #34d399; }
+            .idx { color: #64748b; flex-shrink: 0; }
+            .tag { color: #79c0ff; flex-shrink: 0; }
+            .dur { color: #34d399; flex-shrink: 0; min-width: 40px; }
+            .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .up { color: #64748b; flex-shrink: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .go-btn {
+              appearance: none; border: 1px solid rgba(52,211,153,0.4); background: rgba(16,185,129,0.15);
+              color: #6ee7b7; font: inherit; font-size: 10px; padding: 2px 7px; border-radius: 4px; cursor: pointer; flex-shrink: 0;
+            }
+            .go-btn:hover { background: #059669; color: #fff; }
+            .empty { padding: 28px; text-align: center; color: #64748b; font-size: 11.5px; }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <div class="bar">
+              <div class="tabs" id="tabs">
+                <button class="tab active" data-feed="hot">--hot 全站热榜</button>
+                <button class="tab" data-feed="tech">--tech 科技数码</button>
+                <button class="tab" data-feed="standup">--standup 下饭吐槽</button>
+                <button class="tab" data-feed="film">--film 影视解说</button>
+                <button class="tab" data-feed="lofi">--lofi 白噪音</button>
+              </div>
+              <div class="sites">
+                <button class="site" data-url="https://www.bilibili.com/">B站</button>
+                <button class="site" data-url="https://cn.bing.com/">必应</button>
+                <button class="site" data-url="https://www.youtube.com/">YouTube</button>
+                <button class="site" data-url="https://www.douyin.com/">抖音</button>
+              </div>
+            </div>
+            <div class="hint-banner" id="hintBanner"></div>
+            <div class="list" id="feedList"><div class="empty">[init] loading package index (--hot)...</div></div>
+          </div>
+          <script>
+            const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
+            const feedList = document.getElementById('feedList');
+            const hintBanner = document.getElementById('hintBanner');
+            let seq = 0, activeReq = '';
+
+            window.setStartPageHint = (msg) => {
+              hintBanner.textContent = msg;
+              hintBanner.style.display = msg ? 'block' : 'none';
+            };
+
+            function loadFeed(src) {
+              activeReq = 'srch_' + (++seq);
+              feedList.innerHTML = '<div class="empty">[sync] resolving index (' + src + ')...</div>';
+              post({ action: 'fetchStealthFeed', source: src, query: '', reqId: activeReq });
+            }
+
+            window.onStealthHomeFeedResult = (res) => {
+              if (!res || (res.reqId && activeReq && res.reqId !== activeReq)) return;
+              const items = res.items || [];
+              if (!items.length) {
+                feedList.innerHTML = '<div class="empty">[err] 暂未获取到列表，可在顶部地址栏直接输入关键词全网搜片</div>';
+                return;
+              }
+              feedList.innerHTML = '';
+              items.forEach((it, idx) => {
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.title = '点击在浏览器中打开；点右侧「直投小窗」直接无边框播放';
+                const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                row.innerHTML = '<span class="idx">[' + String(idx + 1).padStart(2, '0') + ']</span>' +
+                  '<span class="tag">mod::' + esc((it.bvid || 'bv').slice(0, 8)) + '</span>' +
+                  '<span class="dur">' + esc(it.duration || '--:--') + '</span>' +
+                  '<span class="ttl">' + esc(it.title) + '</span>' +
+                  '<span class="up">// ' + esc(it.author || '') + '</span>' +
+                  '<button class="go-btn">直投小窗</button>';
+                row.addEventListener('click', () => {
+                  window.location.href = it.url;
+                });
+                row.querySelector('.go-btn').addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  post({ action: 'openDirectUrl', url: it.url });
+                });
+                feedList.appendChild(row);
+              });
+            };
+
+            document.querySelectorAll('.tab').forEach(b => {
+              b.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === b));
+                loadFeed(b.dataset.feed);
+              });
+            });
+            document.querySelectorAll('.site').forEach(b => {
+              b.addEventListener('click', () => {
+                window.location.href = b.dataset.url;
+              });
+            });
+            loadFeed('hot');
+          </script>
+        </body>
+        </html>
+        """
     }
 
     private static func stripHtmlEntities(_ raw: String) -> String {
@@ -1832,16 +2341,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             return String(format: "%.1f万", Double(count) / 10000.0)
         }
         return "\(max(0, count))"
-    }
-
-    private func pushStealthFeedToWebView(reqId: String, items: [[String: String]], error: String?) {
-        var payload: [String: Any] = ["reqId": reqId, "items": items]
-        if let err = error { payload["error"] = err }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-              let json = String(data: data, encoding: .utf8) else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.webView.evaluateJavaScript("window.GeckoNativeBridge?.onStealthFeedResult(\(json));", completionHandler: nil)
-        }
     }
 
     private func ensureBiliCookie(forceRefresh: Bool = false, completion: @escaping (String) -> Void) {
@@ -2010,6 +2509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
               padding: 4px 8px; cursor: pointer; font: inherit; backdrop-filter: blur(10px);
             }
             #chm-builtin-hud button:hover { background: rgba(16,185,129,0.35); color: #fff; }
+            #chm-builtin-hud button.active { background: rgba(16,185,129,0.28); border-color: rgba(52,211,153,0.65); color: #a7f3d0; }
             #chm-builtin-sub {
               position: fixed; bottom: 10px; left: 8%; right: 8%; z-index: 2147483645;
               text-align: center; font: 600 12px/1.35 -apple-system, 'PingFang SC', sans-serif;
@@ -2033,7 +2533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
           const hud = document.createElement('div');
           hud.id = 'chm-builtin-hud';
-          hud.innerHTML = `<button id="chmBtnTerm">终端选片</button><button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭网页</button>`;
+          hud.innerHTML = `<button id="chmBtnTerm">搜片</button><button id="chmBtnLog">日志</button><button id="chmBtnIso">变色融合</button><button id="chmBtnExit">关闭</button>`;
           document.body.appendChild(hud);
 
           const subEl = document.createElement('div');
@@ -2041,8 +2541,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
           document.body.appendChild(subEl);
 
           const btnTerm = hud.querySelector('#chmBtnTerm');
+          const btnLog = hud.querySelector('#chmBtnLog');
           const btnIso = hud.querySelector('#chmBtnIso');
           const btnExit = hud.querySelector('#chmBtnExit');
+          let subActivatedAt = 0;
 
           function markAncestors(v, add) {
             document.querySelectorAll('.chm-iso-ancestor').forEach(el => el.classList.remove('chm-iso-ancestor'));
@@ -2106,7 +2608,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
           btnTerm?.addEventListener('click', (e) => {
             e.stopPropagation();
-            post({ action: 'openStealthTerminal' });
+            post({ action: 'openSearchBrowser' });
+          });
+          btnLog?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.stealthSubtitle = !state.stealthSubtitle;
+            if (state.stealthSubtitle) {
+              subActivatedAt = performance.now();
+              state.mirrorSubtitles = true;
+            }
+            btnLog.classList.toggle('active', Boolean(state.stealthSubtitle));
+            updateSub();
+            post({
+              action: 'stateChanged',
+              state: { mode: state.mode, stealth: state.stealth, stealthSubtitle: state.stealthSubtitle, hoverReveal: state.hoverReveal }
+            });
           });
           btnIso.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2119,7 +2635,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
           });
 
           function readSub() {
-            const sels = ['.bpx-player-subtitle-panel-text', '.bilibili-player-video-subtitle .subtitle-item-text', '.ytp-caption-segment'];
+            const sels = [
+              '.bpx-player-subtitle-panel-text',
+              '.bili-subtitle-x-subtitle-panel-text',
+              '.bilibili-player-video-subtitle .subtitle-item-text',
+              '.ytp-caption-segment',
+              '.txp_subtitle_text',
+              '.iqp-subtitle-text',
+              '.xg-text-track-span'
+            ];
             for (const sel of sels) {
               const ns = document.querySelectorAll(sel);
               if (ns.length) {
@@ -2128,10 +2652,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
               }
             }
             if (targetVideo?.textTracks) {
+              if (state.stealthSubtitle) {
+                let hasAct = false;
+                for (const tr of targetVideo.textTracks) {
+                  if (tr.mode === 'showing' || tr.mode === 'hidden') { hasAct = true; break; }
+                }
+                if (!hasAct) {
+                  for (const tr of targetVideo.textTracks) {
+                    if (tr.kind === 'subtitles' || tr.kind === 'captions') {
+                      try { tr.mode = 'hidden'; } catch (_) {}
+                      break;
+                    }
+                  }
+                }
+              }
               for (const tr of targetVideo.textTracks) {
-                if (tr.mode === 'showing' && tr.activeCues?.length) {
+                if ((tr.mode === 'showing' || tr.mode === 'hidden') && tr.activeCues?.length) {
                   return Array.from(tr.activeCues).map(c => c.text || '').join(' ').replace(/<[^>]+>/g, '').trim();
                 }
+              }
+            }
+            if (state.stealthSubtitle) {
+              const dms = document.querySelectorAll('.bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku');
+              for (const dn of dms) {
+                const t = (dn.textContent || '').trim();
+                if (t.length >= 2 && t.length <= 36) return t;
               }
             }
             return '';
@@ -2141,22 +2686,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           }
 
+          function fmtSec(sec) {
+            const n = Math.max(0, Math.floor(sec || 0));
+            return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
+          }
+
           function updateSub() {
             const Core = window.GeckoCore;
-            const txt = isolated && state.mirrorSubtitles ? readSub() : '';
-            if (!txt) { subEl.style.display = 'none'; return; }
-            subEl.style.display = 'block';
-            if (state.stealthSubtitle && Core?.formatStealthLogParts) {
-              const p = Core.formatStealthLogParts(txt);
+            btnLog?.classList.toggle('active', Boolean(state.stealthSubtitle));
+            const txt = (state.mirrorSubtitles || state.stealthSubtitle) && isolated ? readSub() : '';
+
+            if (isolated && state.stealthSubtitle && Core?.formatStealthLogParts) {
+              subEl.style.display = 'block';
+              let line = txt;
+              if (!line) {
+                if (performance.now() - subActivatedAt < 4200) {
+                  line = '日志伪装已开启 · 自动捕获字幕/弹幕并以终端日志呈现';
+                } else if (targetVideo?.paused) {
+                  line = 'worker::idle — pipeline paused at ' + fmtSec(targetVideo.currentTime || 0) + ' · status=HOLD';
+                } else {
+                  const cur = fmtSec(targetVideo?.currentTime || 0);
+                  const dur = fmtSec(Number.isFinite(targetVideo?.duration) ? targetVideo.duration : 0);
+                  line = 'stream::chunk — offset=' + cur + '/' + dur + ' · rate=' + (targetVideo?.playbackRate || 1) + 'x · status=OK';
+                }
+              }
+              const p = Core.formatStealthLogParts(line);
               const isLight = Core.getLuminance(state.bgColor || '#505050') > 0.62;
               subEl.classList.add('stealth-log');
               subEl.classList.toggle('light-bg', isLight);
               subEl.innerHTML = `<span style="color:#64748b">[${p.ts}]</span> <span style="color:${isLight ? '#059669' : '#34d399'};font-weight:700">[${p.level}]</span> <span style="color:${isLight ? '#0284c7' : '#79c0ff'}">${p.mod}</span> — ${escapeHtml(p.text)}`;
-            } else {
-              subEl.classList.remove('stealth-log', 'light-bg');
-              subEl.style.color = Core ? Core.deriveAutoInkColor(state.bgColor) : 'rgba(255,255,255,0.85)';
-              subEl.textContent = txt;
+              return;
             }
+
+            if (!txt || !isolated || !state.mirrorSubtitles) { subEl.style.display = 'none'; return; }
+            subEl.style.display = 'block';
+            subEl.classList.remove('stealth-log', 'light-bg');
+            subEl.style.color = Core ? Core.deriveAutoInkColor(state.bgColor) : 'rgba(255,255,255,0.85)';
+            subEl.textContent = txt;
           }
 
           let autoPlayAttempted = false;
@@ -2190,11 +2756,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
           }, 350);
 
           window.ChameleonBuiltInBridge = {
+            forceIsolateNow() {
+              autoIsolateWanted = true;
+              const v = findBestVideo();
+              if (v) { targetVideo = v; if (v.paused) v.play().catch(() => {}); setIsolated(true); }
+            },
             setHovered(val) {
               isHovered = Boolean(val);
               document.documentElement.classList.toggle('chm-hov', isHovered);
             },
             applyPatch(p) {
+              if (p?.stealthSubtitle && !state.stealthSubtitle) subActivatedAt = performance.now();
               Object.assign(state, p || {});
               applyFilter();
               updateSub();
@@ -2241,20 +2813,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             openArenaWindow(upgradeReason: reason)
         case "setBoss":
             if let v = dict["value"] as? Bool { setBoss(v) }
+        case "openSearchBrowser":
+            openSearchBrowserWindow()
         case "openWebVideoUrl":
-            openStealthTerminalPanel()
+            openSearchBrowserWindow()
         case "openStealthTerminal":
-            openStealthTerminalPanel()
-        case "stealthTerminalState":
-            let open = (dict["open"] as? Bool) ?? false
-            isStealthTerminalOpen = open
-            if open {
-                ensurePanelMinSizeForTerminal()
-            }
-            syncNativeIslandControls()
-        case "focusSearchInput":
-            NSApp.activate(ignoringOtherApps: true)
-            panel.makeKeyAndOrderFront(nil)
+            openSearchBrowserWindow()
+        case "projectFromSearchBrowser":
+            projectSearchBrowserToSmallWindow()
         case "fetchStealthFeed":
             let source = (dict["source"] as? String) ?? "hot"
             let query = (dict["query"] as? String) ?? ""
@@ -2262,7 +2828,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             fetchStealthFeed(source: source, query: query, reqId: reqId)
         case "openDirectUrl":
             if let rawUrl = dict["url"] as? String, !rawUrl.isEmpty {
-                isStealthTerminalOpen = false
+                searchWindow?.orderOut(nil)
                 loadBuiltInWebUrl(rawUrl)
             }
         case "exitBuiltInWeb":
@@ -2273,7 +2839,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 syncNativeIslandControls()
             }
         case "chromeStreamStarted":
-            isStealthTerminalOpen = false
             if isBuiltInWebActive {
                 exitBuiltInWebMode()
             }
@@ -2285,8 +2850,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 if let ss = st["stealthSubtitle"] as? Bool, ss != stealthSubtitleEnabled {
                     stealthSubtitleEnabled = ss
                     UserDefaults.standard.set(ss, forKey: "chameleonStealthSubtitle")
+                    webView.evaluateJavaScript(
+                        "window.GeckoNativeBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":true});",
+                        completionHandler: nil
+                    )
                     builtInWebView?.evaluateJavaScript(
-                        "window.ChameleonBuiltInBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false")});",
+                        "window.ChameleonBuiltInBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":true});",
                         completionHandler: nil
                     )
                 }
@@ -2366,7 +2935,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         )
 
         let mods = UInt32(controlKey | shiftKey)
-        for (id, keyCode) in [(UInt32(1), kVK_ANSI_G), (UInt32(2), kVK_ANSI_B), (UInt32(3), kVK_ANSI_M)] {
+        for (id, keyCode) in [(UInt32(1), kVK_ANSI_G), (UInt32(2), kVK_ANSI_B), (UInt32(3), kVK_ANSI_M), (UInt32(4), kVK_ANSI_S)] {
             var ref: EventHotKeyRef?
             let hkID = EventHotKeyID(signature: OSType(0x4745434B), id: id)
             RegisterEventHotKey(UInt32(keyCode), mods, hkID, GetApplicationEventTarget(), 0, &ref)
@@ -2385,6 +2954,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             setBoss(!bossMode)
         case 3:
             setClickThrough(!clickThrough)
+        case 4:
+            if searchWindow?.isVisible == true {
+                searchWindow?.orderOut(nil)
+                syncNativeIslandControls()
+            } else {
+                openSearchBrowserWindow()
+            }
         default: break
         }
     }

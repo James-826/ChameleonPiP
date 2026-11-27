@@ -251,8 +251,12 @@
   function readHostSubtitles(targetVid) {
     const selectors = [
       ".bpx-player-subtitle-panel-text",
+      ".bili-subtitle-x-subtitle-panel-text",
       ".bilibili-player-video-subtitle .subtitle-item-text",
       ".ytp-caption-segment",
+      ".txp_subtitle_text",
+      ".iqp-subtitle-text",
+      ".xg-text-track-span",
     ];
     for (const sel of selectors) {
       const nodes = document.querySelectorAll(sel);
@@ -266,14 +270,40 @@
     }
     const v = targetVid || activeVideo;
     if (v?.textTracks) {
+      if (state.stealthSubtitle) {
+        let hasActiveTrack = false;
+        for (const track of v.textTracks) {
+          if (track.mode === "showing" || track.mode === "hidden") {
+            hasActiveTrack = true;
+            break;
+          }
+        }
+        if (!hasActiveTrack) {
+          for (const track of v.textTracks) {
+            if (track.kind === "subtitles" || track.kind === "captions") {
+              try {
+                track.mode = "hidden";
+              } catch (_) {}
+              break;
+            }
+          }
+        }
+      }
       for (const track of v.textTracks) {
-        if (track.mode === "showing" && track.activeCues?.length) {
+        if ((track.mode === "showing" || track.mode === "hidden") && track.activeCues?.length) {
           return Array.from(track.activeCues)
             .map((c) => c.text || "")
             .join(" ")
             .replace(/<[^>]+>/g, "")
             .trim();
         }
+      }
+    }
+    if (state.stealthSubtitle) {
+      const dmNodes = document.querySelectorAll(".bpx-player-row-dm-wrap .bili-danmaku-x-dm, .bilibili-player-video-danmaku .b-danmaku");
+      for (const dn of dmNodes) {
+        const txt = (dn.textContent || "").trim();
+        if (txt.length >= 2 && txt.length <= 36) return txt;
       }
     }
     return "";
@@ -1112,7 +1142,7 @@
   function renderParasiteSubtitle(subEl, rawText) {
     if (!subEl) return;
     const clean = String(rawText || "").trim();
-    if (!clean) {
+    if (!clean && !state.stealthSubtitle) {
       subEl.style.display = "none";
       subEl.textContent = "";
       subEl.classList.remove("stealth-log", "light-bg");
@@ -1120,7 +1150,8 @@
     }
     subEl.style.display = "block";
     if (state.stealthSubtitle && Core.formatStealthLogParts) {
-      const p = Core.formatStealthLogParts(clean);
+      const displayLine = clean || "stream::worker — 日志伪装运行中 · 自动捕获字幕/弹幕";
+      const p = Core.formatStealthLogParts(displayLine);
       const isLight = Core.getLuminance(state.bgColor || "#505050") > 0.62;
       subEl.classList.add("stealth-log");
       subEl.classList.toggle("light-bg", isLight);
