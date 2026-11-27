@@ -398,6 +398,89 @@ final class VisionAntiPeekRadar: NSObject, AVCaptureVideoDataOutputSampleBufferD
     }
 }
 
+/// Real-time on-device Apple Vision Neural OCR for burned-in video subtitles (Chinese + English)
+final class VisionVideoSubtitleExtractor {
+    private let queue = DispatchQueue(label: "com.geckopip.subtitleocr", qos: .utility)
+    private var isBusy = false
+    private var lastRunTime: CFTimeInterval = 0
+    private var lastNormText: String = ""
+    private var lastEmitTime: CFTimeInterval = 0
+    var onSubtitleRecognized: ((String) -> Void)?
+
+    func processJpegFrame(_ jpegData: Data) {
+        let now = CACurrentMediaTime()
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            if self.isBusy || (now - self.lastRunTime < 0.78) { return }
+            self.isBusy = true
+            self.lastRunTime = now
+            defer { self.isBusy = false }
+
+            let req = VNRecognizeTextRequest()
+            req.recognitionLevel = .accurate
+            req.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+            req.usesLanguageCorrection = true
+            // Bottom ~32% subtitle region in Vision normalized coordinates (origin at bottom-left)
+            req.regionOfInterest = CGRect(x: 0.04, y: 0.015, width: 0.92, height: 0.32)
+
+            let handler = VNImageRequestHandler(data: jpegData, orientation: .up, options: [:])
+            do {
+                try handler.perform([req])
+                let obs = (req.results ?? []).compactMap { o -> (String, CGFloat)? in
+                    guard let top = o.topCandidates(1).first, top.confidence >= 0.42 else { return nil }
+                    let cleaned = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if cleaned.isEmpty || Self.isNoiseToken(cleaned) { return nil }
+                    return (cleaned, o.boundingBox.minY)
+                }
+                guard !obs.isEmpty else { return }
+                let sorted = obs.sorted { $0.1 > $1.1 }.prefix(2).map { $0.0 }
+                let joined = sorted.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                let norm = Self.normalizeForDedup(joined)
+                guard norm.count >= 2 else { return }
+
+                let tNow = CACurrentMediaTime()
+                if tNow - self.lastEmitTime < 9.0, Self.isSimilar(norm, self.lastNormText) {
+                    return
+                }
+                self.lastNormText = norm
+                self.lastEmitTime = tNow
+                DispatchQueue.main.async { [weak self] in
+                    self?.onSubtitleRecognized?(joined)
+                }
+            } catch {
+                // Ignore transient Vision OCR frame errors
+            }
+        }
+    }
+
+    private static func isNoiseToken(_ s: String) -> Bool {
+        let low = s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if low.count < 2 { return true }
+        let skipWords = ["1080p", "720p", "4k", "60fps", "hdr", "vip", "hd", "bilibili", "youtube"]
+        if skipWords.contains(low) { return true }
+        // Reject pure clock / counter timestamps (e.g. "12:34" or "2026-11-27")
+        let stripped = low.replacingOccurrences(of: "[0-9:\\s/\\-\\.]+", with: "", options: .regularExpression)
+        return stripped.isEmpty
+    }
+
+    private static func normalizeForDedup(_ s: String) -> String {
+        let stripSet = CharacterSet.whitespacesAndNewlines
+            .union(.punctuationCharacters)
+            .union(.symbols)
+        return s.components(separatedBy: stripSet).joined().lowercased()
+    }
+
+    private static func isSimilar(_ a: String, _ b: String) -> Bool {
+        if b.isEmpty { return false }
+        if a == b || a.contains(b) || b.contains(a) { return true }
+        let sa = Set(a)
+        let sb = Set(b)
+        let inter = sa.intersection(sb).count
+        let denom = max(1, min(sa.count, sb.count))
+        return Double(inter) / Double(denom) >= 0.74
+    }
+}
+
 /// Helper target for quick-fill site preset buttons inside the native Web URL prompt dialog
 final class UrlPresetTarget: NSObject {
     weak var textField: NSTextField?
@@ -421,9 +504,12 @@ final class LocalWebSocketHub {
     private var ghostCredits: [ObjectIdentifier: Int] = [:]
     private var ghostLastSendTime: [ObjectIdentifier: CFAbsoluteTime] = [:]
     private var lastExternalProducerNotifyAt: CFAbsoluteTime = 0
+    var ocrSamplingEnabled: Bool = false
+    private var lastOcrSampleAt: CFAbsoluteTime = 0
     var onArenaConnected: (() -> Void)?
     var onExternalProducerActive: (() -> Void)?
     var onGhostCommandForBuiltIn: ((String) -> Void)?
+    var onSampleFrameForOcr: ((Data) -> Void)?
 
     func start(ports: [UInt16] = [27182, 51937]) {
         for port in ports {
@@ -494,9 +580,19 @@ final class LocalWebSocketHub {
         }
     }
 
+    private func maybeSampleForOcr(_ data: Data) {
+        guard ocrSamplingEnabled, let cb = onSampleFrameForOcr else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - lastOcrSampleAt >= 0.78 {
+            lastOcrSampleAt = now
+            cb(data)
+        }
+    }
+
     func pushLocalBuiltInFrame(_ data: Data) {
         queue.async { [weak self] in
             guard let self = self else { return }
+            self.maybeSampleForOcr(data)
             for cid in self.ghostViewIds {
                 if let c = self.connections[cid] {
                     self.enqueueOrSendBinary(data, to: cid, conn: c)
@@ -586,6 +682,7 @@ final class LocalWebSocketHub {
                             }
                         }
                     }
+                    self.maybeSampleForOcr(data)
                     self.broadcast(data: data, opcode: .binary, toGhostViews: true, sender: id)
                 }
             }
@@ -673,13 +770,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var builtInVideoIsolated: Bool = false
     private var builtInSnapshotTimer: Timer?
     private var builtInSnapshotBusy: Bool = false
+    private var pendingBuiltInSeekTime: Double = 0
     private var currentBuiltInUrl: String = ""
     private var cachedBiliCookie: String = ""
+
+    // Search history & session memory (survives closing window or app restart!)
+    private var lastSearchQuery: String = UserDefaults.standard.string(forKey: "chameleonLastSearchQuery") ?? ""
+    private var lastSearchEngineIdx: Int = UserDefaults.standard.integer(forKey: "chameleonLastSearchEngine")
+    private var lastSearchUrl: String = UserDefaults.standard.string(forKey: "chameleonLastSearchUrl") ?? ""
+    private var recentSearchQueries: [String] = UserDefaults.standard.stringArray(forKey: "chameleonSearchHistory") ?? []
 
     // Independent Multi-Line Developer Terminal / Output Log Window (zero video obstruction!)
     private var logPanel: GhostPanel?
     private var logWebView: FirstMouseWebView?
+    private var isLogConsoleLoaded: Bool = false
+    private var pendingLogConsolePayloads: [String] = []
     private var lastLogConsoleJson: String = ""
+    private let subtitleOcr = VisionVideoSubtitleExtractor()
+    private var lastDomCcAt: CFAbsoluteTime = 0
 
     // Independent Full-Web Stealth Search Browser Window (never covers the small PiP window!)
     private var searchWindow: NSWindow?
@@ -704,6 +812,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var btnMute: IslandPillButton!
     private var segMode: NSSegmentedControl!
     private var stealthSlider: NSSlider!
+    private var featherSlider: NSSlider!
+    private var lblFeatherVal: NSTextField!
     private var btnHoverReveal: IslandPillButton!
     private var btnThrough: IslandPillButton!
     private var btnVis: IslandPillButton!
@@ -751,7 +861,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var currentMode: String = "projector"
     private var currentStealth: Int = 58
     private var currentOpacity: Int = 100
-    private var currentFeather: Int = 28
+    private var currentFeather: Int = (UserDefaults.standard.object(forKey: "chameleonFeather") as? Int) ?? 28
 
     private var lastKeyTime: TimeInterval = 0
     private var dragOriginOffset: NSPoint?
@@ -807,6 +917,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         wsHub.onGhostCommandForBuiltIn = { [weak self] rawText in
             self?.handleGhostCommandForBuiltIn(rawText)
+        }
+        wsHub.ocrSamplingEnabled = stealthSubtitleEnabled && !bossMode
+        wsHub.onSampleFrameForOcr = { [weak self] jpegData in
+            self?.subtitleOcr.processJpegFrame(jpegData)
+        }
+        subtitleOcr.onSubtitleRecognized = { [weak self] text in
+            guard let self = self, self.stealthSubtitleEnabled, !self.bossMode else { return }
+            if CFAbsoluteTimeGetCurrent() - self.lastDomCcAt > 2.0 {
+                self.pushStealthLogToConsole([
+                    "text": text,
+                    "paused": self.isPlayerPaused,
+                    "currentTime": self.playerCurTime,
+                    "duration": self.playerDuration,
+                    "sourceTag": "OCR"
+                ])
+            }
         }
         wsHub.start(ports: [27182, 51937])
         setupGhostPanel()
@@ -1172,11 +1298,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         RunLoop.main.add(hoverTimer, forMode: .common)
 
-        // Push saved hoverReveal & stealthSubtitle preferences into WebView right after boot
+        // Push saved hoverReveal, feather & stealthSubtitle preferences into WebView right after boot
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             guard let self = self else { return }
             self.webView.evaluateJavaScript(
-                "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false"),\"stealthSubtitle\":\(self.stealthSubtitleEnabled ? "true" : "false")});",
+                "window.GeckoNativeBridge?.applyPatch({\"hoverReveal\":\(self.hoverRevealEnabled ? "true" : "false"),\"stealthSubtitle\":\(self.stealthSubtitleEnabled ? "true" : "false"),\"feather\":\(self.currentFeather)});",
                 completionHandler: nil
             )
         }
@@ -1382,7 +1508,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     private func setupDynamicNotchIsland() {
         let expW: CGFloat = 316
-        let expH: CGFloat = 240
+        let expH: CGFloat = 268
 
         islandPanel = GhostPanel(
             contentRect: NSRect(x: 600, y: 1000, width: 296, height: 38),
@@ -1517,26 +1643,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         controlsContainer.addSubview(btnLocal)
         controlsContainer.addSubview(btnQuit)
 
-        // Row 5 (y = 168): 3 Hardcore Black Techs + Quick Zoom [AI防窥] [网页直连] [日志字幕] [小 -] [大 +]
-        btnRadar = IslandPillButton(frame: NSRect(x: 14, y: 168, width: 72, height: 25), title: "AI防窥")
+        // Row 5 (y = 166): Edge Feathering (边框柔和消框) Slider
+        let lblFeatherTitle = Self.makeLabel("边框柔和", frame: NSRect(x: 14, y: 170, width: 50, height: 16), alpha: 0.75)
+        featherSlider = NSSlider(value: Double(currentFeather), minValue: 0, maxValue: 85, target: self, action: #selector(onFeatherSlide(_:)))
+        featherSlider.frame = NSRect(x: 66, y: 168, width: 196, height: 20)
+        featherSlider.isContinuous = true
+        featherSlider.controlSize = .small
+        lblFeatherVal = Self.makeLabel("\(currentFeather)%", frame: NSRect(x: 264, y: 170, width: 38, height: 16), align: .right, alpha: 0.75)
+        controlsContainer.addSubview(lblFeatherTitle)
+        controlsContainer.addSubview(featherSlider)
+        controlsContainer.addSubview(lblFeatherVal)
+
+        // Row 6 (y = 196): 3 Hardcore Black Techs + Quick Zoom [AI防窥] [搜片浏览] [日志字幕] [小 -] [大 +]
+        btnRadar = IslandPillButton(frame: NSRect(x: 14, y: 196, width: 72, height: 25), title: "AI防窥")
         btnRadar.onClick = { [weak self] in self?.toggleAntiPeekRadar() }
 
-        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 168, width: 66, height: 25), title: "搜片浏览")
+        btnWebUrl = IslandPillButton(frame: NSRect(x: 90, y: 196, width: 66, height: 25), title: "搜片浏览")
         btnWebUrl.onClick = { [weak self] in
             self?.openSearchBrowserWindow()
         }
 
-        btnStealthSub = IslandPillButton(frame: NSRect(x: 160, y: 168, width: 64, height: 25), title: "日志字幕")
+        btnStealthSub = IslandPillButton(frame: NSRect(x: 160, y: 196, width: 64, height: 25), title: "日志字幕")
         btnStealthSub.isActiveTint = stealthSubtitleEnabled
         btnStealthSub.onClick = { [weak self] in
             guard let self = self else { return }
             self.setStealthSubtitle(!self.stealthSubtitleEnabled)
         }
 
-        let btnZoomOut = IslandPillButton(frame: NSRect(x: 228, y: 168, width: 35, height: 25), title: "小 -")
+        let btnZoomOut = IslandPillButton(frame: NSRect(x: 228, y: 196, width: 35, height: 25), title: "小 -")
         btnZoomOut.onClick = { [weak self] in self?.scalePanelByFactor(0.84) }
 
-        let btnZoomIn = IslandPillButton(frame: NSRect(x: 267, y: 168, width: 35, height: 25), title: "大 +")
+        let btnZoomIn = IslandPillButton(frame: NSRect(x: 267, y: 196, width: 35, height: 25), title: "大 +")
         btnZoomIn.onClick = { [weak self] in self?.scalePanelByFactor(1.19) }
 
         controlsContainer.addSubview(btnRadar)
@@ -1545,9 +1682,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         controlsContainer.addSubview(btnZoomOut)
         controlsContainer.addSubview(btnZoomIn)
 
-        // Row 6 (y = 200): Live Uninterrupted Streak / Radar Status + [排行 / 支持]
-        lblStreakBadge = Self.makeLabel("待机 · 播放视频开始计时", frame: NSRect(x: 14, y: 205, width: 196, height: 16), alpha: 0.88)
-        let btnArena = IslandPillButton(frame: NSRect(x: 214, y: 200, width: 88, height: 25), title: "排行 / 支持", primary: true)
+        // Row 7 (y = 228): Live Uninterrupted Streak / Radar Status + [排行 / 支持]
+        lblStreakBadge = Self.makeLabel("待机 · 播放视频开始计时", frame: NSRect(x: 14, y: 233, width: 196, height: 16), alpha: 0.88)
+        let btnArena = IslandPillButton(frame: NSRect(x: 214, y: 228, width: 88, height: 25), title: "排行 / 支持", primary: true)
         btnArena.onClick = { [weak self] in
             self?.openArenaWindow()
         }
@@ -1599,6 +1736,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func setStealthSubtitle(_ enabled: Bool) {
         stealthSubtitleEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: "chameleonStealthSubtitle")
+        wsHub.ocrSamplingEnabled = enabled && !bossMode
         let patchJs = "{\"stealthSubtitle\":\(enabled ? "true" : "false"),\"mirrorSubtitles\":\(enabled ? "true" : "false")}"
         webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
         setStealthLogPanelVisible(enabled)
@@ -1628,6 +1766,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let patchJs = "{\"stealth\":\(currentStealth)}"
         webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
         builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.applyPatch(\(patchJs));", completionHandler: nil)
+    }
+
+    @objc private func onFeatherSlide(_ sender: NSSlider) {
+        let nextVal = sender.integerValue
+        guard nextVal != currentFeather else { return }
+        currentFeather = nextVal
+        UserDefaults.standard.set(currentFeather, forKey: "chameleonFeather")
+        lblFeatherVal?.stringValue = "\(currentFeather)%"
+        let patchJs = "{\"feather\":\(currentFeather)}"
+        webView.evaluateJavaScript("window.GeckoNativeBridge?.applyPatch(\(patchJs));", completionHandler: nil)
     }
 
     private static func fmtTime(_ sec: Double) -> String {
@@ -1661,7 +1809,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         segMode.selectedSegment = mIdx
         if NSEvent.pressedMouseButtons == 0 {
             stealthSlider.integerValue = currentStealth
+            featherSlider?.integerValue = currentFeather
         }
+        lblFeatherVal?.stringValue = "\(currentFeather)%"
         btnHoverReveal?.isActiveTint = hoverRevealEnabled
         btnThrough.isActiveTint = clickThrough
         btnVis.isActiveTint = isVisible
@@ -1817,7 +1967,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         if expanded {
             syncNativeIslandControls()
-            controlsContainer.frame = NSRect(x: 0, y: 0, width: 316, height: 240)
+            controlsContainer.frame = NSRect(x: 0, y: 0, width: 316, height: 268)
             controlsContainer.isHidden = false
             layoutDynamicIsland(animated: true)
         } else {
@@ -1833,7 +1983,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         islandShell.earWidth = earW
 
         let targetW: CGFloat = isIslandExpanded ? 316 : (geo.notchWidth + earW * 2)
-        let targetH: CGFloat = isIslandExpanded ? 240 : geo.barHeight
+        let targetH: CGFloat = isIslandExpanded ? 268 : geo.barHeight
         let targetX = round(geo.midX - targetW * 0.5)
         let targetY = geo.screen.frame.maxY - targetH
         let rect = NSRect(x: targetX, y: targetY, width: targetW, height: targetH)
@@ -1877,6 +2027,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     private func setBoss(_ active: Bool) {
         bossMode = active
+        wsHub.ocrSamplingEnabled = stealthSubtitleEnabled && !bossMode
         if active {
             hasActiveVideoPlaying = false
             currentStreakSec = 0
@@ -2033,7 +2184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         panel.contentView?.addSubview(bw, positioned: .below, relativeTo: webView)
     }
 
-    private func loadBuiltInWebUrl(_ raw: String) {
+    private func loadBuiltInWebUrl(_ raw: String, startTime: Double = 0) {
         var norm = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if !norm.lowercased().hasPrefix("http://") && !norm.lowercased().hasPrefix("https://") {
             norm = "https://" + norm
@@ -2053,6 +2204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
 
         stopBuiltInSnapshotPump()
+        pendingBuiltInSeekTime = startTime
         currentBuiltInUrl = norm
         if builtInWebView == nil {
             let cfg = WKWebViewConfiguration()
@@ -2068,6 +2220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
             let bw = FirstMouseWebView(frame: panel.contentView!.bounds, configuration: cfg)
             bw.uiDelegate = self
+            bw.navigationDelegate = self
             bw.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
             builtInWebView = bw
         }
@@ -2219,7 +2372,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         if searchWebView == nil {
             createAndAttachSearchWebView()
-            loadStealthStartPageInSearchWebView()
+            segSearchEngine?.selectedSegment = max(0, min(4, lastSearchEngineIdx))
+            if !lastSearchQuery.isEmpty {
+                searchOmnibox?.stringValue = lastSearchQuery
+            }
+            if !lastSearchUrl.isEmpty, let savedUrl = URL(string: lastSearchUrl) {
+                searchWebView?.load(URLRequest(url: savedUrl))
+            } else {
+                loadStealthStartPageInSearchWebView(clearHistoryUrl: false)
+            }
         }
 
         searchWindow?.makeKeyAndOrderFront(nil)
@@ -2259,9 +2420,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         self.searchWebView = swv
     }
 
-    private func loadStealthStartPageInSearchWebView() {
+    private func loadStealthStartPageInSearchWebView(clearHistoryUrl: Bool = true) {
         if searchWebView == nil { createAndAttachSearchWebView() }
-        searchOmnibox?.stringValue = ""
+        if clearHistoryUrl {
+            lastSearchUrl = ""
+            UserDefaults.standard.set("", forKey: "chameleonLastSearchUrl")
+        }
+        searchOmnibox?.stringValue = lastSearchQuery
         searchWebView?.loadHTMLString(Self.stealthStartPageHtml(), baseURL: nil)
     }
 
@@ -2304,6 +2469,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let upper = raw.uppercased()
         let isBv = upper.hasPrefix("BV") && raw.count >= 12 && !raw.contains(" ")
 
+        let engineIdx = max(0, min(4, segSearchEngine?.selectedSegment ?? 0))
+        lastSearchQuery = raw
+        lastSearchEngineIdx = engineIdx
+        UserDefaults.standard.set(lastSearchQuery, forKey: "chameleonLastSearchQuery")
+        UserDefaults.standard.set(lastSearchEngineIdx, forKey: "chameleonLastSearchEngine")
+
+        if !isUrl && !raw.isEmpty {
+            recentSearchQueries.removeAll { $0.caseInsensitiveCompare(raw) == .orderedSame }
+            recentSearchQueries.insert(raw, at: 0)
+            if recentSearchQueries.count > 8 {
+                recentSearchQueries = Array(recentSearchQueries.prefix(8))
+            }
+            UserDefaults.standard.set(recentSearchQueries, forKey: "chameleonSearchHistory")
+        }
+
         let targetStr: String
         if isBv {
             targetStr = "https://www.bilibili.com/video/\(raw)"
@@ -2311,8 +2491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             targetStr = (lower.hasPrefix("http://") || lower.hasPrefix("https://")) ? raw : "https://\(raw)"
         } else {
             let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? raw
-            let idx = segSearchEngine?.selectedSegment ?? 0
-            switch idx {
+            switch engineIdx {
             case 1: targetStr = "https://cn.bing.com/search?q=\(encoded)"
             case 2: targetStr = "https://www.baidu.com/s?wd=\(encoded)"
             case 3: targetStr = "https://www.youtube.com/results?search_query=\(encoded)"
@@ -2335,64 +2514,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             return
         }
 
-        let lowerHost = (curUrl.host ?? "").lowercased()
-        let lowerPath = curUrl.path.lowercased()
-        let isSearchResultsList = lowerHost == "search.bilibili.com" ||
-            lowerPath.hasPrefix("/results") ||
-            lowerPath == "/search" ||
-            lowerPath == "/s"
+        // Preserve searchWindow & its live history/DOM! Read current time, pause source video, and mirror into background builtInWebView.
+        let extractJs = #"""
+        (() => {
+          const isList = location.hostname === 'search.bilibili.com' ||
+            location.pathname.startsWith('/results') ||
+            location.pathname === '/search' ||
+            location.pathname === '/s';
+          const vids = Array.from(document.querySelectorAll('video'));
+          const best = vids.find(v => !v.paused && v.readyState >= 2) || vids.find(v => v.readyState >= 2) || vids[0];
+          const hasRealVid = Boolean(best && (!isList || ((best.duration || 0) > 8 && !best.paused)));
+          if (!hasRealVid && isList) {
+            return { ok: false, reason: 'list' };
+          }
+          const t = best ? Number(best.currentTime || 0) : 0;
+          vids.forEach(v => { try { v.pause(); } catch (_) {} });
+          return { ok: true, url: location.href, time: Number.isFinite(t) ? t : 0 };
+        })();
+        """#
 
-        if isSearchResultsList {
-            swv.evaluateJavaScript("Array.from(document.querySelectorAll('video')).some(v => v.readyState >= 2 && (v.duration || 0) > 8 && !v.paused)") { [weak self] res, _ in
-                if (res as? Bool) == true {
-                    self?.performPromoteSearchWebViewToChameleon(swv, url: curUrl)
-                } else {
-                    swv.evaluateJavaScript(
-                        "window.__CHAMELEON_SHOW_SRCH_TOAST__?.('当前是搜索列表页，请先点开任意视频，或点击视频卡片右上「变色龙小窗播 ▶」');",
-                        completionHandler: nil
-                    )
-                }
+        swv.evaluateJavaScript(extractJs) { [weak self] res, _ in
+            guard let self = self else { return }
+            if let info = res as? [String: Any], (info["ok"] as? Bool) == false {
+                swv.evaluateJavaScript(
+                    "window.__CHAMELEON_SHOW_SRCH_TOAST__?.('当前是搜索列表页，请先点开任意视频，或点击视频卡片右上「变色龙小窗播 ▶」');",
+                    completionHandler: nil
+                )
+                return
             }
-            return
+            let targetUrlStr = (res as? [String: Any])?["url"] as? String ?? curUrl.absoluteString
+            let curSec = (res as? [String: Any])?["time"] as? Double ?? 0
+            swv.evaluateJavaScript(
+                "window.__CHAMELEON_SHOW_SRCH_TOAST__?.('已在右下变色小窗播放 · 原搜索页已保留（可继续选集或按 ⌃⇧S 收起）');",
+                completionHandler: nil
+            )
+            self.loadBuiltInWebUrl(targetUrlStr, startTime: curSec)
         }
-
-        performPromoteSearchWebViewToChameleon(swv, url: curUrl)
-    }
-
-    private func performPromoteSearchWebViewToChameleon(_ swv: FirstMouseWebView, url curUrl: URL) {
-        stopBuiltInSnapshotPump()
-        if let oldBw = builtInWebView {
-            oldBw.evaluateJavaScript("window.ChameleonBuiltInBridge?.stop?.(); document.querySelectorAll('video').forEach(v => v.pause());", completionHandler: nil)
-            oldBw.loadHTMLString("<html><body style='background:transparent'></body></html>", baseURL: nil)
-            oldBw.removeFromSuperview()
-            builtInWebView = nil
-        }
-
-        // Turn off search-mode overlay & grayscale browsing before promoting WebView behind Metal ghost-view!
-        swv.evaluateJavaScript(
-            "document.documentElement?.classList.remove('chm-gray-browse'); window.__CHAMELEON_SET_SRCH_MODE__?.(false);",
-            completionHandler: nil
-        )
-
-        let bridgeSrc = Self.builtInBridgeScript()
-        swv.configuration.userContentController.addUserScript(
-            WKUserScript(source: bridgeSrc, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        )
-        swv.evaluateJavaScript(bridgeSrc, completionHandler: nil)
-
-        configureBuiltInProducerWebView(swv)
-        builtInWebView = swv
-        searchWebView = nil
-        currentBuiltInUrl = curUrl.absoluteString
-        isBuiltInWebActive = true
-        builtInVideoIsolated = true
-        webView.isHidden = false
-        isVisible = true
-        if bossMode { setBoss(false) }
-
-        searchWindow?.orderOut(nil)
-        panel.orderFrontRegardless()
-        syncNativeIslandControls()
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -2406,17 +2563,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard webView === searchWebView, let u = webView.url else { return }
         if u.scheme == "http" || u.scheme == "https" {
             searchOmnibox?.stringValue = u.absoluteString
-        } else {
-            searchOmnibox?.stringValue = ""
         }
         syncGrayCamoInSearchWebView()
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView === logWebView {
+            isLogConsoleLoaded = true
+            if bossMode {
+                logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.setBossSafeMode(true);", completionHandler: nil)
+            }
+            if !pendingLogConsolePayloads.isEmpty {
+                let queued = pendingLogConsolePayloads
+                pendingLogConsolePayloads.removeAll()
+                for json in queued {
+                    logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(json));", completionHandler: nil)
+                }
+            }
+            return
+        }
+
+        if webView === builtInWebView {
+            if pendingBuiltInSeekTime > 1.0 {
+                let sec = pendingBuiltInSeekTime
+                pendingBuiltInSeekTime = 0
+                builtInWebView?.evaluateJavaScript("window.ChameleonBuiltInBridge?.seekOnce?.(\(sec));", completionHandler: nil)
+            }
+            return
+        }
+
         if webView === searchWebView {
             syncGrayCamoInSearchWebView()
             if let u = webView.url, u.scheme == "http" || u.scheme == "https" {
                 searchOmnibox?.stringValue = u.absoluteString
+                lastSearchUrl = u.absoluteString
+                UserDefaults.standard.set(lastSearchUrl, forKey: "chameleonLastSearchUrl")
+            } else if let data = try? JSONSerialization.data(withJSONObject: recentSearchQueries, options: []),
+                      let json = String(data: data, encoding: .utf8) {
+                searchWebView?.evaluateJavaScript("window.setRecentSearches?.(\(json));", completionHandler: nil)
             }
         }
     }
@@ -2642,6 +2826,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               background: rgba(16,185,129,0.08); border-bottom: 1px solid rgba(52,211,153,0.18);
               display: none; flex-shrink: 0;
             }
+            .recent-bar {
+              padding: 6px 12px; display: none; align-items: center; gap: 6px; flex-wrap: wrap;
+              border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.015);
+              font-size: 10.5px; flex-shrink: 0;
+            }
+            .recent-lbl { color: #64748b; }
+            .recent-chip {
+              appearance: none; border: 1px solid rgba(52,211,153,0.28); background: rgba(16,185,129,0.10);
+              color: #a7f3d0; font: inherit; font-size: 10.5px; padding: 2px 7px; border-radius: 999px; cursor: pointer;
+            }
+            .recent-chip:hover { background: rgba(16,185,129,0.24); color: #fff; }
             .list { flex: 1; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
             .row {
               display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
@@ -2679,17 +2874,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               </div>
             </div>
             <div class="hint-banner" id="hintBanner"></div>
+            <div class="recent-bar" id="recentBar"><span class="recent-lbl">历史搜索:</span></div>
             <div class="list" id="feedList"><div class="empty">[init] loading package index (--hot)...</div></div>
           </div>
           <script>
             const post = (p) => window.webkit?.messageHandlers?.ghostAction?.postMessage(p);
             const feedList = document.getElementById('feedList');
             const hintBanner = document.getElementById('hintBanner');
+            const recentBar = document.getElementById('recentBar');
             let seq = 0, activeReq = '';
 
             window.setStartPageHint = (msg) => {
               hintBanner.textContent = msg;
               hintBanner.style.display = msg ? 'block' : 'none';
+            };
+
+            window.setRecentSearches = (arr) => {
+              const items = Array.isArray(arr) ? arr.filter(Boolean) : [];
+              recentBar.innerHTML = '<span class="recent-lbl">历史搜索:</span>';
+              if (!items.length) {
+                recentBar.style.display = 'none';
+                return;
+              }
+              items.forEach(q => {
+                const c = document.createElement('button');
+                c.className = 'recent-chip';
+                c.textContent = q;
+                c.addEventListener('click', () => post({ action: 'runSavedSearch', query: q }));
+                recentBar.appendChild(c);
+              });
+              recentBar.style.display = 'flex';
             };
 
             function loadFeed(src) {
@@ -3078,6 +3292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
           }
 
           let autoPlayAttempted = false;
+          let pendingSeekSec = 0;
           const isDirectWatchUrl = location.href.includes('/video/') || location.href.includes('youtube.com/watch');
 
           const frameTimer = setInterval(() => {
@@ -3088,6 +3303,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               tainted = false;
               taintNotified = false;
               v.classList.add('chm-prod-vid');
+            }
+            if (v && pendingSeekSec > 1 && v.readyState >= 1) {
+              const s = pendingSeekSec;
+              pendingSeekSec = 0;
+              try { v.currentTime = s; } catch (_) {}
             }
             if (v && isDirectWatchUrl && !autoPlayAttempted && v.paused && v.readyState >= 1 && !bossMode) {
               autoPlayAttempted = true;
@@ -3110,6 +3330,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               clearInterval(metaTimer);
               const v = targetVideo || findBestVideo();
               try { v?.pause(); } catch (_) {}
+            },
+            seekOnce(sec) {
+              const s = Number(sec || 0);
+              if (s <= 1) return;
+              const v = targetVideo || findBestVideo();
+              if (v && v.readyState >= 1) {
+                try { v.currentTime = s; } catch (_) {}
+              } else {
+                pendingSeekSec = s;
+              }
             },
             applyPatch(p) {
               if (p && typeof p.stealthSubtitle === 'boolean') stealthSubOn = p.stealthSubtitle;
@@ -3170,9 +3400,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         cfg.userContentController.add(self, name: "ghostAction")
         let lwv = FirstMouseWebView(frame: lp.contentView!.bounds, configuration: cfg)
         lwv.autoresizingMask = [.width, .height]
+        lwv.navigationDelegate = self
         lwv.setValue(false, forKey: "drawsBackground")
         lp.contentView?.addSubview(lwv)
-        lwv.loadHTMLString(Self.stealthLogConsoleHtml(), baseURL: nil)
+        isLogConsoleLoaded = false
+        lwv.loadHTMLString(Self.stealthLogConsoleHtml(), baseURL: URL(string: "https://console.chameleonpip.local/"))
 
         self.logPanel = lp
         self.logWebView = lwv
@@ -3182,16 +3414,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if visible {
             ensureStealthLogPanel()
             logPanel?.orderFrontRegardless()
-            if !lastLogConsoleJson.isEmpty {
-                let js = "window.StealthConsoleBridge?.pushSubtitle(\(lastLogConsoleJson));"
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-                    self?.logWebView?.evaluateJavaScript(js, completionHandler: nil)
+            if isLogConsoleLoaded {
+                if !lastLogConsoleJson.isEmpty {
+                    logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(lastLogConsoleJson));", completionHandler: nil)
                 }
-            }
-            if bossMode {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-                    self?.logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.setBossSafeMode(true);", completionHandler: nil)
+                if bossMode {
+                    logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.setBossSafeMode(true);", completionHandler: nil)
                 }
+            } else if !lastLogConsoleJson.isEmpty && !pendingLogConsolePayloads.contains(lastLogConsoleJson) {
+                pendingLogConsolePayloads.append(lastLogConsoleJson)
             }
         } else {
             logPanel?.orderOut(nil)
@@ -3203,8 +3434,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if logPanel?.isVisible != true {
             setStealthLogPanelVisible(true)
         }
+        let textVal = ((dict["text"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceTag = (dict["sourceTag"] as? String) ?? "SUB"
+        if sourceTag != "OCR" && !textVal.isEmpty {
+            lastDomCcAt = CFAbsoluteTimeGetCurrent()
+        }
         let payload: [String: Any] = [
-            "text": (dict["text"] as? String) ?? "",
+            "text": textVal,
+            "sourceTag": sourceTag,
             "paused": (dict["paused"] as? Bool) ?? isPlayerPaused,
             "currentTime": (dict["currentTime"] as? Double) ?? playerCurTime,
             "duration": (dict["duration"] as? Double) ?? playerDuration
@@ -3212,7 +3449,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if let rawData = try? JSONSerialization.data(withJSONObject: payload, options: []),
            let json = String(data: rawData, encoding: .utf8) {
             lastLogConsoleJson = json
-            logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(json));", completionHandler: nil)
+            if isLogConsoleLoaded {
+                logWebView?.evaluateJavaScript("window.StealthConsoleBridge?.pushSubtitle(\(json));", completionHandler: nil)
+            } else {
+                pendingLogConsolePayloads.append(json)
+                if pendingLogConsolePayloads.count > 12 {
+                    pendingLogConsolePayloads.removeFirst(pendingLogConsolePayloads.count - 12)
+                }
+            }
         }
     }
 
@@ -3330,9 +3574,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             const ftrState = document.getElementById('ftrState');
             const themes = ['dark', 'light', 'glass'];
             const themeLabels = { dark: '暗色', light: '浅色', glass: '透底' };
-            let curTheme = localStorage.getItem('chmLogTheme') || 'dark';
-            let curTpl = localStorage.getItem('chmLogTpl') || 'api';
-            let fontPx = Number(localStorage.getItem('chmLogFont') || 11.5);
+            function safeGet(k, fb) {
+              try {
+                const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                return v === null ? fb : v;
+              } catch (_) { return fb; }
+            }
+            function safeSet(k, v) {
+              try {
+                if (window.localStorage) window.localStorage.setItem(k, String(v));
+              } catch (_) {}
+            }
+            let curTheme = safeGet('chmLogTheme', 'dark');
+            let curTpl = safeGet('chmLogTpl', 'api');
+            let fontPx = Number(safeGet('chmLogFont', '11.5')) || 11.5;
             let reqSeq = 1040;
             let trainStep = 14820;
             let lastSub = '';
@@ -3388,25 +3643,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               appendRow(pool[reqSeq % pool.length], false);
             }
 
-            function formatSubRow(clean) {
+            function formatSubRow(clean, srcTag) {
               const ts = nowStamp();
               reqSeq += 1;
               trainStep += 1;
               const lat = (4.1 + (reqSeq % 9) * 0.7).toFixed(1);
+              const tagNote = srcTag === 'OCR' ? 'ocr' : 'sub';
               if (curTpl === 'ml') {
                 const loss = (0.0412 - (trainStep % 15) * 0.0004).toFixed(4);
-                return `<span class="ts">[${ts}]</span> <span class="lv-info">TRAIN</span> <span class="mod">[eval.batch]</span> <span class="meta">step=${trainStep} loss=${loss} | sample="</span><span class="msg">${esc(clean)}</span><span class="meta">"</span>`;
+                return `<span class="ts">[${ts}]</span> <span class="lv-info">TRAIN</span> <span class="mod">[eval.${tagNote}]</span> <span class="meta">step=${trainStep} loss=${loss} | sample="</span><span class="msg">${esc(clean)}</span><span class="meta">"</span>`;
               }
               if (curTpl === 'test') {
-                return `<span class="ts">[${ts}]</span> <span class="lv-info">PASS </span> <span class="mod">[spec.suite]</span> <span class="meta">pipeline.spec.ts &gt; #${reqSeq}: </span><span class="msg">${esc(clean)}</span> <span class="meta">(${lat}ms)</span>`;
+                return `<span class="ts">[${ts}]</span> <span class="lv-info">PASS </span> <span class="mod">[spec.${tagNote}]</span> <span class="meta">pipeline.spec.ts &gt; #${reqSeq}: </span><span class="msg">${esc(clean)}</span> <span class="meta">(${lat}ms)</span>`;
               }
-              return `<span class="ts">[${ts}]</span> <span class="lv-info">INFO </span> <span class="mod">[trace.worker]</span> <span class="meta">req=0x${reqSeq.toString(16)} status=200 msg="</span><span class="msg">${esc(clean)}</span><span class="meta">" (${lat}ms)</span>`;
+              return `<span class="ts">[${ts}]</span> <span class="lv-info">INFO </span> <span class="mod">[trace.${tagNote}]</span> <span class="meta">req=0x${reqSeq.toString(16)} status=200 msg="</span><span class="msg">${esc(clean)}</span><span class="meta">" (${lat}ms)</span>`;
             }
 
             function seedInitialLogs() {
               pushAmbient('Initializing worker-runtime v5.4 (node=20.11, workers=8)');
               pushAmbient('Mounted telemetry bus & ring-buffer pipeline');
-              pushAmbient('Connected datastore pool (primary=127.0.0.1, pool_max=32)');
+              pushAmbient('Subtitle engine ready: DOM-CC + Apple Vision Neural OCR (zh/en) active');
               pushAmbient('Loaded scheduler policy [stealth-console=attached]');
               pushAmbient('Health check passed (0 warnings, 0 errors)');
             }
@@ -3417,23 +3673,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             document.querySelectorAll('[data-tpl]').forEach(b => {
               b.addEventListener('click', () => {
                 curTpl = b.dataset.tpl;
-                localStorage.setItem('chmLogTpl', curTpl);
+                safeSet('chmLogTpl', curTpl);
                 applyUiPrefs();
               });
             });
             document.getElementById('btnTheme').addEventListener('click', () => {
               curTheme = themes[(themes.indexOf(curTheme) + 1) % themes.length];
-              localStorage.setItem('chmLogTheme', curTheme);
+              safeSet('chmLogTheme', curTheme);
               applyUiPrefs();
             });
             document.getElementById('btnSm').addEventListener('click', () => {
               fontPx = Math.max(9.5, fontPx - 0.5);
-              localStorage.setItem('chmLogFont', String(fontPx));
+              safeSet('chmLogFont', fontPx);
               applyUiPrefs();
             });
             document.getElementById('btnLg').addEventListener('click', () => {
               fontPx = Math.min(16, fontPx + 0.5);
-              localStorage.setItem('chmLogFont', String(fontPx));
+              safeSet('chmLogFont', fontPx);
               applyUiPrefs();
             });
             document.getElementById('btnClr').addEventListener('click', () => {
@@ -3451,13 +3707,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
               pushSubtitle(payload) {
                 if (!payload) return;
                 const clean = String(payload.text || '').trim();
+                const srcTag = String(payload.sourceTag || 'SUB');
                 const sec = Math.max(0, Math.floor(Number(payload.currentTime || 0)));
                 const mm = String(Math.floor(sec / 60)).padStart(2, '0');
                 const ss = String(sec % 60).padStart(2, '0');
                 ftrState.textContent = (payload.paused ? 'PAUSE ' : 'LIVE ') + mm + ':' + ss;
                 if (clean && clean !== lastSub) {
                   lastSub = clean;
-                  appendRow(formatSubRow(clean), true);
+                  appendRow(formatSubRow(clean, srcTag), true);
                 }
               },
               setBossSafeMode(active) {
@@ -3506,9 +3763,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let query = (dict["query"] as? String) ?? ""
             let reqId = (dict["reqId"] as? String) ?? ""
             fetchStealthFeed(source: source, query: query, reqId: reqId)
+        case "runSavedSearch":
+            if let q = dict["query"] as? String, !q.isEmpty {
+                searchOmnibox?.stringValue = q
+                navigateOmniboxText(q)
+            }
         case "openDirectUrl":
             if let rawUrl = dict["url"] as? String, !rawUrl.isEmpty {
-                searchWindow?.orderOut(nil)
+                searchWebView?.evaluateJavaScript(
+                    "window.__CHAMELEON_SHOW_SRCH_TOAST__?.('已在右下变色小窗开启播放 · 原搜索页已保留（可继续选集）');",
+                    completionHandler: nil
+                )
                 loadBuiltInWebUrl(rawUrl)
             }
         case "exitBuiltInWeb":
@@ -3518,6 +3783,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                let b64 = dict["b64"] as? String,
                let data = Data(base64Encoded: b64) {
                 wsHub.pushLocalBuiltInFrame(data)
+            }
+        case "ocrLocalVideoFrame":
+            if stealthSubtitleEnabled && !bossMode,
+               let b64 = dict["b64"] as? String,
+               let data = Data(base64Encoded: b64) {
+                subtitleOcr.processJpegFrame(data)
             }
         case "builtInVideoMeta":
             if isBuiltInWebActive, let json = dict["json"] as? String {
@@ -3549,10 +3820,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if let st = dict["state"] as? [String: Any] {
                 if let m = st["mode"] as? String { currentMode = m }
                 if let s = st["stealth"] as? Int { currentStealth = s }
+                if let f = st["feather"] as? Int {
+                    currentFeather = f
+                    UserDefaults.standard.set(f, forKey: "chameleonFeather")
+                }
                 if let asVal = st["autoSense"] as? Bool { autoSense = asVal }
                 if let ss = st["stealthSubtitle"] as? Bool, ss != stealthSubtitleEnabled {
                     stealthSubtitleEnabled = ss
                     UserDefaults.standard.set(ss, forKey: "chameleonStealthSubtitle")
+                    wsHub.ocrSamplingEnabled = ss && !bossMode
                     webView.evaluateJavaScript(
                         "window.GeckoNativeBridge?.applyPatch({\"stealthSubtitle\":\(ss ? "true" : "false"),\"mirrorSubtitles\":\(ss ? "true" : "false")});",
                         completionHandler: nil

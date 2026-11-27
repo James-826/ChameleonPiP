@@ -228,9 +228,69 @@
     render();
   }
 
+  let patchWs = null;
+  let patchWsConnecting = false;
+  let patchWsPortIdx = 0;
+  let pendingDesktopPatch = null;
+
+  function pushStatePatchToDesktop(patch) {
+    if (!patch || typeof patch !== "object") return;
+    pendingDesktopPatch = { ...(pendingDesktopPatch || {}), ...patch };
+    if (patchWs && patchWs.readyState === WebSocket.OPEN) {
+      const payload = pendingDesktopPatch;
+      pendingDesktopPatch = null;
+      try {
+        patchWs.send(JSON.stringify({ type: "statePatch", patch: payload }));
+      } catch (_) {}
+      return;
+    }
+    if (patchWsConnecting) return;
+    const tryConnect = () => {
+      if (patchWsPortIdx >= GHOST_WS_PORTS.length) {
+        patchWsPortIdx = 0;
+        patchWsConnecting = false;
+        return;
+      }
+      patchWsConnecting = true;
+      let opened = false;
+      try {
+        const ws = new WebSocket(`ws://127.0.0.1:${GHOST_WS_PORTS[patchWsPortIdx]}`);
+        ws.onopen = () => {
+          opened = true;
+          patchWsConnecting = false;
+          patchWsPortIdx = 0;
+          patchWs = ws;
+          try {
+            ws.send(JSON.stringify({ type: "register", role: "popupController" }));
+            if (pendingDesktopPatch) {
+              const p = pendingDesktopPatch;
+              pendingDesktopPatch = null;
+              ws.send(JSON.stringify({ type: "statePatch", patch: p }));
+            }
+          } catch (_) {}
+        };
+        ws.onclose = () => {
+          if (patchWs === ws) patchWs = null;
+          patchWsConnecting = false;
+          if (!opened) {
+            patchWsPortIdx++;
+            tryConnect();
+          }
+        };
+        ws.onerror = () => {
+          try { ws.close(); } catch (_) {}
+        };
+      } catch (_) {
+        patchWsConnecting = false;
+      }
+    };
+    tryConnect();
+  }
+
   function updateState(patch) {
     state = { ...state, ...patch };
     chrome.storage.local.set({ geckoState: state });
+    pushStatePatchToDesktop(patch);
     render();
   }
 

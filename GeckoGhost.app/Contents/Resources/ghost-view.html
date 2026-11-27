@@ -27,7 +27,7 @@
       }
 
       .pip-root.hovered:not(.boss-active) {
-        box-shadow: inset 0 0 0 1.5px rgba(52, 211, 153, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
       }
 
       .stage {
@@ -199,7 +199,7 @@
         background: rgba(18, 24, 34, 0.76); border: 1px solid rgba(52, 211, 153, 0.32);
         border-radius: 999px; padding: 2px 7px; font-size: 10px; color: #d1fae5;
       }
-      .gecko-pill input[type="range"] { width: 48px; height: 3px; accent-color: #34d399; cursor: pointer; }
+      .gecko-pill input[type="range"] { width: 42px; height: 3px; accent-color: #34d399; cursor: pointer; }
       .gecko-pct { min-width: 24px; text-align: right; font-weight: 600; color: #6ee7b7; font-variant-numeric: tabular-nums; }
 
       /* 8-Way Direct Resize Handles on Borderless Window (with visible 4-corner brackets on hover!) */
@@ -305,6 +305,11 @@
               <input type="range" id="rngStealth" min="10" max="95" value="58" />
               <span class="gecko-pct" id="lblStealth">58%</span>
             </label>
+            <label class="gecko-pill" title="边框柔和消隐：让视频四周边框像雾一样融进背景">
+              <span>柔边</span>
+              <input type="range" id="rngFeather" min="0" max="85" value="28" />
+              <span class="gecko-pct" id="lblFeather">28%</span>
+            </label>
           </div>
         </div>
       </div>
@@ -404,15 +409,17 @@
             uniform vec2 uTexel;
 
             void main() {
-              float fx = 1.0;
-              float fy = 1.0;
-              if (uFeather > 0.01) {
-                float pad = uFeather * 0.05;
-                float span = 0.04 + uFeather * 0.26;
-                fx = smoothstep(pad, pad + span, vUv.x) * smoothstep(pad, pad + span, 1.0 - vUv.x);
-                fy = smoothstep(pad, pad + span, vUv.y) * smoothstep(pad, pad + span * 0.75, 1.0 - vUv.y);
+              float mask = 1.0;
+              if (uFeather > 0.005) {
+                float span = 0.025 + uFeather * 0.42;
+                float fx = smoothstep(0.0, span, vUv.x) * smoothstep(0.0, span, 1.0 - vUv.x);
+                float fy = smoothstep(0.0, span, vUv.y) * smoothstep(0.0, span, 1.0 - vUv.y);
+                vec2 d = (vUv - vec2(0.5)) * 2.0;
+                float r = pow(pow(abs(d.x), 2.4) + pow(abs(d.y), 2.4), 1.0 / 2.4);
+                float innerR = max(0.18, 1.02 - uFeather * 0.82);
+                float oval = 1.0 - smoothstep(innerR, 1.03, r);
+                mask = pow(clamp(fx * fy, 0.0, 1.0), 0.85) * mix(1.0, oval, clamp(uFeather * 1.25, 0.0, 1.0));
               }
-              float mask = fx * fy;
               if (mask <= 0.002) {
                 gl_FragColor = vec4(0.0);
                 return;
@@ -518,7 +525,7 @@
             gl.uniform1i(uMode, m);
             gl.uniform1f(uIntensity, Core.clamp(Number(st.stealth ?? 58) / 100, 0.08, 0.96));
             gl.uniform1f(uPivot, pivot);
-            gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.8));
+            gl.uniform1f(uFeather, Core.clamp(Number(st.feather ?? 28) / 100, 0.0, 0.85));
             gl.uniform2f(uTexel, 1 / Math.max(1, texW), 1 / Math.max(1, texH));
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             gl.flush();
@@ -800,6 +807,11 @@
           if (btnSub) btnSub.classList.toggle("active", Boolean(state.stealthSubtitle));
           document.getElementById("rngStealth").value = state.stealth;
           document.getElementById("lblStealth").textContent = `${state.stealth}%`;
+          const featherVal = Number(state.feather ?? 28);
+          const rngFeather = document.getElementById("rngFeather");
+          const lblFeather = document.getElementById("lblFeather");
+          if (rngFeather) rngFeather.value = String(featherVal);
+          if (lblFeather) lblFeather.textContent = `${featherVal}%`;
           renderPlayerControls(false);
         }
 
@@ -1343,6 +1355,31 @@
         document.getElementById("rngStealth").addEventListener("input", (e) => {
           broadcastStateUpdate({ stealth: Number(e.target.value) });
         });
+        document.getElementById("rngFeather")?.addEventListener("input", (e) => {
+          broadcastStateUpdate({ feather: Number(e.target.value) });
+        });
+
+        let ocrLocalCanvas = null;
+        let ocrLocalCtx = null;
+        setInterval(() => {
+          if (!hasNativeHost || !state.stealthSubtitle || state.bossMode || hasLiveChromeStream) return;
+          if (!localVideo.src || localVideo.paused || localVideo.ended || localVideo.readyState < 2) return;
+          try {
+            if (!ocrLocalCanvas) {
+              ocrLocalCanvas = document.createElement("canvas");
+              ocrLocalCanvas.width = 448;
+              ocrLocalCanvas.height = 252;
+              ocrLocalCtx = ocrLocalCanvas.getContext("2d", { alpha: false });
+            }
+            if (!ocrLocalCtx) return;
+            ocrLocalCtx.drawImage(localVideo, 0, 0, 448, 252);
+            const dataUrl = ocrLocalCanvas.toDataURL("image/jpeg", 0.72);
+            const comma = dataUrl.indexOf(",");
+            if (comma > 0) {
+              postNative({ action: "ocrLocalVideoFrame", b64: dataUrl.slice(comma + 1) });
+            }
+          } catch (_) {}
+        }, 900);
 
         document.getElementById("btnThrough").addEventListener("click", (e) => {
           e.stopPropagation();

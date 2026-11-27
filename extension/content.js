@@ -73,7 +73,7 @@
           handleBossModeTransition(state.bossMode);
         }
         applyStateToParasite();
-        if (directOnlyMode && directStreamActive && directBridgeReady && directBridgeFrame?.contentWindow) {
+        if (directStreamActive && directBridgeReady && directBridgeFrame?.contentWindow) {
           const diff = {};
           for (const k of ["mode", "stealth", "feather", "bossMode", "mirrorSubtitles", "stealthSubtitle", "hoverReveal"]) {
             if (state[k] !== prevState[k]) diff[k] = state[k];
